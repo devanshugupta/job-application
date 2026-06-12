@@ -1,0 +1,63 @@
+{
+  "personal": {
+    "full_name": "Your Name",
+    "email": "you@example.com",
+    "phone": "+1-555-000-0000",
+    "location": "City, State"
+  },
+  "links": {
+    "website": "https://your-site.example.com",
+    "linkedin": "https://www.linkedin.com/in/your-handle",
+    "github": "https://github.com/your-handle"
+  },
+  "headline": "Software Engineer | Brief one-line value proposition",
+  "summary": "2-3 sentence professional summary in your own voice.",
+  "top_skills": ["Python", "TypeScript", "AWS", "Distributed Systems"],
+  "all_skills": {
+    "languages": ["Python", "TypeScript", "Java"],
+    "frameworks": ["React", "FastAPI"],
+    "cloud": ["AWS", "GCP"],
+    "databases": ["PostgreSQL", "DynamoDB"],
+    "tools": ["Docker", "Kubernetes", "Terraform"]
+  },
+  "education": {
+    "school": "Your University",
+    "degree": "B.S. Computer Science",
+    "graduation": "2024",
+    "gpa": "3.8"
+  },
+  "experience": [
+    {
+      "title": "Software Engineer",
+      "company": "Company Inc",
+      "location": "City, State",
+      "start": "2024-06",
+      "end": "present",
+      "bullets": [
+        "Built X that did Y, improving Z by N%.",
+        "Owned the design and rollout of <system>."
+      ]
+    }
+  ],
+  "work_authorization": {
+    "authorized_to_work": true,
+    "requires_sponsorship": false,
+    "visa_status": "Citizen"
+  },
+  "preferences": {
+    "open_to_relocation": true,
+    "location_preference": "Remote",
+    "job_types": ["Full-time"],
+    "desired_salary": "Negotiable",
+    "earliest_start": "Immediate"
+  },
+  "application_defaults": {
+    "years_experience": 2,
+    "education_level": "Bachelor's",
+    "gender": "Prefer not to say",
+    "veteran_status": "Prefer not to say",
+    "disability_status": "Prefer not to say",
+    "race_ethnicity": "Prefer not to say"
+  },
+  "resume_file": "resume/MyResume.pdf"
+}

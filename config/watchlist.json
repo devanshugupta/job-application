@@ -1,0 +1,26 @@
+{
+  "_comment": "Curated companies to check DAILY — chosen for strong H1B/OPT sponsorship history (USCIS public H1B data) and/or high 2026 hiring. 'board' is the real ATS/careers search URL (sorted by recent where supported). Add/remove freely. This is the seeded daily watchlist; the feed (SimplifyJobs) + ad-hoc finds cover the rest.",
+  "_sponsorship_note": "H1B/OPT-friendliness is based on historical USCIS Labor Condition Application volume and public sponsor lists. Always re-confirm sponsorship on the specific posting — it can vary by role/team/year.",
+  "companies": [
+    {"name": "Amazon", "tier": "big-tech", "sponsors_h1b": true, "board": "https://www.amazon.jobs/en/search?base_query=software+development+engineer&sort=recent"},
+    {"name": "Google", "tier": "big-tech", "sponsors_h1b": true, "board": "https://www.google.com/about/careers/applications/jobs/results/?sort_by=date"},
+    {"name": "Microsoft", "tier": "big-tech", "sponsors_h1b": true, "board": "https://jobs.careers.microsoft.com/global/en/search?lc=United%20States&p=Software%20Engineering"},
+    {"name": "Meta", "tier": "big-tech", "sponsors_h1b": true, "board": "https://www.metacareers.com/jobs"},
+    {"name": "Apple", "tier": "big-tech", "sponsors_h1b": true, "board": "https://jobs.apple.com/en-us/search?sort=newest&key=software%20engineer"},
+    {"name": "NVIDIA", "tier": "big-tech", "sponsors_h1b": true, "board": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"},
+    {"name": "Salesforce", "tier": "big-tech", "sponsors_h1b": true, "board": "https://careers.salesforce.com/en/jobs/"},
+    {"name": "Oracle", "tier": "big-tech", "sponsors_h1b": true, "board": "https://careers.oracle.com/jobs/"},
+    {"name": "IBM", "tier": "consulting-tech", "sponsors_h1b": true, "board": "https://www.ibm.com/careers/search"},
+    {"name": "Adobe", "tier": "big-tech", "sponsors_h1b": true, "board": "https://careers.adobe.com/us/en/search-results"},
+    {"name": "Intuit", "tier": "big-tech", "sponsors_h1b": true, "board": "https://www.intuit.com/careers/teams/technology/"},
+    {"name": "Capital One", "tier": "fintech", "sponsors_h1b": true, "board": "https://www.capitalonecareers.com/search-jobs/software%20engineer/"},
+    {"name": "JPMorgan Chase", "tier": "finance", "sponsors_h1b": true, "board": "https://careers.jpmorgan.com/us/en/students/programs"},
+    {"name": "Bloomberg", "tier": "finance-tech", "sponsors_h1b": true, "board": "https://careers.bloomberg.com/job/search?q=software+engineer"},
+    {"name": "TikTok", "tier": "big-tech", "sponsors_h1b": true, "board": "https://lifeattiktok.com/search"},
+    {"name": "Cisco", "tier": "big-tech", "sponsors_h1b": true, "board": "https://jobs.cisco.com/jobs/SearchJobs/software%20engineer"},
+    {"name": "Qualcomm", "tier": "semiconductor", "sponsors_h1b": true, "board": "https://careers.qualcomm.com/careers"},
+    {"name": "Databricks", "tier": "startup-unicorn", "sponsors_h1b": true, "board": "https://www.databricks.com/company/careers/open-positions"},
+    {"name": "Stripe", "tier": "startup-unicorn", "sponsors_h1b": true, "board": "https://stripe.com/jobs/search?teams=Engineering"},
+    {"name": "Snowflake", "tier": "startup-unicorn", "sponsors_h1b": true, "board": "https://careers.snowflake.com/us/en/search-results"}
+  ]
+}

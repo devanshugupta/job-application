@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(python *)",
+      "Bash(open /Volumes/workplace/job-applier-agent/data/sde_test.pdf)",
+      "Bash(python3 -c \"import json,sys; apps=json.load\\(sys.stdin\\); [print\\(a.get\\('id'\\), a.get\\('status'\\), a.get\\('url',''\\)[:60]\\) for a in apps[:10]]\")",
+      "Bash(python3 -c \"import anthropic\")",
+      "Bash(python3 -c \"import playwright\")",
+      "Bash(python3 -c ' *)",
+      "Bash(command -v python3.12 python3.11 python3)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(curl -s https://api.openai.com/v1/models -H 'Authorization: Bearer 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')",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('OK' if 'data' in d else d.get\\('error',{}\\).get\\('message','unknown'\\)\\)\")",
+      "Bash(curl -s https://generativelanguage.googleapis.com/v1beta/openai/chat/completions -H 'Content-Type: application/json' -H 'Authorization: Bearer AIzaSyAMbMWh39a1WGiStkE9hSXcp6MfpTblrkI' -d '{\"model\":\"gemini-2.0-flash\",\"messages\":[{\"role\":\"user\",\"content\":\"say ok\"}],\"max_tokens\":5}')",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('OK:', d['choices'][0]['message']['content']\\) if 'choices' in d else print\\('ERROR:', d.get\\('error',{}\\).get\\('message',''\\)[:120]\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if k not in \\('resume','cover_letter','work_history','education'\\)}, indent=2\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('personal',{}\\), indent=2\\)\\); print\\(json.dumps\\(d.get\\('work_authorization',{}\\), indent=2\\)\\); print\\(json.dumps\\(d.get\\('application_defaults',{}\\), indent=2\\)\\)\")",
+      "Bash(python3 *)",
+      "WebFetch(domain:jobs.zs.com)",
+      "Bash(pdflatex -interaction=nonstopmode tailored_resume.tex)",
+      "Read(//usr/local/**)",
+      "Read(//Users/devu/Library/TinyTeX/**)",
+      "Bash(curl -sL \"https://jobs.zs.com/jobs/23048?lang=en-us\")",
+      "WebSearch",
+      "WebFetch(domain:apply.starbucks.com)",
+      "WebFetch(domain:www.wayup.com)",
+      "WebFetch(domain:www.glassdoor.com)",
+      "WebFetch(domain:yulys.com)",
+      "WebFetch(domain:www.linkedin.com)",
+      "WebFetch(domain:www.ml-jobs.ai)",
+      "WebFetch(domain:starbucks.taleo.net)"
+    ]
+  }
+}
