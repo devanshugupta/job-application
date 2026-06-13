@@ -1,0 +1,38 @@
+{
+  "_comment": "Data-driven answers for application-form questions, matched by label text (regex, case-insensitive). Placeholders in {braces} resolve from profile.json via src/tools/forms.py: {first_name} {last_name} {email} {phone} {city} {state} {linkedin} {github} {website} {school} {degree} {citizenship} {visa_status} {current_employer} {location_preference} {decline}. Entries with \"bool\" answer yes/no from a profile flag: authorized | sponsorship | held_h1b | amazon_employee | open_to_relocation. \"skip\": true means leave the field for the human (judgment calls like compensation). Edit freely — no code changes needed.",
+  "questions": [
+    {"match": ["linkedin"], "text": "{linkedin}"},
+    {"match": ["github"], "text": "{github}"},
+    {"match": ["website", "portfolio", "personal site"], "text": "{website}"},
+    {"match": ["current.*employer", "employer", "current.*work"], "text": "{current_employer}"},
+    {"match": ["university", "school", "college", "education"], "text": "{school}"},
+    {"match": ["how did you", "hear about"], "text": "Job Board", "options": ["Job Board", "job board", "Company website", "Other"]},
+    {"match": ["state", "reside"], "text": "{state}", "options": ["{state}"]},
+
+    {"match": ["authorized.*work", "legally authorized"], "bool": "authorized"},
+    {"match": ["require.*assist", "require.*sponsor", "sponsorship.*future", "work authorization.*future", "need.*sponsor", "need.*immigration"], "bool": "sponsorship"},
+    {"match": ["legally eligible.*begin.*immediately", "begin.*employment.*immediately", "eligible.*begin.*immediately", "eligible to begin employment"], "bool": "authorized", "extra_options": ["yes, i am", "eligible"]},
+    {"match": ["visa.*status", "immigration.*status", "work.*status"], "text": "{visa_status}", "options": ["{visa_status}", "OPT", "F-1"]},
+    {"match": ["h.1b.*status.*preced", "h.1b.*6.*year", "held.*h.1b", "h-1b.*approv"], "bool": "held_h1b"},
+    {"match": ["citizenship.*country", "country.*citizenship", "country.*region.*citizen", "export.*licens.*country", "export.*citizen", "sole purpose.*export"], "text": "{citizenship}", "options": ["{citizenship}"]},
+    {"match": ["permanent.*resident.*another", "permanent.*resident.*other.*country", "permanent.*resident.*different"], "text": "No", "options": ["No", "no"]},
+
+    {"match": ["open.*reloc", "open to relocat"], "bool": "open_to_relocation", "extra_options": ["{city}", "{location_preference}", "Remote", "No preference", "flexible", "open", "anywhere"]},
+
+    {"match": ["current.*amazon.*employee", "amazon.*subsidiary.*current", "amazon.*employee.*current", "current employee.*amazon", "current.*amazon.*or.*any.*amazon"], "bool": "amazon_employee"},
+    {"match": ["previously.*applied.*amazon", "applied.*amazon.*before", "applied.*amazon.*subsidiary"], "bool": "amazon_employee"},
+    {"match": ["previously.*employed.*amazon", "employed.*amazon.*subsidiary", "employed.*amazon.*before"], "bool": "amazon_employee"},
+    {"match": ["currently.*twitch.*employee", "twitch.*current.*employee", "current.*twitch.*employee"], "text": "No", "options": ["No", "no"]},
+    {"match": ["familiar.*twitch", "twitch.*famili", "history.*twitch", "twitch.*history"], "options": ["Yes", "Casual", "Occasionally", "Avid"]},
+    {"match": ["consider.*future.*opportunit", "future.*opportunit"], "options": ["Yes", "yes"]},
+
+    {"match": ["non.compet.*agreement", "agreement.*preclude", "preclude.*restrict.*employment"], "skip": true},
+    {"match": ["expected.*base.*pay", "expected.*compensat", "total.*base.*pay", "salary.*expectation"], "skip": true},
+
+    {"match": ["gender"], "options": ["{decline}", "don't wish"]},
+    {"match": ["hispanic", "latino"], "options": ["{decline}", "don't wish", "prefer not"]},
+    {"match": ["race", "ethnicity"], "options": ["{decline}", "don't wish"]},
+    {"match": ["veteran"], "options": ["not a protected veteran", "{decline}", "don't wish"]},
+    {"match": ["disability"], "options": ["No, I don't have", "{decline}", "don't wish"]}
+  ]
+}

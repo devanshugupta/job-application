@@ -13,18 +13,15 @@
 from __future__ import annotations
 
 import json
-import pathlib
 from datetime import date
 
-USAGE_LOG = pathlib.Path("data/usage_log.jsonl")
+from .. import config
 
-# Approx USD per 1M tokens (input, output). Update as pricing changes.
-_PRICING = {
-    "claude-opus-4-8": (5.0, 25.0),
-    "claude-sonnet-4-6": (3.0, 15.0),
-    "claude-haiku-4-5": (1.0, 5.0),
-}
-_DEFAULT_RATE = (5.0, 25.0)
+USAGE_LOG = config.USAGE_LOG_PATH
+
+# Pricing lives in config.py so there is exactly one table to update.
+_PRICING = config.PRICING
+_DEFAULT_RATE = config.DEFAULT_RATE
 
 
 class BudgetExceeded(RuntimeError):

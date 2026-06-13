@@ -25,12 +25,10 @@ import re
 import urllib.request
 from datetime import datetime, timezone
 
-FEEDS = {
-    "simplify-newgrad": (
-        "https://raw.githubusercontent.com/SimplifyJobs/"
-        "New-Grad-Positions/dev/.github/scripts/listings.json"
-    ),
-}
+from .. import config
+
+# name -> raw listings.json URL. Extend via config/settings.json {"feeds": {...}}.
+FEEDS = config.feeds()
 
 # Feed category (as published) -> our master-resume profile. Anything not here is
 # DROPPED (Hardware, Hardware Engineering, Quant, Product, Product Management, ...).
@@ -96,10 +94,13 @@ _TITLE_OK = re.compile(
     r"data scien|data engineer|backend|front.?end|full.?stack|platform|infrastructure",
     re.I,
 )
-# ...and must NOT be an obvious non-engineering title that slipped into the bucket.
+# ...and must NOT be an obvious non-software title that slipped into the bucket
+# (incl. physical-engineering disciplines, which contain the word "engineer").
 _TITLE_NO = re.compile(
     r"technician|operator|labeler|\banalyst\b|manager|instructional|postdoc|"
-    r"\bsales\b|recruit|statistician|consultant|specialist|expert\b",
+    r"\bsales\b|recruit|statistician|consultant|specialist|expert\b|"
+    r"mechanical|electrical\b|civil\b|aerospace|structural|thermal|optical|"
+    r"soft goods|supply chain|facilities|hvac|process engineer",
     re.I,
 )
 
@@ -129,8 +130,7 @@ def _profile_for(entry: dict) -> str | None:
 def _load_exclude_companies() -> list[str]:
     """Read exclude_companies from profile.json (lowercase). Returns [] on error."""
     try:
-        import json as _json, pathlib as _p
-        data = _json.loads(_p.Path("config/profile.json").read_text())
+        data = json.loads(config.PROFILE_PATH.read_text())
         return [c.lower() for c in data.get("preferences", {}).get("exclude_companies", [])]
     except Exception:
         return []

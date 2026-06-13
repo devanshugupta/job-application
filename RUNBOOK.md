@@ -1,8 +1,8 @@
 # Runbook — daily job-application flow
 
-Practical, copy-paste steps for using the agent day to day. Assumes setup is done
-(`./setup.sh`, `ANTHROPIC_API_KEY` in `.env`, profiles filled in). Activate the venv
-first in every new terminal:
+Copy-paste steps for using the system day to day. Assumes setup is done
+(`./setup.sh`, profiles filled in, real `.tex` resume in `resume/masters/`).
+Activate the venv first in every new terminal:
 
 ```bash
 cd job-applier-agent && source .venv/bin/activate
@@ -10,141 +10,83 @@ cd job-applier-agent && source .venv/bin/activate
 
 ---
 
-## The funnel (how the pieces fit)
+## The funnel
 
 ```
-  feed / find  ──►  score  ──►  apply
-  (discover,        (LLM        (tailor + fill form +
-   cheap, many)      review,     human-confirmed submit,
-                     one role)   one role)
-        │              │              │
-        └──────────────┴──────────────┴──►  status / dashboard  (see everything)
+ discover ───────► pipeline ───────────► review dashboard ───► apply / fill
+ (top 50-100        (tailor + score        (AQS grades:          (one role each;
+  fresh roles,       top N; 2 LLM calls     A = apply now)        human-confirmed
+  past 24h,          per role — or none                           submit)
+  no key)            with --brain manual)
 ```
 
-- **discover cheap, commit expensive.** `feed`/`find` surface many roles with a cheap
-  ATS keyword match. You pick the good ones. `score` runs the senior-reviewer LLM (one
-  call/role). `apply` tailors + fills + submits (the only step that makes a PDF and
-  touches a real form).
-
----
-
-## 0. One command (the easy path)
+## Daily (with an API key) — one command
 
 ```bash
-# feed -> score + tailor the top N -> dashboard. STOPS before submit.
-python -m src.cli run --days 7 --profile ml_ai --top 5
-# then review the dashboard and submit a chosen role:
-python -m src.cli apply "<url>"
-python -m src.cli usage          # see token + $ cost per run and totals
+python -m src.cli pipeline --hours 24 --top 10
+open data/dashboard.html
 ```
 
-Or run the steps separately (more control):
+That discovers the freshest roles (GitHub feeds + 25+ company ATS APIs), picks the
+top 10, tailors your closest-matching master resume for each (Summary + Technical
+Skills + top-2 bullets only), scores each with the senior-reviewer rubric, and
+rebuilds the dashboard. Nothing is submitted.
 
-## 1. Daily discovery (no API key needed for `feed`)
+Want more volume or a wider window?
 
 ```bash
-# Curated, dated, reliable source (SimplifyJobs new-grad feed). Recency-ranked, filtered
-# to SDE/ML/Data, junk (hardware/quant/product/technician) dropped automatically.
-python -m src.cli feed --days 7 --limit 20
-python -m src.cli feed --days 7 --profile ml_ai     # one profile only
-python -m src.cli feed --refresh                     # bypass today's cache
+python -m src.cli discover --hours 24 --target 100     # just the shortlist, no LLM
+python -m src.cli pipeline --top 25                    # tailor more of them
+python -m src.cli pipeline --from-tracker --top 15     # tailor roles discover already found
 ```
 
-`find` is the agent-driven crawler (needs the API key) for a specific search across
-company boards — use it when you want roles beyond the curated feed:
+## Daily (NO API key) — manual brain
 
 ```bash
-python -m src.cli find "machine learning engineer" --days 7 --profile ml_ai
+python -m src.cli pipeline --hours 24 --top 10 --brain manual
+# -> writes data/brain/<id>.prompt.md packets and pauses those jobs
+python -m src.cli brain                                # list what's awaiting answers
+# Answer each packet with ANY LLM (paste it into a chat, or let Claude Code do it):
+#   write ONLY the JSON object to data/brain/<id>.response.json
+python -m src.cli pipeline --hours 24 --top 10 --brain manual   # re-run -> completes
 ```
 
-Check the curated H1B/OPT sponsor watchlist (companies to watch + their boards):
+If Claude Code is driving: "read each pending packet in data/brain/, produce the JSON
+per its schema, write the .response.json files, then re-run the pipeline command."
+
+## Submitting
 
 ```bash
-python -m src.cli watchlist
+python -m src.cli apply "<url>"      # any portal: agent fills, asks YOU before submit
+python -m src.cli fill  "<url>"      # Greenhouse only: deterministic fill, no key;
+                                     # you review every field and click submit yourself
 ```
 
-## 2. See what was found
+Workday/SSO portals: log in once in the persistent profile
+(`JOB_AGENT_USER_DATA_DIR=~/.job-applier-profile`), then `apply`.
+
+## Reading the dashboard
+
+- **AQS (0-100 + grade)** is the headline: 0.40·reviewer + 0.35·must-have% +
+  0.10·keywords + 0.15·recency. Hover a badge for the component breakdown.
+  **A (80+) = apply now. B (65+) = strong.** Below 50, skip or fix gaps.
+- Reviewer /10 = senior-hiring-manager read of the tailored resume.
+- Must-have % = share of THIS JD's role-defining requirements your resume shows.
+- "What changed" expands to the exact summary/skills/bullets that were swapped in.
+- Tailored artifacts: `data/applications/<company-role-id>/` (tex, pdf, changes.json).
+
+## Watching costs
 
 ```bash
-python -m src.cli status              # compact table
-python -m src.cli status --verbose    # + posted date, profile, source
-python -m src.cli dashboard           # regenerate data/dashboard.html, prints path
-open data/dashboard.html              # macOS; or open the file in a browser
+python -m src.cli usage          # tokens + $ per run, totals
 ```
 
-Columns: **ATS /100** = keyword overlap (from find/feed). **Score /10** = senior-reviewer
-quality (from score/apply). They're different metrics — don't compare across columns.
-"What changed" + "PDF" populate only after `score`/`apply`.
+The pipeline is ~2 structured calls/job (vs ~40-turn agent loops before).
+`JOB_AGENT_TOKEN_BUDGET=200000` caps any single agent run.
 
-## 3. Score the promising ones (needs API key)
+## Maintenance
 
-```bash
-python -m src.cli score "<real company posting URL>" --profile sde
-```
-
-Runs ATS + the strict senior-reviewer (`score_resume`), prints a /10 verdict + gaps,
-saves to the dashboard. No applying.
-
-## 4. Apply (needs API key; human-confirmed)
-
-```bash
-python -m src.cli apply "<real company posting URL>" --profile sde
-```
-
-The agent: reads profile + master → classifies the portal → tailors the resume (summary,
-skills, top-2 bullets) → lints → scores → renders the PDF → fills the form → **asks you
-to confirm before submitting**. Tailored files land in
-`data/applications/<company-role-jobid>/` (md, pdf, changes.json).
-
-> **Portals:** Greenhouse/Lever/Ashby = simple form. Workday = needs you logged into the
-> persistent browser profile (`JOB_AGENT_USER_DATA_DIR`); the agent backs off if not.
-> CAPTCHA/SSO = the agent stops and hands to you. It never enters credentials.
-
-## 5. QA / debugging (optional)
-
-```bash
-JOB_AGENT_QA=1 python -m src.cli apply "<url>"   # enable per-step self-checks
-python -m src.cli report                          # view the QA run-log (issues per step)
-```
-
----
-
-## Cost & safety knobs (env vars)
-
-| Var | Default | Purpose |
-|---|---|---|
-| `JOB_AGENT_MODEL` | `claude-opus-4-8` | model for apply/tailor |
-| `JOB_AGENT_FAST_MODEL` | `claude-sonnet-4-6` | model for find/score |
-| `JOB_AGENT_SCORER_MODEL` | `claude-opus-4-8` | model for the reviewer |
-| `JOB_AGENT_PROVIDER` | `anthropic` | global LLM provider (`anthropic`\|`openai`) |
-| `JOB_AGENT_TAILOR_PROVIDER` | (global) | provider for resume tailoring (e.g. `anthropic`) |
-| `JOB_AGENT_SCORE_PROVIDER` | (global) | provider for the scorer (e.g. `openai`) |
-| `JOB_AGENT_FIND_PROVIDER` | (global) | provider for the finder |
-| `JOB_AGENT_OPENAI_MODEL` / `JOB_AGENT_ANTHROPIC_MODEL` | gpt-4o / opus-4-8 | per-provider model |
-| `JOB_AGENT_TOKEN_BUDGET` | `0` (off) | per-run token ceiling — stops ONE application from overusing (set e.g. `40000`) |
-| `JOB_AGENT_MIN_DELAY` / `MAX_DELAY` | `0.6` / `1.8` | human-like pacing between browser actions |
-| `JOB_AGENT_MAX_ACTIONS` | `120` | per-session browser action cap |
-| `JOB_AGENT_USER_DATA_DIR` | unset | persistent Chrome profile (stay logged in) |
-| `JOB_AGENT_QA` | unset | `1` enables the per-step self-check agent |
-
----
-
-## Troubleshooting
-
-| Symptom | Cause / fix |
-|---|---|
-| `401 invalid x-api-key` | `.env` still has the placeholder — put a real key in `ANTHROPIC_API_KEY` (or set a provider to `openai` with `OPENAI_API_KEY`). |
-| Want Claude resume + OpenAI scoring | set `JOB_AGENT_TAILOR_PROVIDER=anthropic`, `JOB_AGENT_SCORE_PROVIDER=openai` (need both keys). |
-| Dashboard shows 0 / stale | hard-refresh the browser tab; `data/applications.json` may have been cleared. |
-| All roles `posted_date: unverified` | the board hides the date (e.g. Greenhouse) — prefer the `feed` source which has reliable dates. |
-| PDF looks plain, not LaTeX | pdflatex not installed or no `resume/masters/main.tex` — Markdown fallback is in use. Install BasicTeX (`brew install --cask basictex`) + put your resume at `resume/masters/main.tex`. |
-| Hardware/technician roles appear | shouldn't — `feeds.py` drops them by category+title. If from `find`, the agent should filter by title. |
-| Browser hits a login wall | log into the site once in the `JOB_AGENT_USER_DATA_DIR` profile, then re-run. |
-
----
-
-## Tests
-
-```bash
-python -m pytest tests/ -q     # 24 unit tests, no API/browser needed
-```
+- `config/watchlist.json` — add companies; with `"ats"+"token"` they're swept by API.
+- `config/question_bank.json` — teach the form-filler new questions (regex -> answer).
+- `resume/masters/*.tex` — your real resumes; the pipeline reads/edits these directly.
+- `python -m pytest tests/ -q` after changes.

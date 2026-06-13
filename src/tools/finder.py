@@ -18,11 +18,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import pathlib
 import re
 from datetime import datetime, timedelta
 
-CACHE_PATH = pathlib.Path("data/job_cache.json")
+from .. import config
+
+CACHE_PATH = config.JOB_CACHE_PATH
 MAX_DAYS = 7  # hard ceiling on freshness window
 
 

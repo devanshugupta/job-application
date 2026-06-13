@@ -62,19 +62,22 @@ def test_resume_patch_and_lint(tmp_data, monkeypatch):
 
 
 def test_dashboard_pdf_only_when_tailored(tmp_data):
-    # tailored row (has resume_diff) -> PDF link; found row (no diff) -> no link
+    # tailored row (has resume_diff) -> pdf link; found row (no diff) -> no link
     tracker.save_application(company="A", role="SDE", url="u1", status="scored",
                              resume_diff={"summary": "s"}, tailored_pdf="p.pdf")
     tracker.save_application(company="B", role="SDE", url="u2", status="found",
                              tailored_pdf="q.pdf")  # path but no diff
     dashboard.render(tmp_data / "dash.html")
     html = (tmp_data / "dash.html").read_text()
-    assert html.count(">PDF</a>") == 1
+    assert html.count(">pdf</a>") == 1
 
 
-def test_dashboard_renders_two_score_columns(tmp_data):
-    tracker.save_application(company="A", role="SDE", url="u", status="found",
-                             match_score=40)
+def test_dashboard_renders_score_columns(tmp_data):
+    tracker.save_application(company="A", role="SDE", url="u", status="scored",
+                             match_score=40, resume_score=8, match_pct=70,
+                             posted_date="2026-06-10")
     dashboard.render(tmp_data / "dash.html")
     html = (tmp_data / "dash.html").read_text()
-    assert "ATS /100" in html and "Score /10" in html
+    # composite AQS column + component columns all present
+    assert "AQS" in html and "Reviewer /10" in html and "Must-have %" in html
+    assert "class='aqs'" in html  # the scored row got a composite badge

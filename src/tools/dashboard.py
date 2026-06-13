@@ -1,113 +1,170 @@
-"""BI dashboard — a single static HTML file summarizing every application.
+"""Scores dashboard — one static HTML file that answers "how good are my applications?"
 
-Reads ``data/applications.json`` and writes a self-contained ``data/dashboard.html``
-(inline CSS + a little vanilla JS for client-side sort/filter). No server, no external
-deps, zero attack surface — open it with ``open data/dashboard.html``.
+Built around the **Application Quality Score** (AQS, 0-100 — see scoring.py): every
+row gets one headline number with a grade and a hover breakdown of its components
+(reviewer /10, JD must-have %, ATS keywords, recency). Around the table:
 
-For transparency it surfaces, per application: date, company, role, source/URL, the
-match score (color-coded), the senior-reviewer verdict, WHAT CHANGED in the resume
-(summary / skills / top-bullets from the tailoring patch), posted date, and a link to
-the tailored PDF.
+  - KPI cards: tracked, found today, tailored, applied, average AQS, A-grades
+  - pipeline funnel: found -> scored -> ready -> applied
+  - AQS distribution histogram
+  - filter chips (status), profile filter, text search, sortable columns
+  - per-row "what changed" expander + links to the posting and the tailored PDF
+
+Self-contained (inline CSS/JS, no CDN, no server): `open data/dashboard.html`.
 """
 
 from __future__ import annotations
 
 import html
-import json
 import pathlib
+from datetime import date
 
-from . import tracker
+from .. import config
+from . import scoring, tracker
 
-OUT_PATH = pathlib.Path("data/dashboard.html")
+OUT_PATH = config.DASHBOARD_PATH
+
+_SUBMITTED = {"submitted", "applied", "ready_to_submit", "skipped_submit"}
 
 
-def _score_color(score) -> str:
+def _grade_color(score) -> str:
     if not isinstance(score, (int, float)):
-        return "#9ca3af"  # gray / unknown
-    # Scale-aware: scorer overall_score is /10, ATS match_score is /100. Normalize.
-    frac = score / 10 if score <= 10 else score / 100
-    if frac >= 0.75:
-        return "#16a34a"  # green
-    if frac >= 0.6:
-        return "#65a30d"  # lime
-    if frac >= 0.45:
-        return "#d97706"  # amber
-    return "#dc2626"  # red
+        return "var(--mut)"
+    if score >= 80:
+        return "var(--ok)"
+    if score >= 65:
+        return "var(--good)"
+    if score >= 50:
+        return "var(--warn)"
+    return "var(--bad)"
+
+
+def _breakdown_title(comp: dict) -> str:
+    names = {"reviewer": "Reviewer", "must_have": "Must-haves",
+             "keywords": "Keywords", "recency": "Recency"}
+    parts = [f"{names[k]} {v}" for k, v in comp.get("breakdown", {}).items()]
+    return f"{comp.get('meaning', '')} · " + " · ".join(parts) if parts else ""
 
 
 def _diff_html(diff) -> str:
     if not diff:
-        return "<span class='muted'>—</span>"
-    if isinstance(diff, str):  # tolerate a free-text diff summary
+        return ""
+    if isinstance(diff, str):
         return html.escape(diff)
     parts = []
     if diff.get("summary"):
-        parts.append(f"<b>Summary:</b> {html.escape(str(diff['summary']))}")
+        parts.append(f"<b>Summary</b> {html.escape(str(diff['summary']))}")
     if diff.get("technical_skills"):
-        parts.append(f"<b>Skills:</b> {html.escape(str(diff['technical_skills']))}")
+        parts.append(f"<b>Skills</b> {html.escape(str(diff['technical_skills']))}")
     for i, b in enumerate(diff.get("top_bullets", []) or [], 1):
-        parts.append(f"<b>Bullet {i}:</b> {html.escape(str(b))}")
-    return "<br>".join(parts) if parts else "<span class='muted'>—</span>"
+        parts.append(f"<b>Bullet {i}</b> {html.escape(str(b))}")
+    return "<br>".join(parts)
 
 
 def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     apps = tracker.list_applications()
+    today = date.today().isoformat()
+
     rows = []
-    for a in apps:
-        # Two DISTINCT metrics, never mixed in one column:
-        #  - ATS match: keyword overlap, 0-100 (from `find`)
-        #  - Resume score: senior-reviewer quality, 0-10 (from `score`/`apply`)
-        ats = a.get("match_score") if a.get("match_score") is not None else a.get("ats_score")
-        rscore = a.get("resume_score")
-        ats_cell = (
-            f"<span class='score' style='background:{_score_color(ats)}'>{ats}</span>"
-            if ats is not None else "<span class='muted'>—</span>"
-        )
-        rscore_cell = (
-            f"<span class='score' style='background:{_score_color(rscore)}'>{rscore}</span>"
-            if rscore is not None else "<span class='muted'>—</span>"
+    aqs_values = []
+    statuses: dict[str, int] = {}
+    profiles_seen: set[str] = set()
+    for a in reversed(apps):  # newest first
+        comp = scoring.score_record(a, today)
+        aqs = comp["score"]
+        if aqs is not None and a.get("status") != "found":
+            aqs_values.append(aqs)
+        statuses[a.get("status") or "?"] = statuses.get(a.get("status") or "?", 0) + 1
+        prof = a.get("profile") or ""
+        if prof:
+            profiles_seen.add(prof)
+
+        aqs_cell = (
+            f"<span class='aqs' style='background:{_grade_color(aqs)}' "
+            f"title='{html.escape(_breakdown_title(comp))}'>{aqs} {comp['grade']}</span>"
+            if aqs is not None else "<span class='mut'>—</span>"
         )
         url = a.get("url") or ""
-        url_cell = (
-            f"<a href='{html.escape(url)}' target='_blank'>link</a>" if url else "—"
-        )
-        # Show a PDF link ONLY when real tailoring happened (a resume_diff exists). A PDF
-        # rendered from the master verbatim (no diff) is not a tailored application, so we
-        # don't advertise it — avoids implying tailoring that didn't occur.
-        pdf = a.get("tailored_pdf")
-        pdf_cell = (
-            f"<a href='{html.escape(pdf)}' target='_blank'>PDF</a>"
-            if pdf and a.get("resume_diff") else "—"
-        )
+        pdf = a.get("tailored_pdf") or ""
+        diff = _diff_html(a.get("resume_diff") or {})
+        diff_cell = (f"<details><summary>diff</summary><div class='diff'>{diff}</div>"
+                     f"</details>") if diff else "<span class='mut'>—</span>"
+        links = []
+        if url:
+            links.append(f"<a href='{html.escape(url)}' target='_blank'>job</a>")
+        if pdf and a.get("resume_diff"):
+            links.append(f"<a href='{html.escape(pdf)}' target='_blank'>pdf</a>")
+
+        def cell(v, dash="—"):
+            return html.escape(str(v)) if v not in (None, "") else f"<span class='mut'>{dash}</span>"
+
         rows.append(
-            "<tr>"
-            f"<td>{html.escape(str(a.get('date') or ''))}</td>"
-            f"<td>{html.escape(str(a.get('company') or ''))}</td>"
-            f"<td>{html.escape(str(a.get('role') or ''))}</td>"
-            f"<td>{html.escape(str(a.get('profile') or '—'))}</td>"
-            f"<td>{html.escape(str(a.get('status') or ''))}</td>"
-            f"<td>{ats_cell}</td>"
-            f"<td>{rscore_cell}</td>"
-            f"<td>{html.escape(str(a.get('scorer_verdict') or '—'))}</td>"
-            f"<td>{html.escape(str(a.get('posted_date') or '—'))}</td>"
-            f"<td class='diff'>{_diff_html(a.get('resume_diff') or {})}</td>"
-            f"<td>{url_cell}</td>"
-            f"<td>{pdf_cell}</td>"
+            f"<tr data-status='{html.escape(str(a.get('status') or ''))}' "
+            f"data-profile='{html.escape(prof)}'>"
+            f"<td>{cell(a.get('date'))}</td>"
+            f"<td class='co'>{cell(a.get('company'))}</td>"
+            f"<td>{cell(a.get('role'))}</td>"
+            f"<td>{cell(prof)}</td>"
+            f"<td><span class='tag tag-{html.escape(str(a.get('status') or ''))}'>"
+            f"{cell(a.get('status'))}</span></td>"
+            f"<td data-v='{aqs if aqs is not None else -1}'>{aqs_cell}</td>"
+            f"<td data-v='{a.get('resume_score') if a.get('resume_score') is not None else -1}'>"
+            f"{cell(a.get('resume_score'))}</td>"
+            f"<td data-v='{a.get('match_pct') if a.get('match_pct') is not None else -1}'>"
+            f"{cell(a.get('match_pct'))}</td>"
+            f"<td data-v='{a.get('match_score') if a.get('match_score') is not None else -1}'>"
+            f"{cell(a.get('match_score'))}</td>"
+            f"<td>{cell(a.get('scorer_verdict'))}</td>"
+            f"<td>{cell(a.get('posted_date'))}</td>"
+            f"<td>{diff_cell}</td>"
+            f"<td>{' · '.join(links) or '—'}</td>"
             "</tr>"
         )
 
     total = len(apps)
-    _submitted_statuses = {"submitted", "applied", "ready_to_submit", "skipped_submit"}
-    submitted = sum(1 for a in apps if a.get("status") in _submitted_statuses)
-    avg = [a.get("match_score") for a in apps if isinstance(a.get("match_score"), (int, float))]
-    avg_score = round(sum(avg) / len(avg)) if avg else "—"
+    found_today = sum(1 for a in apps if a.get("status") == "found"
+                      and a.get("date") == today)
+    tailored = sum(1 for a in apps if a.get("resume_diff"))
+    applied = sum(1 for a in apps if a.get("status") in _SUBMITTED)
+    scored = sum(1 for a in apps if a.get("resume_score") is not None)
+    avg_aqs = round(sum(aqs_values) / len(aqs_values)) if aqs_values else "—"
+    a_grades = sum(1 for v in aqs_values if v >= 80)
+
+    # funnel widths (relative to the largest stage)
+    funnel = [("found", statuses.get("found", 0)), ("scored", scored),
+              ("tailored", tailored), ("applied", applied)]
+    fmax = max((n for _, n in funnel), default=0) or 1
+    funnel_html = "".join(
+        f"<div class='frow'><span class='flab'>{name}</span>"
+        f"<div class='fbar' style='width:{max(2, round(100 * n / fmax))}%'></div>"
+        f"<span class='fnum'>{n}</span></div>"
+        for name, n in funnel)
+
+    # AQS histogram, 10 buckets
+    buckets = [0] * 10
+    for v in aqs_values:
+        buckets[min(9, v // 10)] += 1
+    bmax = max(buckets) or 1
+    hist_html = "".join(
+        f"<div class='hcol' title='{i * 10}-{i * 10 + 9}: {n}'>"
+        f"<div class='hbar' style='height:{round(100 * n / bmax)}%'></div>"
+        f"<span>{i * 10}</span></div>"
+        for i, n in enumerate(buckets))
+
+    status_chips = "".join(
+        f"<button class='chip' data-status='{html.escape(s)}' onclick='chip(this)'>"
+        f"{html.escape(s)} ({n})</button>"
+        for s, n in sorted(statuses.items(), key=lambda kv: -kv[1]))
+    profile_opts = "".join(f"<option>{html.escape(p)}</option>"
+                           for p in sorted(profiles_seen))
 
     page = _TEMPLATE.format(
-        total=total,
-        submitted=submitted,
-        avg_score=avg_score,
-        rows="\n".join(rows) or "<tr><td colspan='11' class='muted'>No applications yet.</td></tr>",
-        data_json=html.escape(json.dumps(apps)),
+        generated=today, total=total, found_today=found_today, tailored=tailored,
+        applied=applied, avg_aqs=avg_aqs, a_grades=a_grades,
+        funnel=funnel_html, hist=hist_html, chips=status_chips,
+        profile_opts=profile_opts,
+        rows="\n".join(rows) or "<tr><td colspan='13' class='mut'>No applications yet — "
+                                "run <code>python -m src.cli pipeline</code>.</td></tr>",
     )
     dest = pathlib.Path(out_path)
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -116,61 +173,130 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
 
 
 _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
-<title>Job Applier — Dashboard</title>
+<title>Job Pipeline — Scores Dashboard</title>
 <style>
-  body {{ font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; color: #111; }}
-  h1 {{ font-size: 20px; }}
-  .cards {{ display: flex; gap: 16px; margin: 12px 0 20px; }}
-  .card {{ background: #f3f4f6; border-radius: 8px; padding: 12px 18px; }}
-  .card b {{ font-size: 22px; display: block; }}
-  input {{ padding: 6px 10px; width: 280px; margin-bottom: 12px; }}
-  table {{ border-collapse: collapse; width: 100%; font-size: 13px; }}
-  th, td {{ border-bottom: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; vertical-align: top; }}
-  th {{ cursor: pointer; background: #fafafa; position: sticky; top: 0; }}
-  .score {{ color: #fff; padding: 2px 8px; border-radius: 10px; font-weight: 600; }}
-  .diff {{ max-width: 380px; font-size: 12px; }}
-  .muted {{ color: #9ca3af; }}
+  :root {{ --bg:#0f1117; --panel:#171a23; --line:#262b38; --txt:#e6e8ee; --mut:#7c8497;
+          --ok:#22c55e; --good:#84cc16; --warn:#f59e0b; --bad:#ef4444; --acc:#6366f1; }}
+  * {{ box-sizing:border-box; }}
+  body {{ font:14px/1.45 -apple-system,'Segoe UI',Roboto,sans-serif; margin:0;
+         background:var(--bg); color:var(--txt); padding:28px; }}
+  h1 {{ font-size:19px; margin:0 0 2px; }} .sub {{ color:var(--mut); font-size:12px; }}
+  .grid {{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin:18px 0; }}
+  .card {{ background:var(--panel); border:1px solid var(--line); border-radius:10px;
+          padding:12px 16px; }}
+  .card b {{ display:block; font-size:24px; margin-bottom:2px; }}
+  .card span {{ color:var(--mut); font-size:11.5px; text-transform:uppercase;
+               letter-spacing:.5px; }}
+  .panels {{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px; }}
+  .panel {{ background:var(--panel); border:1px solid var(--line); border-radius:10px;
+           padding:14px 16px; }}
+  .panel h3 {{ margin:0 0 10px; font-size:12px; color:var(--mut);
+              text-transform:uppercase; letter-spacing:.5px; }}
+  .frow {{ display:flex; align-items:center; gap:10px; margin:7px 0; }}
+  .flab {{ width:64px; color:var(--mut); font-size:12px; }}
+  .fbar {{ height:14px; background:linear-gradient(90deg,var(--acc),#8b5cf6);
+          border-radius:4px; }}
+  .fnum {{ font-size:12px; }}
+  .hist {{ display:flex; align-items:flex-end; gap:6px; height:90px; }}
+  .hcol {{ flex:1; display:flex; flex-direction:column; justify-content:flex-end;
+          align-items:center; height:100%; font-size:9px; color:var(--mut); }}
+  .hbar {{ width:100%; background:var(--acc); border-radius:3px 3px 0 0; min-height:1px; }}
+  .bar {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }}
+  input,select {{ background:var(--panel); color:var(--txt); border:1px solid var(--line);
+          border-radius:8px; padding:7px 10px; font-size:13px; }}
+  input {{ width:260px; }}
+  .chip {{ background:var(--panel); color:var(--mut); border:1px solid var(--line);
+          border-radius:999px; padding:4px 12px; font-size:12px; cursor:pointer; }}
+  .chip.on {{ color:#fff; border-color:var(--acc); background:#23264a; }}
+  table {{ border-collapse:collapse; width:100%; font-size:13px; background:var(--panel);
+          border:1px solid var(--line); border-radius:10px; overflow:hidden; }}
+  th,td {{ border-bottom:1px solid var(--line); padding:8px 10px; text-align:left;
+          vertical-align:top; }}
+  th {{ cursor:pointer; background:#1c2030; font-size:11px; text-transform:uppercase;
+       letter-spacing:.4px; color:var(--mut); position:sticky; top:0; user-select:none; }}
+  tr:hover td {{ background:#1b1f2c; }}
+  .co {{ font-weight:600; }}
+  .aqs {{ color:#fff; padding:2px 9px; border-radius:10px; font-weight:700;
+         font-size:12px; white-space:nowrap; cursor:help; }}
+  .tag {{ padding:1px 8px; border-radius:8px; font-size:11.5px; border:1px solid var(--line);
+         color:var(--mut); }}
+  .tag-applied,.tag-submitted,.tag-ready_to_submit {{ color:var(--ok); border-color:var(--ok); }}
+  .tag-scored {{ color:var(--warn); border-color:var(--warn); }}
+  .mut {{ color:var(--mut); }}
+  details summary {{ cursor:pointer; color:var(--acc); font-size:12px; }}
+  .diff {{ max-width:420px; font-size:12px; color:var(--mut); padding-top:6px; }}
+  .diff b {{ color:var(--txt); }}
+  a {{ color:var(--acc); text-decoration:none; }} a:hover {{ text-decoration:underline; }}
+  .legend {{ color:var(--mut); font-size:11.5px; margin:10px 0 24px; }}
 </style></head><body>
-<h1>Job Applier — Dashboard</h1>
-<div class="cards">
-  <div class="card"><b>{total}</b>applications</div>
-  <div class="card"><b>{submitted}</b>filled / submitted</div>
-  <div class="card"><b>{avg_score}</b>avg match score</div>
+<h1>Job Pipeline — Scores Dashboard</h1>
+<div class="sub">generated {generated} · AQS = 0.40·reviewer + 0.35·must-haves + 0.10·keywords + 0.15·recency (renormalized when a part is missing) · hover a score for its breakdown</div>
+
+<div class="grid">
+  <div class="card"><b>{total}</b><span>tracked</span></div>
+  <div class="card"><b>{found_today}</b><span>found today</span></div>
+  <div class="card"><b>{tailored}</b><span>tailored</span></div>
+  <div class="card"><b>{applied}</b><span>applied / ready</span></div>
+  <div class="card"><b>{avg_aqs}</b><span>avg AQS</span></div>
+  <div class="card"><b>{a_grades}</b><span>A-grade (80+)</span></div>
 </div>
-<input id="q" placeholder="Filter by company / role / status..." onkeyup="filt()">
-<p class="muted" style="font-size:12px">
-  <b>ATS</b> = keyword-overlap match, 0–100 (from <b>find</b>). <b>Score</b> =
-  senior-reviewer resume quality, 0–10 (from <b>score</b>/<b>apply</b>). They are
-  different metrics on different scales — don't compare across columns.
-  "What changed" + "PDF" populate only after tailoring (score/apply); <b>find</b> rows
-  show "—". Tailored files live in <code>data/applications/&lt;company-role-jobid&gt;/</code>.
-</p>
-<table id="t">
-  <thead><tr>
-    <th onclick="sortBy(0)">Date</th><th onclick="sortBy(1)">Company</th>
-    <th onclick="sortBy(2)">Role</th><th onclick="sortBy(3)">Profile</th>
-    <th onclick="sortBy(4)">Status</th><th onclick="sortBy(5)">ATS /100</th>
-    <th onclick="sortBy(6)">Score /10</th><th onclick="sortBy(7)">Verdict</th>
-    <th onclick="sortBy(8)">Posted</th>
-    <th>What changed</th><th>URL</th><th>PDF</th>
-  </tr></thead>
-  <tbody>{rows}</tbody>
-</table>
+
+<div class="panels">
+  <div class="panel"><h3>Pipeline funnel</h3>{funnel}</div>
+  <div class="panel"><h3>AQS distribution (scored rows)</h3><div class="hist">{hist}</div></div>
+</div>
+
+<div class="bar">
+  <input id="q" placeholder="Search company / role / verdict…" onkeyup="apply()">
+  <select id="prof" onchange="apply()"><option value="">all profiles</option>{profile_opts}</select>
+  {chips}
+</div>
+
+<table id="t"><thead><tr>
+  <th onclick="sortBy(0)">Date</th><th onclick="sortBy(1)">Company</th>
+  <th onclick="sortBy(2)">Role</th><th onclick="sortBy(3)">Profile</th>
+  <th onclick="sortBy(4)">Status</th><th onclick="sortBy(5)">AQS</th>
+  <th onclick="sortBy(6)">Reviewer /10</th><th onclick="sortBy(7)">Must-have %</th>
+  <th onclick="sortBy(8)">ATS /100</th><th onclick="sortBy(9)">Verdict</th>
+  <th onclick="sortBy(10)">Posted</th><th>What changed</th><th>Links</th>
+</tr></thead><tbody>{rows}</tbody></table>
+
+<p class="legend">AQS grades: <b>A</b> 80+ apply now · <b>B</b> 65+ strong · <b>C</b> 50+ decent ·
+<b>D</b> 35+ weak · <b>F</b> mismatch. Reviewer = senior hiring-manager score /10.
+Must-have % = share of the JD's role-defining requirements the resume satisfies.
+ATS = raw keyword overlap. Tailored files live in <code>data/applications/&lt;slug&gt;/</code>.</p>
+
 <script>
-function filt() {{
+var activeStatus = null;
+function chip(el) {{
+  var on = el.classList.contains('on');
+  document.querySelectorAll('.chip').forEach(function(c) {{ c.classList.remove('on'); }});
+  activeStatus = on ? null : el.dataset.status;
+  if (!on) el.classList.add('on');
+  apply();
+}}
+function apply() {{
   var q = document.getElementById('q').value.toLowerCase();
+  var p = document.getElementById('prof').value;
   document.querySelectorAll('#t tbody tr').forEach(function(tr) {{
-    tr.style.display = tr.innerText.toLowerCase().indexOf(q) > -1 ? '' : 'none';
+    var okQ = !q || tr.innerText.toLowerCase().indexOf(q) > -1;
+    var okS = !activeStatus || tr.dataset.status === activeStatus;
+    var okP = !p || tr.dataset.profile === p;
+    tr.style.display = (okQ && okS && okP) ? '' : 'none';
   }});
 }}
+var dir = {{}};
 function sortBy(col) {{
   var tb = document.querySelector('#t tbody');
   var rows = Array.prototype.slice.call(tb.querySelectorAll('tr'));
+  dir[col] = !dir[col];
   rows.sort(function(a, b) {{
-    var x = a.cells[col].innerText, y = b.cells[col].innerText;
-    var nx = parseFloat(x), ny = parseFloat(y);
-    if (!isNaN(nx) && !isNaN(ny)) return ny - nx;
-    return x.localeCompare(y);
+    var ca = a.cells[col], cb = b.cells[col];
+    var x = ca.dataset.v !== undefined ? parseFloat(ca.dataset.v) : ca.innerText;
+    var y = cb.dataset.v !== undefined ? parseFloat(cb.dataset.v) : cb.innerText;
+    var r = (typeof x === 'number' && typeof y === 'number' && !isNaN(x) && !isNaN(y))
+            ? y - x : String(x).localeCompare(String(y));
+    return dir[col] ? r : -r;
   }});
   rows.forEach(function(r) {{ tb.appendChild(r); }});
 }}

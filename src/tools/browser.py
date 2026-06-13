@@ -251,7 +251,8 @@ class Browser:
         return f"Uploaded {path.name} to {ref}.\n\n{self.snapshot()}"
 
     def screenshot(self, label: str = "screenshot") -> str:
-        out_dir = pathlib.Path("data/screenshots")
+        from .. import config
+        out_dir = config.SCREENSHOTS_DIR
         out_dir.mkdir(parents=True, exist_ok=True)
         safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in label)
         dest = out_dir / f"{safe}.png"

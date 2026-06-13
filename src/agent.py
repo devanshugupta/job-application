@@ -18,14 +18,13 @@ from __future__ import annotations
 import json
 import os
 
-import anthropic
-
+from . import config
 from .tools import ats, final_check, llm, portals, qa, resume, scorer, tracker, usage
 from .tools.browser import Browser
 
-DEFAULT_MODEL = os.environ.get("JOB_AGENT_MODEL", "claude-opus-4-8")
+DEFAULT_MODEL = config.smart_model()
 # Per-run output-token budget guard (anti-flagging / cost). 0 = unlimited.
-TOKEN_BUDGET = int(os.environ.get("JOB_AGENT_TOKEN_BUDGET", "0"))
+TOKEN_BUDGET = config.token_budget()
 # QA self-check is a TEMPORARY debugging aid. It's deterministic (no LLM cost itself),
 # but the agent calling it spends a little reasoning per step. Off by default to keep
 # end-to-end cost minimal; enable with JOB_AGENT_QA=1 when you want the audit trail.

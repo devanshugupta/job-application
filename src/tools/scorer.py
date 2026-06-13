@@ -24,12 +24,10 @@ first-pass quality keeps rising.
 
 from __future__ import annotations
 
-import json
 import os
 
-import anthropic
-
-# Judgment-heavy task → default to the most capable model. Override per call.
+# Judgment-heavy task → default to the most capable model. Override per call
+# (resolved through the llm shim; JOB_AGENT_SCORER_MODEL kept for back-compat).
 SCORER_MODEL = os.environ.get("JOB_AGENT_SCORER_MODEL", "claude-opus-4-8")
 
 # Structured output schema the scorer must return.

@@ -20,7 +20,9 @@ import re
 import shutil
 import subprocess
 
-MASTERS_DIR = pathlib.Path("resume/masters")
+from .. import config
+
+MASTERS_DIR = config.MASTERS_DIR
 
 _LATEX_ESCAPES = [
     ("\\", r"\textbackslash{}"),
@@ -73,6 +75,62 @@ def tex_master_path(profile: str | None) -> pathlib.Path | None:
             return p
     main = MASTERS_DIR / "ml_sde.tex"
     return main if main.exists() else None
+
+
+# --- LaTeX -> plain text (read the REAL resume as the master) -----------------
+
+_UNESCAPE = [(r"\&", "&"), (r"\%", "%"), (r"\$", "$"), (r"\#", "#"), (r"\_", "_"),
+             (r"\{", "{"), (r"\}", "}"), ("~", " ")]
+
+
+def tex_to_text(tex: str) -> str:
+    r"""Convert a resume ``.tex`` into readable plain text for the LLM.
+
+    Why: the ``.tex`` is the candidate's real, maintained resume; the ``.md``
+    masters drift. This gives the model the true content at ~1/4 the tokens of
+    raw LaTeX, structured as headings + bullets it already understands.
+    Handles the Jake's-Resume macro family (resumeSubheading/resumeItem) plus
+    generic fallbacks; unknown macros are stripped, their braced args kept.
+    """
+    body_m = re.search(r"\\begin\{document\}(.*?)(\\end\{document\}|\Z)", tex, re.S)
+    body = body_m.group(1) if body_m else tex
+    # Drop comment lines (but keep escaped \%)
+    body = "\n".join(l for l in body.split("\n") if not l.lstrip().startswith("%"))
+    body = re.sub(r"(?<!\\)%.*", "", body)
+
+    body = re.sub(r"\\section\*?\{([^}]*)\}", r"\n## \1\n", body)
+    body = re.sub(
+        r"\\resumeSubheading\s*\{([^}]*)\}\s*\{([^}]*)\}\s*\{([^}]*)\}\s*\{([^}]*)\}",
+        r"\n### \1 — \3\n\2 · \4", body)
+    body = re.sub(r"\\resumeProjectHeading\s*\{(.*?)\}\s*\{([^}]*)\}",
+                  r"\n### \1 (\2)", body, flags=re.S)
+    body = re.sub(r"\\resumeItem\s*\{", r"\n- \\relax{", body)  # mark bullets
+    body = re.sub(r"\\textbf\s*\{([^}]*)\}", r"\1", body)
+    body = re.sub(r"\\textit\s*\{([^}]*)\}", r"\1", body)
+    body = re.sub(r"\\emph\s*\{([^}]*)\}", r"\1", body)
+    body = re.sub(r"\\href\s*\{[^}]*\}\s*\{([^}]*)\}", r"\1", body)
+    body = re.sub(r"\\(small|item|relax|hfill)\b", " ", body)
+    body = re.sub(r"\\(vspace|hspace)\*?\{[^}]*\}", " ", body)
+    body = re.sub(r"\\begin\{[^}]*\}(\[[^\]]*\])?", " ", body)
+    body = re.sub(r"\\end\{[^}]*\}", " ", body)
+    body = re.sub(r"\\\\", "\n", body)
+    body = re.sub(r"\\[a-zA-Z]+\*?", " ", body)  # any leftover macro
+    body = re.sub(r"(?<!\\)\$", "", body)  # math-mode delimiters (e.g. $|$); keeps \$ amounts
+    for esc, ch in _UNESCAPE:
+        body = body.replace(esc, ch)
+    body = re.sub(r"[{}]", "", body)
+    body = re.sub(r"[ \t]+", " ", body)
+    body = re.sub(r" ?\n ?", "\n", body)
+    body = re.sub(r"\n{3,}", "\n\n", body)
+    # join bullet continuation lines (a \resumeItem broken across source lines)
+    lines, out = body.split("\n"), []
+    for ln in lines:
+        if out and out[-1].startswith("- ") and ln and not ln.startswith(("-", "#")) \
+                and not out[-1].rstrip().endswith((".", ":")):
+            out[-1] = out[-1].rstrip() + " " + ln.strip()
+        else:
+            out.append(ln.rstrip())
+    return "\n".join(l for l in out if l.strip()).strip()
 
 
 # --- marker-free, structure-aware editing ------------------------------------
@@ -158,16 +216,47 @@ def _replace_section_body(tex: str, section: str, new_body: str) -> str:
     return pat.sub(repl, tex, count=1)
 
 
+def _replace_skills_block(tex: str, skills: str) -> str:
+    r"""Replace the Technical Skills itemize body with the patch's skills line(s).
+
+    The template shape is ``\section{Technical Skills} ... \small{\item{ <lines> }}``.
+    The patch value may be grouped ("Languages: ... | ML: ..." or one group per
+    line) or a flat comma list; grouped input becomes one ``\textbf{Group}{: ...}``
+    row per group, matching the template's look. No match -> tex unchanged (safe).
+    """
+    pat = re.compile(
+        r"(\\section\{Technical Skills\}.*?\\small\s*\{\s*\\item\s*\{)(.*?)(\}\s*\})",
+        re.S | re.I)
+    m = pat.search(tex)
+    if not m:
+        return tex
+    parts = [p.strip() for p in re.split(r"\n|(?<!\w)\|(?!\w)", skills) if p.strip()]
+    rows = []
+    for p in parts:
+        gm = re.match(r"([A-Za-z][A-Za-z &/+.-]{1,28}):\s*(.+)", p)
+        if gm:
+            rows.append(f"    \\textbf{{{latex_escape(gm.group(1))}}}"
+                        f"{{: {latex_escape(gm.group(2))}}}")
+        else:
+            rows.append(f"    {latex_escape(p)}")
+    if not rows:
+        return tex
+    body = " \\\\\n".join(rows)
+    return tex[:m.start(2)] + "\n" + body + "\n  " + tex[m.end(2):]
+
+
 def edit_tex(tex_source: str, patch: dict) -> str:
     """Apply a tailoring patch to the LaTeX source, marker-free. Edits:
       - the Summary section body (patch['summary'])
+      - the Technical Skills block (patch['technical_skills'])
       - the first two \\resumeItem bullets (patch['top_bullets'])
-    Technical Skills is left intact by default (it's a structured block in this template;
-    editing it safely would need template-specific handling). Returns edited LaTeX.
+    Returns edited LaTeX; a compile-check downstream guards against bad edits.
     """
     tex = tex_source
     if patch.get("summary"):
         tex = _replace_section_body(tex, "Summary", patch["summary"])
+    if patch.get("technical_skills"):
+        tex = _replace_skills_block(tex, patch["technical_skills"])
     bullets = patch.get("top_bullets") or []
     if bullets:
         tex = _replace_first_resume_items(tex, bullets[:2])

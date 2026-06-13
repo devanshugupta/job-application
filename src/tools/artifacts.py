@@ -19,7 +19,9 @@ import json
 import pathlib
 import re
 
-BASE = pathlib.Path("data/applications")
+from .. import config
+
+BASE = config.APPLICATIONS_DIR
 
 
 def job_id_from_url(url: str | None) -> str:
@@ -58,7 +60,7 @@ def save_artifacts(company: str, role: str, *, tailored_md: str, patch: dict,
         "top_bullets": patch.get("top_bullets", []),
     }
     (d / "changes.json").write_text(json.dumps(changes, indent=2))
-    pdf_path = d / "zsAIEngineer.pdf"
+    pdf_path = d / config.resume_pdf_name()
     if pdf_bytes is not None:
         pdf_path.write_bytes(pdf_bytes)
     return {

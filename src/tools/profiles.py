@@ -15,9 +15,11 @@ import json
 import pathlib
 import re
 
-MASTERS_DIR = pathlib.Path("resume/masters")
-INDEX_PATH = MASTERS_DIR / "index.json"
-LEGACY_MASTER = pathlib.Path("resume/master_resume.md")
+from .. import config
+
+MASTERS_DIR = config.MASTERS_DIR
+INDEX_PATH = config.MASTERS_INDEX_PATH
+LEGACY_MASTER = config.LEGACY_MASTER_PATH
 
 _TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9+#.\-]{1,}")
 
@@ -49,14 +51,36 @@ def master_path(profile: str | None) -> pathlib.Path:
     return LEGACY_MASTER
 
 
+_PLACEHOLDER = re.compile(r"Your Name|your@email\.com|Company Inc|Startup LLC")
+
+
 def read_master_for(profile: str | None) -> str:
-    path = master_path(profile)
-    if not path.exists():
-        return (
-            f"No master resume found at {path}. Create it (see resume/masters/ or "
-            "resume/master_resume.example.md)."
-        )
-    return path.read_text()
+    """Return the master resume TEXT for a profile.
+
+    Source-of-truth order:
+      1. The profile's ``.tex`` master (the real, rendered resume) converted to
+         plain text — preferred whenever it exists, because the ``.md`` masters
+         historically drifted into placeholder templates.
+      2. The profile's ``.md`` master, unless it still contains template
+         placeholders ("Your Name", "Company Inc", ...).
+      3. The legacy single ``resume/master_resume.md``.
+    """
+    from . import latex  # local import: avoid cycle at module load
+
+    tex = latex.tex_master_path(profile)
+    md_path = master_path(profile)
+    md_text = md_path.read_text() if md_path.exists() else ""
+
+    if tex is not None and (not md_text or _PLACEHOLDER.search(md_text)):
+        text = latex.tex_to_text(tex.read_text())
+        if text.strip():
+            return text
+    if md_text:
+        return md_text
+    return (
+        f"No master resume found at {md_path}. Create it (see resume/masters/ or "
+        "resume/master_resume.example.md)."
+    )
 
 
 def auto_pick(jd_text: str) -> tuple[str | None, dict]:

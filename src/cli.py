@@ -1,70 +1,137 @@
 """Command-line entry point.
 
-Commands:
-    find   <query>  — discover fresh, well-matched roles (no applying).
-    score  <url>    — read a job + score fit/ATS, no applying (cheap model).
-    apply  <url>    — full flow incl. tailor + score + form fill + human-confirmed submit.
-    status          — print your application history.
-    dashboard       — regenerate the static BI dashboard (data/dashboard.html).
+Daily flow (deterministic pipeline; LLM used only through the Brain seam):
+    discover   — pull top-N fresh roles (past 24h) from feeds + ATS board APIs. No key.
+    pipeline   — discover -> tailor+score the top N -> dashboard. --brain manual = no key.
+    apply      — agentic browser flow for ONE job (confirms before submit). Needs a key.
+    fill       — deterministic Greenhouse form fill. No key.
+    dashboard / status / usage / report / brain — inspection. No key.
 
-Multi-model: cheap/fast model for find & score; the most capable for tailor/apply.
-Override with --model or the JOB_AGENT_MODEL / JOB_AGENT_FAST_MODEL env vars.
---profile selects which master resume to use (ml_ai / sde / data_engineer / sde_ml_ai);
-omit to let the agent auto-pick by JD.
+Legacy commands kept: find (agent crawl), score (agent score), feed, run (alias of
+pipeline), watchlist.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
-import pathlib
 import sys
 from datetime import date
 
 from dotenv import load_dotenv
 
+from . import config
 from .agent import DEFAULT_MODEL, _FINDER_SYSTEM, run_agent
+from .brain import get_brain, pending_packets
 from .tools import dashboard as dash
-from .tools import ats, feeds, finder, profiles, runlog, tracker, usage
+from .tools import ats, discover, feeds, finder, profiles, runlog, tailor, tracker, usage
 from .tools.browser import Browser
 from .tools import greenhouse as gh
 
-# Cheap model for lightweight tasks (find, score). Capable model for the full flow.
-FAST_MODEL = os.environ.get("JOB_AGENT_FAST_MODEL", "claude-sonnet-4-6")
+FAST_MODEL = config.fast_model()
 
 
 def _require_key() -> None:
-    # Need a key for at least one provider; the per-task provider routing (tools/llm.py)
-    # decides which is actually used. So accept either Anthropic or OpenAI.
     if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")):
-        sys.exit("Set ANTHROPIC_API_KEY and/or OPENAI_API_KEY (in .env). "
-                 "Route tasks per provider via JOB_AGENT_PROVIDER / "
-                 "JOB_AGENT_TAILOR_PROVIDER / JOB_AGENT_SCORE_PROVIDER.")
+        sys.exit("Set ANTHROPIC_API_KEY and/or OPENAI_API_KEY (in .env) — or use "
+                 "`pipeline --brain manual`, which needs no key.")
 
 
 def _browser(headless: bool) -> Browser:
-    return Browser(headless=headless, user_data_dir=os.environ.get("JOB_AGENT_USER_DATA_DIR"))
+    return Browser(headless=headless, user_data_dir=config.user_data_dir())
 
+
+def _today() -> str:
+    return date.today().isoformat()
+
+
+# ---------------------------------------------------------------- new pipeline
+
+def cmd_discover(hours: int, target: int, profile: str | None) -> None:
+    """Deterministic multi-source discovery. No API key, no browser."""
+    print(f"=== DISCOVER: feeds + ATS board APIs, past {hours}h, top {target} ===")
+    shortlist = discover.discover(hours=hours, target=target, profile=profile)
+    for j in shortlist[:30]:
+        print(f"  {j['posted_date']}  AQS={str(j['found_score'] or '-'):>3}  "
+              f"ATS={j['match']:>3}  {j['profile']:<13} "
+              f"{j['company'][:22]:<22} {j['role'][:44]}")
+    if len(shortlist) > 30:
+        print(f"  … and {len(shortlist) - 30} more (see dashboard)")
+    dash.render()
+    _print_results_hint()
+
+
+def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str,
+                 from_tracker: bool) -> None:
+    """discover -> tailor+score top N (two structured LLM calls per job) -> dashboard.
+
+    --brain manual runs with NO API key: prompt packets land in data/brain/; have
+    any LLM write the .response.json files, then re-run this same command.
+    """
+    if brain_mode == "api":
+        _require_key()
+    brain = get_brain(brain_mode)
+
+    if from_tracker:
+        jobs = [a for a in tracker.list_applications() if a.get("status") == "found"]
+        jobs = jobs[-top:]
+        print(f"=== PIPELINE: {len(jobs)} previously found roles -> tailor+score ===")
+    else:
+        print(f"=== PIPELINE: discover (past {hours}h) -> tailor+score top {top} ===\n")
+        jobs = discover.discover(hours=hours, target=top, profile=profile)
+    if not jobs:
+        print("No fresh roles to process.")
+        dash.render()
+        return
+
+    result = tailor.tailor_many(jobs, brain=brain)
+    dash.render()
+
+    print(f"\n=== PIPELINE DONE: {len(result['done'])} scored, "
+          f"{len(result['pending'])} pending, {len(result['failed'])} failed ===")
+    if result["pending"]:
+        print("\nManual-brain packets awaiting responses (write the matching "
+              ".response.json, then re-run this command):")
+        for p in result["pending"]:
+            print(f"  {p['job']}\n    -> {p['packet']}")
+    if result["failed"]:
+        print("\nFailed (use `score`/`apply` with the browser agent for these):")
+        for f in result["failed"]:
+            print(f"  {f['job']}: {f['error']}")
+    _print_results_hint()
+    print("\nSubmit a chosen role:  python -m src.cli apply \"<url>\"   "
+          "(or `fill \"<url>\"` for Greenhouse, no key)")
+
+
+def cmd_brain() -> None:
+    """Show manual-brain packets that still need a response."""
+    pend = pending_packets()
+    if not pend:
+        print("No pending brain packets. (Manual mode writes them to data/brain/.)")
+        return
+    print(f"{len(pend)} packet(s) awaiting responses in {config.BRAIN_DIR}/:")
+    for name in pend:
+        print(f"  {name}  ->  answer with {name.replace('.prompt.md', '.response.json')}")
+    print("\nEach packet is self-contained: paste it into any LLM (or let an agent "
+          "read it) and save ONLY the JSON object to the .response.json path. "
+          "Then re-run your pipeline command.")
+
+
+# ---------------------------------------------------------------- agent commands
 
 def cmd_find(query: str, days: int, model: str, headless: bool, profile: str | None) -> None:
     browser = _browser(headless)
     try:
         run_agent(
-            f"Find roles matching: '{query}'. Search several related keywords (e.g. "
-            "data engineer, software engineer/SDE, machine learning engineer, and close "
-            "variants), pulling up to ~10 postings per keyword. FILTER ON RECENCY FIRST: "
-            f"keep only roles whose posted date on the REAL company page is within {days} "
-            "days of today. USA ONLY — skip any role whose location is outside the "
-            "United States (drop Canada, UK, Europe, India, etc.). "
+            f"Find roles matching: '{query}'. Search several related keywords, pulling "
+            "up to ~10 postings per keyword. FILTER ON RECENCY FIRST: keep only roles "
+            f"whose posted date on the REAL company page is within {days} days of "
+            "today. USA ONLY — skip roles located outside the United States. "
             "Then rank survivors by recency, then match to my resume. "
             "Save the shortlist with status='found'. Do NOT apply.",
-            model=model,
-            browser=browser,
-            system=_FINDER_SYSTEM,
-            profile=profile,
-            max_turns=30,
-            today=date.today().isoformat(),
-            task_kind="find",
+            model=model, browser=browser, system=_FINDER_SYSTEM, profile=profile,
+            max_turns=30, today=_today(), task_kind="find",
+            usage_label=f"find {query}",
         )
     finally:
         browser.close()
@@ -79,12 +146,9 @@ def cmd_score(url: str, model: str, headless: bool, profile: str | None) -> None
             f"Score this job for fit and ATS match, but DO NOT apply. Job URL: {url}\n"
             "Read my profile + master resume, open the page, run ats_score and "
             "score_resume, give me a fit verdict with reasoning, then save_application "
-            "with status='scored' including resume_score (the 0-10 overall_score), "
-            "scorer_verdict, scorer_gaps, and match_score (the 0-100 ATS overlap).",
-            model=model,
-            browser=browser,
-            profile=profile,
-            today=date.today().isoformat(),
+            "with status='scored' including resume_score (0-10), scorer_verdict, "
+            "scorer_gaps, and match_score (0-100 ATS overlap).",
+            model=model, browser=browser, profile=profile, today=_today(),
             usage_label=f"score {url}",
         )
     finally:
@@ -112,32 +176,27 @@ def cmd_apply(url: str, model: str, headless: bool, profile: str | None) -> None
         )
         print(f"Using existing tailored PDF: {pdf}")
     else:
-        task = (
-            f"Apply to this job end to end, pausing for my confirmation before "
-            f"submitting. Job URL: {url}"
-        )
+        task = (f"Apply to this job end to end, pausing for my confirmation before "
+                f"submitting. Job URL: {url}")
     browser = _browser(headless)
     try:
-        run_agent(
-            task,
-            model=model,
-            browser=browser,
-            profile=profile or (existing or {}).get("profile"),
-            today=date.today().isoformat(),
-            usage_label=f"apply {url}",
-        )
+        run_agent(task, model=model, browser=browser,
+                  profile=profile or (existing or {}).get("profile"),
+                  today=_today(), usage_label=f"apply {url}")
     finally:
         browser.close()
     dash.render()
     _print_results_hint()
 
 
+# ---------------------------------------------------------------- legacy feed/run
+
 def _feed_shortlist(days: int, profile: str | None, limit: int, refresh: bool) -> list[dict]:
-    """Shared funnel step: fetch the curated feed (daily-cached), filter to fresh +
-    relevant roles for the profile, ATS-rank, flag watchlist companies, save the top
-    `limit` as status='found', and return them. Used by both `feed` and `run`."""
+    """Legacy curated-feed funnel (kept for back-compat; `discover` supersedes it)."""
+    import json as _json
+
     cache_key = f"feed-{days}-{profile or 'auto'}"
-    today = date.today().isoformat()
+    today = _today()
     roles = None if refresh else finder.get_cached(cache_key, profile, today)
     if roles is None:
         listings = feeds.fetch_feed()
@@ -149,14 +208,13 @@ def _feed_shortlist(days: int, profile: str | None, limit: int, refresh: bool) -
 
     if profile:
         roles = [r for r in roles if r["profile"] == profile]
-    import json as _json
-    wl_path = pathlib.Path("config/watchlist.json")
     watch = set()
-    if wl_path.exists():
-        watch = {c["name"].lower() for c in _json.loads(wl_path.read_text()).get("companies", [])}
+    if config.WATCHLIST_PATH.exists():
+        watch = {c["name"].lower()
+                 for c in _json.loads(config.WATCHLIST_PATH.read_text()).get("companies", [])}
     masters = {p: profiles.read_master_for(p) for p in {r["profile"] for r in roles}}
     for r in roles:
-        text = f"{r['role']} {r.get('locations','')}"
+        text = f"{r['role']} {r.get('locations', '')}"
         r["match"] = ats.ats_score(text, masters[r["profile"]])["score"]
         r["watchlist"] = r["company"].lower() in watch
     shortlist = roles[:limit]
@@ -178,66 +236,28 @@ def _feed_shortlist(days: int, profile: str | None, limit: int, refresh: bool) -
 
 
 def cmd_feed(days: int, profile: str | None, limit: int, refresh: bool) -> None:
-    """Pull curated GitHub job feeds (SimplifyJobs), filter to fresh + relevant roles,
-    match against the master resume, rank by recency, save the shortlist. No API key."""
     _feed_shortlist(days, profile, limit, refresh)
     dash.render()
     _print_results_hint()
 
 
-def cmd_run(days: int, profile: str | None, top: int, model: str,
-            headless: bool, refresh: bool) -> None:
-    """One-command funnel: feed -> rank -> score+tailor the top N -> dashboard.
-    STOPS before submitting. Each role's score/tailor is one human-confirmed-free agent
-    pass (no form submission); review the dashboard and run `apply <url>` to submit."""
-    _require_key()
-    print(f"=== RUN: feed (<= {days}d) -> score+tailor top {top} -> dashboard ===\n")
-    shortlist = _feed_shortlist(days, profile, top, refresh)
-    if not shortlist:
-        print("No fresh roles to process."); dash.render(); return
-    print(f"\n--- Scoring + tailoring the top {len(shortlist)} (no submit) ---")
-    browser = _browser(headless)
-    try:
-        for i, r in enumerate(shortlist, 1):
-            print(f"\n[{i}/{len(shortlist)}] {r['company']} — {r['role']}")
-            run_agent(
-                f"Score AND tailor my resume for this job, but DO NOT apply or submit. "
-                f"Job URL: {r['url']}\n"
-                "Open the page, read the JD, run score_resume, and if the verdict is "
-                "'strong' or 'borderline' tailor the resume (apply_resume_patch + "
-                "render_resume_pdf with company/role/url) so a tailored PDF is saved. "
-                "Then save_application with status='scored', resume_score, scorer_verdict, "
-                "match_score, resume_diff, and tailored_pdf. Stop after saving — never fill "
-                "a form or submit.",
-                model=model, browser=browser, profile=r["profile"],
-                today=date.today().isoformat(), max_turns=30,
-                usage_label=f"run/score {r['company']} — {r['role']}",
-            )
-    finally:
-        browser.close()
-    dash.render()
-    _print_results_hint()
-    print("\nReview the dashboard, then submit a chosen role with:  "
-          "python -m src.cli apply \"<url>\"")
-
-
 def cmd_watchlist() -> None:
-    """Show the curated daily watchlist of H1B/OPT-friendly companies + their boards."""
     import json
-    p = pathlib.Path("config/watchlist.json")
-    if not p.exists():
+    if not config.WATCHLIST_PATH.exists():
         print("No config/watchlist.json found.")
         return
-    data = json.loads(p.read_text())
+    data = json.loads(config.WATCHLIST_PATH.read_text())
     companies = data.get("companies", [])
-    print(f"=== Daily watchlist — {len(companies)} H1B/OPT-friendly companies ===")
+    api_n = sum(1 for c in companies if c.get("ats") and c.get("token"))
+    print(f"=== Watchlist — {len(companies)} companies ({api_n} with direct ATS APIs) ===")
     print(data.get("_sponsorship_note", ""))
     print()
     for c in companies:
         spons = "H1B✓" if c.get("sponsors_h1b") else "?"
-        print(f"  {c['name']:<18} {c.get('tier',''):<18} {spons:<6} {c['board']}")
-    print("\nTo check one: python -m src.cli find \"<role>\" (point the agent at a board), "
-          "or run `feed` for the curated cross-company list.")
+        api = f"{c.get('ats')}:{c.get('token')}" if c.get("token") else "(agent crawl)"
+        print(f"  {c['name']:<18} {c.get('tier', ''):<16} {spons:<6} {api:<28} "
+              f"{c.get('board', '')[:50]}")
+    print("\nAPI-tagged companies are swept automatically by `discover`/`pipeline`.")
 
 
 def cmd_status(verbose: bool = False) -> None:
@@ -245,96 +265,78 @@ def cmd_status(verbose: bool = False) -> None:
     if not apps:
         print("No applications recorded yet.")
         return
-    def ats_of(a):
-        return a.get("match_score") if a.get("match_score") is not None else a.get("ats_score")
+    from .tools import scoring
 
+    today = _today()
+    cols = (f"{'ID':<4}{'DATE':<12}{'STATUS':<10}{'AQS':<6}{'REV/10':<8}{'MUST%':<7}"
+            f"{'ATS':<6}{'VERDICT':<12}")
     if verbose:
-        print(f"{'ID':<4}{'DATE':<12}{'STATUS':<10}{'ATS/100':<8}{'SCORE/10':<9}{'VERDICT':<12}"
-              f"{'POSTED':<12}{'PROFILE':<14}{'SOURCE':<14}COMPANY — ROLE")
-        for a in apps:
-            print(
-                f"{a['id']:<4}{a['date']:<12}{a['status']:<10}"
-                f"{str(ats_of(a) if ats_of(a) is not None else '-'):<8}"
-                f"{str(a.get('resume_score') if a.get('resume_score') is not None else '-'):<9}"
-                f"{str(a.get('scorer_verdict') or '-'):<12}"
-                f"{str(a.get('posted_date') or '-'):<12}"
-                f"{str(a.get('profile') or '-'):<14}"
-                f"{str(a.get('source') or '-')[:20]:<22}"
-                f"{a['company']} — {a['role']}"
-            )
-    else:
-        print(f"{'ID':<4}{'DATE':<12}{'STATUS':<10}{'ATS/100':<8}{'SCORE/10':<9}{'VERDICT':<12}COMPANY — ROLE")
-        for a in apps:
-            print(
-                f"{a['id']:<4}{a['date']:<12}{a['status']:<10}"
-                f"{str(ats_of(a) if ats_of(a) is not None else '-'):<8}"
-                f"{str(a.get('resume_score') if a.get('resume_score') is not None else '-'):<9}"
-                f"{str(a.get('scorer_verdict') or '-'):<12}"
-                f"{a['company']} — {a['role']}"
-            )
-    print("\nATS = keyword overlap /100 (find). SCORE = reviewer quality /10 (score/apply).")
+        cols += f"{'POSTED':<12}{'PROFILE':<14}{'SOURCE':<18}"
+    print(cols + "COMPANY — ROLE")
+    for a in apps:
+        comp = scoring.score_record(a, today)
+        aqs = f"{comp['score']}{comp['grade']}" if comp["score"] is not None else "-"
+        line = (f"{a['id']:<4}{a['date']:<12}{a['status']:<10}{aqs:<6}"
+                f"{str(a.get('resume_score') if a.get('resume_score') is not None else '-'):<8}"
+                f"{str(a.get('match_pct') if a.get('match_pct') is not None else '-'):<7}"
+                f"{str(a.get('match_score') if a.get('match_score') is not None else '-'):<6}"
+                f"{str(a.get('scorer_verdict') or '-'):<12}")
+        if verbose:
+            line += (f"{str(a.get('posted_date') or '-'):<12}"
+                     f"{str(a.get('profile') or '-'):<14}"
+                     f"{str(a.get('source') or '-')[:16]:<18}")
+        print(line + f"{a['company']} — {a['role']}")
+    print("\nAQS = composite Application Quality Score /100 (+grade). "
+          "REV = reviewer /10 · MUST% = JD must-haves matched · ATS = keyword overlap.")
     print(f"{len(apps)} record(s). Full view: python -m src.cli dashboard")
 
 
 def _print_results_hint() -> None:
-    """After a run, tell the user exactly where to see results."""
-    path = pathlib.Path("data/dashboard.html").resolve()
+    path = config.DASHBOARD_PATH.resolve()
     apps = tracker.list_applications()
-    scores = [a.get("match_score") for a in apps if isinstance(a.get("match_score"), int)]
-    top = max(scores) if scores else "-"
-    print(f"\n📋 {len(apps)} record(s) tracked; top match score: {top}")
-    print(f"   Dashboard: {path}")
-    print(f"   Open it:   open {path}")
+    print(f"\n📋 {len(apps)} record(s) tracked")
+    print(f"   Dashboard: open {path}")
     print("   Terminal:  python -m src.cli status --verbose")
 
 
 def cmd_fill(url: str, headless: bool) -> None:
-    """Deterministic Greenhouse form fill — no LLM needed.
+    """Deterministic Greenhouse form fill — no LLM needed."""
+    import json as _json
 
-    Looks up the tailored PDF for the URL, opens the Greenhouse form in a real
-    browser, fills all fields from profile.json, then asks for confirmation
-    before submitting.
-    """
     apps = tracker.list_applications()
     existing = next(
         (a for a in reversed(apps) if a.get("url") == url and a.get("tailored_pdf")),
         None,
-    )
-    if not existing:
-        # Fall back to most recent entry for this URL regardless of PDF
-        existing = next((a for a in reversed(apps) if a.get("url") == url), None)
+    ) or next((a for a in reversed(apps) if a.get("url") == url), None)
 
-    import json as _json
-    pdf_path = (existing or {}).get("tailored_pdf") or "resume/MyResume.pdf"
-    _p = _json.load(open("config/profile.json"))
-    _per = _p["personal"]; _lnk = _p["links"]; _wa = _p["work_authorization"]
+    pdf_path = (existing or {}).get("tailored_pdf") or str(
+        config.RESUME_DIR / "MyResume.pdf")
+    _p = _json.loads(config.PROFILE_PATH.read_text())
+    _per, _lnk, _wa = _p["personal"], _p["links"], _p["work_authorization"]
 
-    # Show everything BEFORE opening the browser so user can abort early
-    print("\n" + "="*55)
+    print("\n" + "=" * 55)
     print("ABOUT TO FILL — review before browser opens:")
-    print("="*55)
-    print(f"  Company:     {(existing or {}).get('company','?')} — {(existing or {}).get('role','?')}")
+    print("=" * 55)
+    print(f"  Company:     {(existing or {}).get('company', '?')} — "
+          f"{(existing or {}).get('role', '?')}")
     print(f"  Name:        {_per['full_name']}")
     print(f"  Email:       {_per['email']}")
     print(f"  Phone:       {_per['phone']}")
     print(f"  Location:    {_per['location']}")
-    print(f"  LinkedIn:    {_lnk.get('linkedin','(empty)')}")
-    print(f"  GitHub:      {_lnk.get('github','(empty)')}")
-    print(f"  Website:     {_lnk.get('website','(empty)')}")
+    print(f"  LinkedIn:    {_lnk.get('linkedin', '(empty)')}")
+    print(f"  GitHub:      {_lnk.get('github', '(empty)')}")
     print(f"  Resume PDF:  {pdf_path}")
     print(f"  Work auth:   authorized={_wa.get('authorized_to_work')}  "
           f"sponsorship={_wa.get('requires_sponsorship')}  "
-          f"visa={_wa.get('visa_status')}  "
-          f"citizenship={_wa.get('citizenship_country','?')}")
+          f"visa={_wa.get('visa_status')}")
     _edu = _p.get("education", {})
-    print(f"  Education:   {_edu.get('school','?')} | {_edu.get('degree','?')} | grad {_edu.get('graduation','?')}")
-    _exp = (_p.get("experience") or [{}])[0]
-    amazon_flag = "amazon" in (_exp.get("company","")).lower()
-    print(f"  Employer:    {_exp.get('company','?')} {'⚠ Amazon employee → Twitch is Amazon subsidiary' if amazon_flag else ''}")
-    print("="*55)
+    print(f"  Education:   {_edu.get('school', '?')} | {_edu.get('degree', '?')} | "
+          f"grad {_edu.get('graduation', '?')}")
+    print("=" * 55)
     go = input("\nOpen browser and fill the form? [yes/no]: ").strip().lower()
     if go not in ("yes", "y"):
-        print("Cancelled."); return
+        print("Cancelled.")
+        return
 
     browser = _browser(headless)
     try:
@@ -342,37 +344,31 @@ def cmd_fill(url: str, headless: bool) -> None:
         print(f"\n  Filled:  {', '.join(result['filled']) or '(none)'}")
         print(f"  Skipped: {', '.join(result['skipped']) or '(none)'}")
         print("\n>> Form filled. Review every field in the browser, then submit manually.")
-        print(">> When done, come back here and press Enter to close the browser.")
-        input(">> Press Enter to close …")
+        input(">> When done, press Enter here to close the browser …")
     finally:
         browser.close()
 
-    # Mark as "ready_to_submit" so dashboard shows it's been filled
-    updated = tracker.update_application(url, status="ready_to_submit", tailored_pdf=pdf_path)
+    updated = tracker.update_application(url, status="ready_to_submit",
+                                         tailored_pdf=pdf_path)
     if not updated and existing:
         tracker.save_application(
-            company=existing["company"], role=existing["role"],
-            url=url, status="ready_to_submit",
-            match_score=existing.get("match_score"),
+            company=existing["company"], role=existing["role"], url=url,
+            status="ready_to_submit", match_score=existing.get("match_score"),
             resume_score=existing.get("resume_score"),
-            scorer_verdict=existing.get("scorer_verdict"),
-            tailored_pdf=pdf_path,
-            profile=existing.get("profile"),
-            source=existing.get("source"),
+            scorer_verdict=existing.get("scorer_verdict"), tailored_pdf=pdf_path,
+            profile=existing.get("profile"), source=existing.get("source"),
             posted_date=existing.get("posted_date"),
         )
-
     dash.render()
     _print_results_hint()
 
 
 def cmd_dashboard() -> None:
     print(dash.render())
-    print(f"Open it with:  open {pathlib.Path('data/dashboard.html').resolve()}")
+    print(f"Open it with:  open {config.DASHBOARD_PATH.resolve()}")
 
 
 def cmd_report() -> None:
-    """Print the QA run-log summary: per-step pass/fail and any logged issues."""
     s = runlog.summary()
     if not s["total_events"]:
         print("No QA events logged yet. Run find/score/apply first.")
@@ -389,78 +385,99 @@ def cmd_report() -> None:
 
 
 def cmd_usage() -> None:
-    """Show token + cost usage per run and totals (from data/usage_log.jsonl)."""
     rows = usage.read_log()
     if not rows:
-        print("No usage logged yet. Run score/apply/run (needs API key).")
+        print("No usage logged yet. Run score/apply/pipeline (API brain).")
         return
     print(f"{'DATE':<12}{'MODEL':<20}{'IN':>8}{'OUT':>8}{'TOTAL':>9}{'$':>9}  LABEL")
     for r in rows:
         print(f"{r['date']:<12}{r['model']:<20}{r['input']:>8}{r['output']:>8}"
-              f"{r['total']:>9}{r['cost_usd']:>9}  {r.get('label','')[:40]}")
+              f"{r['total']:>9}{r['cost_usd']:>9}  {r.get('label', '')[:40]}")
     t = usage.totals()
     print(f"\nTOTAL: {t['runs']} runs · {t['total_tokens']} tokens · ${t['total_cost_usd']}")
-    import os
-    cap = os.environ.get("JOB_AGENT_TOKEN_BUDGET", "0")
-    print(f"Per-run ceiling (JOB_AGENT_TOKEN_BUDGET): {cap if cap!='0' else 'unlimited'}")
+    cap = config.token_budget()
+    print(f"Per-run ceiling (JOB_AGENT_TOKEN_BUDGET): {cap if cap else 'unlimited'}")
 
 
 def main(argv: list[str] | None = None) -> None:
-    load_dotenv()
+    load_dotenv(config.ROOT / ".env")
     parser = argparse.ArgumentParser(prog="job-applier-agent")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_find = sub.add_parser("find", help="Find fresh, well-matched roles (no applying)")
+    p_disc = sub.add_parser("discover",
+                            help="Top-N fresh roles from feeds + ATS APIs (no key)")
+    p_disc.add_argument("--hours", type=int, default=24, help="freshness window in hours")
+    p_disc.add_argument("--target", type=int, default=100, help="how many roles to keep")
+    p_disc.add_argument("--profile", default=None)
+
+    p_pipe = sub.add_parser("pipeline",
+                            help="discover -> tailor+score top N -> dashboard (no submit)")
+    p_pipe.add_argument("--hours", type=int, default=24)
+    p_pipe.add_argument("--top", type=int, default=10, help="roles to tailor+score")
+    p_pipe.add_argument("--profile", default=None)
+    p_pipe.add_argument("--brain", choices=["api", "manual"], default="api",
+                        help="manual = no API key; prompts land in data/brain/")
+    p_pipe.add_argument("--from-tracker", action="store_true",
+                        help="tailor previously discovered 'found' rows instead of re-discovering")
+
+    sub.add_parser("brain", help="List manual-brain packets awaiting responses")
+
+    p_find = sub.add_parser("find", help="Agent crawls boards for roles (needs key)")
     p_find.add_argument("query")
-    p_find.add_argument("--days", type=int, default=3, help="freshness window (max 7)")
+    p_find.add_argument("--days", type=int, default=3)
     p_find.add_argument("--model", default=FAST_MODEL)
     p_find.add_argument("--profile", default=None)
     p_find.add_argument("--headless", action="store_true")
 
-    p_score = sub.add_parser("score", help="Score a job without applying")
+    p_score = sub.add_parser("score", help="Agent scores one job URL (needs key)")
     p_score.add_argument("url")
     p_score.add_argument("--model", default=FAST_MODEL)
     p_score.add_argument("--profile", default=None)
     p_score.add_argument("--headless", action="store_true")
 
-    p_apply = sub.add_parser("apply", help="Apply end-to-end (confirms before submit)")
+    p_apply = sub.add_parser("apply", help="Agent applies end-to-end (confirms before submit)")
     p_apply.add_argument("url")
     p_apply.add_argument("--model", default=DEFAULT_MODEL)
     p_apply.add_argument("--profile", default=None)
     p_apply.add_argument("--headless", action="store_true")
 
-    p_fill = sub.add_parser("fill", help="Fill a Greenhouse form from profile.json — no API key needed")
+    p_fill = sub.add_parser("fill", help="Deterministic Greenhouse form fill (no key)")
     p_fill.add_argument("url")
     p_fill.add_argument("--headless", action="store_true")
 
     p_status = sub.add_parser("status", help="Show application history")
-    p_status.add_argument("--verbose", action="store_true", help="show all columns")
-    sub.add_parser("dashboard", help="Regenerate the static BI dashboard")
-    sub.add_parser("report", help="Show the QA run-log: per-step pass/fail + issues")
+    p_status.add_argument("--verbose", action="store_true")
+    sub.add_parser("dashboard", help="Regenerate the scores dashboard")
+    sub.add_parser("report", help="QA run-log: per-step pass/fail + issues")
+    sub.add_parser("watchlist", help="Show the company watchlist (ATS APIs flagged)")
+    sub.add_parser("usage", help="Token + cost usage per run and totals")
 
-    sub.add_parser("watchlist", help="Show the curated daily H1B/OPT company watchlist")
-    sub.add_parser("usage", help="Show token + cost usage per run and totals")
+    p_feed = sub.add_parser("feed", help="(legacy) curated GitHub feed only")
+    p_feed.add_argument("--days", type=int, default=7)
+    p_feed.add_argument("--profile", default=None)
+    p_feed.add_argument("--limit", type=int, default=15)
+    p_feed.add_argument("--refresh", action="store_true")
 
-    p_feed = sub.add_parser("feed", help="Pull curated GitHub feeds (SimplifyJobs) for fresh roles")
-    p_feed.add_argument("--days", type=int, default=7, help="freshness window (max 7)")
-    p_feed.add_argument("--profile", default=None, help="filter to ml_ai/sde/data_engineer/sde_ml_ai")
-    p_feed.add_argument("--limit", type=int, default=15, help="how many to save")
-    p_feed.add_argument("--refresh", action="store_true", help="bypass the daily cache")
-
-    p_run = sub.add_parser("run", help="One command: feed -> score+tailor top N -> dashboard (no submit)")
-    p_run.add_argument("--days", type=int, default=7, help="freshness window (max 7)")
-    p_run.add_argument("--profile", default=None, help="ml_ai/sde/data_engineer/sde_ml_ai")
-    p_run.add_argument("--top", type=int, default=5, help="how many top roles to score+tailor")
-    p_run.add_argument("--model", default=DEFAULT_MODEL)
-    p_run.add_argument("--headless", action="store_true")
-    p_run.add_argument("--refresh", action="store_true", help="bypass the daily cache")
+    p_run = sub.add_parser("run", help="(legacy alias of `pipeline`)")
+    p_run.add_argument("--days", type=int, default=1)
+    p_run.add_argument("--profile", default=None)
+    p_run.add_argument("--top", type=int, default=10)
+    p_run.add_argument("--brain", choices=["api", "manual"], default="api")
 
     args = parser.parse_args(argv)
 
-    if args.command in ("find", "score", "apply", "run"):
+    if args.command in ("find", "score", "apply"):
         _require_key()
 
-    if args.command == "find":
+    if args.command == "discover":
+        cmd_discover(args.hours, args.target, args.profile)
+    elif args.command == "pipeline":
+        cmd_pipeline(args.hours, args.top, args.profile, args.brain, args.from_tracker)
+    elif args.command == "run":
+        cmd_pipeline(args.days * 24, args.top, args.profile, args.brain, False)
+    elif args.command == "brain":
+        cmd_brain()
+    elif args.command == "find":
         cmd_find(args.query, args.days, args.model, args.headless, args.profile)
     elif args.command == "score":
         cmd_score(args.url, args.model, args.headless, args.profile)
@@ -474,8 +491,6 @@ def main(argv: list[str] | None = None) -> None:
         cmd_report()
     elif args.command == "feed":
         cmd_feed(args.days, args.profile, args.limit, args.refresh)
-    elif args.command == "run":
-        cmd_run(args.days, args.profile, args.top, args.model, args.headless, args.refresh)
     elif args.command == "fill":
         cmd_fill(args.url, args.headless)
     elif args.command == "watchlist":

@@ -27,8 +27,9 @@ from .browser import Browser
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _load_profile(path: str = "config/profile.json") -> dict:
-    return json.loads(pathlib.Path(path).read_text())
+def _load_profile(path: str | None = None) -> dict:
+    from .. import config
+    return json.loads(pathlib.Path(path or config.PROFILE_PATH).read_text())
 
 
 def _fill(page, selector: str, value: str, skip_if_filled: bool = True) -> bool:
@@ -247,142 +248,44 @@ def _click_radio(page, name: str, keywords: list[str]) -> bool:
 # ---------------------------------------------------------------------------
 
 def _fill_labeled_questions(target, profile: dict) -> None:
-    """Find all labeled text inputs and fill them based on what the label says."""
-    personal   = profile.get("personal", {})
-    links      = profile.get("links", {})
-    work_auth  = profile.get("work_authorization", {})
-    education  = profile.get("education", {})
-    experience = profile.get("experience", [{}])
-    prefs      = profile.get("preferences", {})
+    """Fill labeled inputs/dropdowns by matching label text against the question bank.
 
-    decline_val = "I don't wish to answer"
-    location    = personal.get("location", "")
-    state       = location.split(",")[0].strip() if location else ""
+    All question patterns + answers live in config/question_bank.json (resolved
+    against the profile by forms.py) — nothing employer-specific is hardcoded here.
+    Unmatched and "skip" questions are left for the human to review.
+    """
+    from . import forms
 
-    citizenship = work_auth.get("citizenship_country", "India")
-    held_h1b    = work_auth.get("held_h1b_6years", False)
-
-    # Is current employer Amazon or subsidiary?
-    amazon_employee = any(
-        "amazon" in (exp.get("company") or "").lower()
-        for exp in (experience or [])
-        if (exp.get("end") or "").lower() in ("present", "current", "")
-    )
-
-    def _bool_opts(val: bool) -> list[str]:
-        return ["Yes", "yes", "true"] if val else ["No", "no", "false"]
-
-    auth_opts    = _bool_opts(bool(work_auth.get("authorized_to_work")))
-    sponsor_opts = _bool_opts(bool(work_auth.get("requires_sponsorship")))
-    h1b_opts     = _bool_opts(held_h1b)
-    amazon_opts  = _bool_opts(amazon_employee)
-    auth_text    = auth_opts[0]
-    sponsor_text = sponsor_opts[0]
-
-    # Relocation: some forms are a boolean Yes/No, others are a location-picker
-    # ("choose a city if open to relocating, else choose No preference / Not open").
-    # Cover both: include Yes/No AND the user's city + location preference so either
-    # form style can find a match.
-    city         = location.split(",")[0].strip()
-    loc_pref     = prefs.get("location_preference", "Remote")
-    if prefs.get("open_to_relocation", True):
-        relocate_opts = ["Yes", "yes", city, loc_pref, "Remote", "No preference",
-                         "flexible", "open", "anywhere"]
-    else:
-        relocate_opts = ["No", "no", "not open", "not interested", "prefer not",
-                         "no preference", "I am not open"]
-
-    # label keyword patterns → (value_for_text_input, [keywords_for_react_dropdown])
-    label_map = [
-        # --- Links / profile ---
-        (["linkedin"],                                          links.get("linkedin", ""),       []),
-        (["website", "portfolio", "personal site"],            links.get("website", "") or links.get("github", ""), []),
-        (["github"],                                           links.get("github", ""),          []),
-        # --- Employment history ---
-        (["current.*employer", "employer", "current.*work"],   experience[0].get("company", "") if experience else "", []),
-        (["university", "school", "college", "education"],     education.get("school", ""),     []),
-        # --- Discovery ---
-        (["how did you", "hear about"],                        "Job Board",                     ["Job Board", "Job board", "job board"]),
-        # --- Location ---
-        (["state", "reside"],                                  state,                           [state]),
-        # --- Work authorization ---
-        (["authorized.*work", "legally authorized"],           auth_text,                       auth_opts),
-        (["require.*assist", "require.*sponsor", "sponsorship.*future", "work authorization.*future",
-          "need.*sponsor.*amazon", "need.*will you need.*immigration"],
-                                                               sponsor_text,                    sponsor_opts),
-        (["legally eligible.*begin.*immediately", "begin.*employment.*immediately",
-          "eligible.*begin.*immediately", "eligible to begin employment"],
-                                                               auth_text,                       auth_opts + ["yes, i am", "eligible"]),
-        # --- Visa / citizenship ---
-        (["visa.*status", "immigration.*status", "work.*status"],
-                                                               work_auth.get("visa_status", ""), [work_auth.get("visa_status", ""), "OPT", "F-1"]),
-        (["h.1b.*status.*preced", "h.1b.*6.*year", "held.*h.1b", "h-1b.*approv"],
-                                                               h1b_opts[0],                     h1b_opts),
-        (["citizenship.*country", "country.*citizenship", "country.*region.*citizen",
-          "export.*licens.*country", "export.*citizen", "sole purpose.*export"],
-                                                               citizenship,                     [citizenship, citizenship.lower()]),
-        (["permanent.*resident.*another", "permanent.*resident.*other.*country",
-          "permanent.*resident.*different"],
-                                                               "No",                            ["No", "no"]),
-        # --- Amazon / Twitch-specific ---
-        (["familiar.*twitch", "twitch.*famili", "history.*twitch", "twitch.*history"],
-                                                               "",                              ["Yes", "Casual", "Occasionally", "Avid"]),
-        (["currently.*twitch.*employee", "twitch.*current.*employee", "current.*twitch.*employee"],
-                                                               "No",                            ["No", "no"]),
-        (["open.*reloc", "open to relocat"],                   relocate_opts[0],               relocate_opts),
-        (["current.*amazon.*employee", "amazon.*subsidiary.*current", "amazon.*employee.*current",
-          "current employee.*amazon", "current.*amazon.*or.*any.*amazon"],
-                                                               amazon_opts[0],                  amazon_opts),
-        (["previously.*applied.*amazon", "applied.*amazon.*before", "applied.*amazon.*subsidiary"],
-                                                               amazon_opts[0],                  amazon_opts),
-        (["previously.*employed.*amazon", "employed.*amazon.*subsidiary", "employed.*amazon.*before"],
-                                                               amazon_opts[0],                  amazon_opts),
-        # non-compete: skip (human judgment — may have Amazon agreement)
-        (["non.compet.*agreement", "agreement.*preclude", "preclude.*restrict.*employment"],
-                                                               "",                              []),
-        # Consider for future opportunities
-        (["consider.*future.*opportunit", "future.*opportunit.*twitch"],
-                                                               "",                              ["Yes", "yes"]),
-        # Expected compensation: skip (user fills)
-        (["expected.*base.*pay", "expected.*compensat", "total.*base.*pay"],
-                                                               "",                              []),
-        # --- EEO ---
-        (["gender"],                                           "",                              [decline_val, "don't wish"]),
-        (["hispanic", "latino"],                               "",                              [decline_val, "don't wish", "prefer not"]),
-        (["race", "ethnicity"],                                "",                              [decline_val, "don't wish"]),
-        (["veteran"],                                          "",                              ["not a protected veteran", decline_val, "don't wish"]),
-        (["disability"],                                       "",                              ["No, I don't have", decline_val, "don't wish"]),
-    ]
+    bank = forms.load_bank()
+    ctx = forms.build_context(profile)
 
     try:
         labels = target.query_selector_all("label[for]")
         for lbl in labels:
-            for_id  = lbl.get_attribute("for") or ""
-            lbl_txt = lbl.inner_text().strip().lower()
+            for_id = lbl.get_attribute("for") or ""
+            lbl_txt = lbl.inner_text().strip()
             if not for_id or not lbl_txt:
                 continue
+            answer = forms.answer_for_label(lbl_txt, ctx, bank)
+            if answer is None:
+                continue
+            text_val, opts = answer
 
             el = target.query_selector(f"[id='{for_id}']")
             if not el:
                 continue
-
-            tag      = el.evaluate("e => e.tagName.toLowerCase()")
+            tag = el.evaluate("e => e.tagName.toLowerCase()")
             is_react = "select__input" in (el.get_attribute("class") or "")
 
-            for kw_patterns, text_val, react_opts in label_map:
-                if not any(re.search(kw, lbl_txt, re.I) for kw in kw_patterns):
-                    continue
-                if is_react and react_opts:
-                    _select_react_dropdown(target, for_id, react_opts)
-                elif tag in ("input", "textarea") and text_val:
-                    existing = (el.get_attribute("value") or "").strip()
-                    if not existing:
-                        el.fill(text_val)
-                        time.sleep(0.2)
-                elif tag == "select" and (text_val or react_opts):
-                    kws = react_opts or [text_val]
-                    _select_option(target, f"[id='{for_id}']", kws)
-                break
+            if is_react and opts:
+                _select_react_dropdown(target, for_id, opts)
+            elif tag in ("input", "textarea") and text_val:
+                existing = (el.get_attribute("value") or "").strip()
+                if not existing:
+                    el.fill(text_val)
+                    time.sleep(0.2)
+            elif tag == "select" and (text_val or opts):
+                _select_option(target, f"[id='{for_id}']", opts or [text_val])
     except Exception as e:
         print(f"  Warning: labeled question fill error: {e}")
 
@@ -392,7 +295,7 @@ def _fill_labeled_questions(target, profile: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def fill_greenhouse_form(browser: Browser, url: str, pdf_path: str,
-                         profile_path: str = "config/profile.json") -> dict:
+                         profile_path: str | None = None) -> dict:
     """Navigate to a Greenhouse application URL and fill the form.
 
     Returns {"filled": [...field names...], "skipped": [...], "final_url": str}.

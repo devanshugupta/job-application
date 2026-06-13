@@ -1,14 +1,17 @@
 # Job Applier Agent (from scratch)
 
-A standalone, provider-agnostic **AI job-application agent** built on the Anthropic
-Claude API + Playwright. It reads a job URL, scores fit, tailors your resume,
-writes a cover letter, fills the application form in a real browser, and (with
-your confirmation) submits — then tracks everything in `data/applications.json`.
+A provider-agnostic **AI job-application system**: it discovers the freshest
+matching roles every day (curated GitHub feeds + the free public JSON APIs of
+Greenhouse/Lever/Ashby/SmartRecruiters/Workable), tailors your closest-matching
+master resume per job (Summary, Technical Skills, top-2 bullets — nothing else),
+scores every application with a composite **Application Quality Score**, renders a
+dashboard, and can fill + submit applications (Greenhouse deterministically; other
+portals via a Playwright browser agent with human confirmation).
 
-This is a *learning-oriented* rebuild of the
-[`theaayushstha1/job-applier-agent`](https://github.com/theaayushstha1/job-applier-agent)
-Claude Code skill, but as a real Python program so you can see and edit every
-piece: the agent loop, the tool definitions, and the browser driver.
+LLM judgment is isolated behind a single **Brain** seam, so the whole pipeline runs
+either on the Anthropic/OpenAI APIs (`--brain api`) or with **no API key at all**
+(`--brain manual` — prompt packets on disk that any LLM, including Claude Code
+driving this repo, can answer).
 
 > ⚠️ **Read the [Responsible use](#responsible-use) section first.** Auto-submitting
 > applications and automating LinkedIn can violate site Terms of Service and get
@@ -101,18 +104,26 @@ Run → Edit Configurations → Environment variables (or use the `.env`). Or ju
 
 ### 4. Run
 ```bash
-# Score a job without applying:
-python -m src.cli score "https://job-board.example.com/posting/123"
+# Daily driver: discover top fresh roles (24h) -> tailor + score top 10 -> dashboard:
+python -m src.cli pipeline --hours 24 --top 10
 
-# Full flow (pauses for confirmation before submitting):
-python -m src.cli apply "https://job-board.example.com/posting/123"
+# Same, with zero API usage (answer the data/brain/ packets with any LLM, re-run):
+python -m src.cli pipeline --top 10 --brain manual
 
-# Run the browser headless (no visible window):
-python -m src.cli apply "<url>" --headless
+# Just the discovery shortlist (no LLM at all):
+python -m src.cli discover --hours 24 --target 100
 
-# See what you've applied to:
-python -m src.cli status
+# Submit one role (agent fills the form, asks you before submitting):
+python -m src.cli apply "<job-url>"
+# Greenhouse-only deterministic fill (no key; you click submit):
+python -m src.cli fill "<job-url>"
+
+# Inspect:
+python -m src.cli status --verbose
+open data/dashboard.html
 ```
+
+See **RUNBOOK.md** for the full daily flow and **CLAUDE.md** for the architecture.
 
 ---
 

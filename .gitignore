@@ -16,3 +16,8 @@ data/dashboard.html
 data/tailored_resume.*
 data/screenshots/
 .DS_Store
+resume/masters/*.tex
+!resume/masters/*.example.tex
+data/brain/
+config/settings.json
+data/*.pdf

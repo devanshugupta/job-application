@@ -9,20 +9,55 @@ and the open extension paths. Read it before making changes.
 ## Commands (current)
 
 ```
-python -m src.cli run   [--days 7] [--profile ml_ai] [--top 5]   # ONE command: feed→score+tailor top N→dashboard (no submit)
-python -m src.cli feed  [--days 7] [--profile ml_ai] [--limit 20] [--refresh]  # curated GitHub feed (no API key)
-python -m src.cli find  "<query>" [--days 7] [--profile ml_ai]   # agent crawls boards (API key)
-python -m src.cli score "<url>"  [--profile ml_ai]               # ATS + reviewer, no apply
-python -m src.cli apply "<url>"  [--profile ml_ai]               # full flow + human confirm
-python -m src.cli status [--verbose]                             # history table
-python -m src.cli dashboard                                      # regenerate dashboard.html
-python -m src.cli watchlist                                      # curated H1B/OPT sponsor list
-python -m src.cli usage                                          # token + cost per run and totals
-python -m src.cli report                                         # QA run-log (when JOB_AGENT_QA=1)
+python -m src.cli discover [--hours 24] [--target 100] [--profile X]  # top-N fresh roles, NO API key
+python -m src.cli pipeline [--hours 24] [--top 10] [--brain api|manual] [--from-tracker]
+                                                   # discover -> tailor+score -> dashboard (no submit)
+python -m src.cli brain                            # list manual-brain packets awaiting responses
+python -m src.cli apply "<url>"  [--profile X]     # agentic browser apply + human confirm (key)
+python -m src.cli fill  "<url>"                    # deterministic Greenhouse form fill (no key)
+python -m src.cli score "<url>"                    # agent scores one URL (key)
+python -m src.cli find  "<query>" [--days 3]       # agent crawls boards (key; fallback discovery)
+python -m src.cli status [--verbose] | dashboard | usage | report | watchlist
+python -m src.cli feed | run                       # legacy (run = alias of pipeline)
 ```
-`run` is the primary daily command (stops before submit; submit each chosen role with `apply`).
-`--profile` ∈ {ml_ai, sde, data_engineer, sde_ml_ai}; omit to auto-pick by JD.
-See **RUNBOOK.md** for the day-to-day flow. Run tests with `python -m pytest tests/ -q`.
+`pipeline` is the daily command. `--brain manual` runs the WHOLE pipeline with no API
+key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; any LLM
+(including Claude Code operating this repo) answers each by writing the sibling
+`*.response.json`, then the same command is re-run to finish. Run tests with
+`python -m pytest tests/ -q`.
+
+## v2 architecture (the overhaul — read this first)
+
+- **`src/config.py`** — single source of truth for paths (project-root-anchored, CWD-proof),
+  model ids, pricing, env knobs (`JOB_AGENT_*`), optional `config/settings.json` overrides.
+- **Discovery** (`tools/discover.py` + `tools/boards.py` + `tools/feeds.py`): deterministic,
+  no LLM/browser. Merges curated GitHub feeds with FREE public ATS JSON APIs
+  (Greenhouse/Lever/Ashby/SmartRecruiters/Workable) for every `config/watchlist.json`
+  company carrying `"ats"`+`"token"`. Hour-granular freshness, URL+title dedupe, US filter,
+  title/seniority gates, ATS-match ranking. Easily yields 50-100 fresh roles/day.
+- **Brain seam** (`src/brain.py`): ALL LLM judgment goes through `brain.structured(...)`.
+  `ApiBrain` -> tools/llm.py (Anthropic/OpenAI per-task routing). `ManualBrain` -> file
+  packets, zero API. This is the API-optional design point: everything else is plain Python.
+- **Tailoring pipeline** (`tools/tailor.py`): per job, exactly 2 structured LLM calls
+  (patch via TAILOR_SYSTEM, then senior-reviewer score) around deterministic fetch
+  (`tools/jd_fetch.py`, HTTP not browser), patch-apply, lint (1 corrective pass max),
+  LaTeX render, final_check. Replaces the old per-job 40-turn agent loop.
+- **Master resume source of truth is the `.tex`** (`resume/masters/ml_sde.tex` etc.):
+  `profiles.read_master_for()` converts it via `latex.tex_to_text()` whenever the `.md`
+  master is missing or still a placeholder. `latex.edit_tex()` patches Summary, the
+  Technical Skills block, AND the top-2 bullets (all three sections the patch carries).
+- **Composite scoring** (`tools/scoring.py`): Application Quality Score 0-100 =
+  0.40 reviewer + 0.35 JD-must-have % + 0.10 ATS keywords + 0.15 recency (renormalized
+  when parts are missing) with letter grades. THE headline number; dashboard + status use it.
+- **Dashboard** (`tools/dashboard.py`): dark self-contained HTML — KPI cards, funnel,
+  AQS histogram, status chips/profile filter/search, sortable table, AQS badges with
+  hover breakdowns, per-row diff expanders.
+- **Question bank** (`config/question_bank.json` + `tools/forms.py`): all form-question
+  patterns/answers are DATA resolved against profile.json. greenhouse.py consumes it; no
+  employer-specific logic is hardcoded anywhere. The resume PDF filename derives from the
+  profile name (`config.resume_pdf_name()`), never a literal.
+- The agentic loop (`src/agent.py` + browser tools) remains for `apply`/`find`/`score` —
+  portals that need a real browser (Workday, custom forms) and the human-confirmed submit.
 
 ## Capabilities added beyond the core loop
 

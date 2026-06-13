@@ -30,9 +30,10 @@ from __future__ import annotations
 import pathlib
 import re
 
+from .. import config
 from . import artifacts, latex, profiles
 
-MASTER_PATH = pathlib.Path("resume/master_resume.md")
+MASTER_PATH = config.LEGACY_MASTER_PATH
 
 # Section word/line budgets. Each section that can be overloaded gets a cap so we
 # don't bury the signal. Tune these freely.
@@ -101,8 +102,10 @@ def apply_patch(patch: dict, profile: str | None = None,
     sections = _split_sections(md)
 
     def find(name: str) -> int | None:
+        # containment, not prefix: matches "## Experience" AND "## Work Experience"
+        # (the .tex-derived master uses the latter)
         for idx, (heading, _) in enumerate(sections):
-            if heading.lower().startswith(f"## {name.lower()}"):
+            if heading.startswith("## ") and name.lower() in heading.lower():
                 return idx
         return None
 
@@ -133,7 +136,7 @@ def apply_patch(patch: dict, profile: str | None = None,
             sections[i] = (sections[i][0], _replace_top_bullets(body, bullets, role_idx))
 
     tailored = _rebuild(sections)
-    out = pathlib.Path("data/tailored_resume.md")
+    out = config.TAILORED_MD_PATH
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(tailored)
     # Per-application folder (traceable record of what we sent where).
@@ -185,8 +188,8 @@ def lint(markdown: str | None = None, focus_bullets: list[str] | None = None) ->
 
     ``focus_bullets`` should be the ``top_bullets`` from the patch just applied.
     """
-    md = markdown or (pathlib.Path("data/tailored_resume.md").read_text()
-                      if pathlib.Path("data/tailored_resume.md").exists() else read_master())
+    md = markdown or (config.TAILORED_MD_PATH.read_text()
+                      if config.TAILORED_MD_PATH.exists() else read_master())
     issues: list[str] = []
     advisory: list[str] = []
     focus = {b.strip() for b in (focus_bullets or [])}
@@ -254,18 +257,22 @@ def lint(markdown: str | None = None, focus_bullets: list[str] | None = None) ->
 
 # --- rendering to PDF --------------------------------------------------------
 
-def render_pdf(markdown: str | None = None, out_path: str = "data/zsAIEngineer.pdf",
+def render_pdf(markdown: str | None = None, out_path: str | None = None,
                company: str | None = None, role: str | None = None,
                url: str | None = None, profile: str | None = None,
                patch: dict | None = None) -> str:
     """Render a tailored resume PDF.
+
+    The PDF filename comes from the profile's full name ("First_Last_Resume.pdf")
+    so recruiters see a proper name — never a hardcoded internal filename.
 
     Preferred path: if the profile has a `.tex` master AND pdflatex is installed, edit the
     LaTeX template with the patch (marker-free) and compile it (polished, real-resume
     look). Otherwise fall back to the Markdown->HTML->Chromium path (always available). On
     any LaTeX error we fall back too — never hard-fail.
     """
-    dest = pathlib.Path(out_path)
+    pdf_name = config.resume_pdf_name()
+    dest = pathlib.Path(out_path) if out_path else config.DATA_DIR / pdf_name
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     # --- preferred: LaTeX via pdflatex (marker-free edit of the user's real template) ---
@@ -277,9 +284,9 @@ def render_pdf(markdown: str | None = None, out_path: str = "data/zsAIEngineer.p
             if ok:
                 if company and role:
                     appdir = artifacts.folder(company, role, url)
-                    (appdir / "zsAIEngineer.pdf").write_bytes(dest.read_bytes())
+                    (appdir / pdf_name).write_bytes(dest.read_bytes())
                     (appdir / "tailored_resume.tex").write_text(edited)
-                    return f"Rendered LaTeX PDF (pdflatex) to {appdir}/zsAIEngineer.pdf"
+                    return f"Rendered LaTeX PDF (pdflatex) to {appdir / pdf_name}"
                 return f"Rendered LaTeX PDF (pdflatex) to {dest}"
             _latex_note = f" (LaTeX fallback: {msg})"
         else:
@@ -288,8 +295,8 @@ def render_pdf(markdown: str | None = None, out_path: str = "data/zsAIEngineer.p
         _latex_note = ""
 
     # --- fallback: Markdown -> HTML -> Chromium ---
-    md = markdown or (pathlib.Path("data/tailored_resume.md").read_text()
-                      if pathlib.Path("data/tailored_resume.md").exists() else read_master())
+    md = markdown or (config.TAILORED_MD_PATH.read_text()
+                      if config.TAILORED_MD_PATH.exists() else read_master())
     html = _md_to_html(md)
 
     from playwright.sync_api import sync_playwright
@@ -304,8 +311,8 @@ def render_pdf(markdown: str | None = None, out_path: str = "data/zsAIEngineer.p
     # Copy into the per-application folder so the dashboard can link it.
     if company and role:
         appdir = artifacts.folder(company, role, url)
-        (appdir / "zsAIEngineer.pdf").write_bytes(dest.read_bytes())
-        return f"Rendered resume PDF to {appdir}/zsAIEngineer.pdf{_latex_note}"
+        (appdir / pdf_name).write_bytes(dest.read_bytes())
+        return f"Rendered resume PDF to {appdir / pdf_name}{_latex_note}"
     return f"Rendered resume PDF to {dest}{_latex_note}"
 
 

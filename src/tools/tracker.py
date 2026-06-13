@@ -9,12 +9,13 @@ have a history (and so the agent can dedupe / follow up later).
 from __future__ import annotations
 
 import json
-import pathlib
 from datetime import date
 
-PROFILE_PATH = pathlib.Path("config/profile.json")
-APPLICATIONS_PATH = pathlib.Path("data/applications.json")
-RESUME_RULES_PATH = pathlib.Path("resume/formatting_rules.md")
+from .. import config
+
+PROFILE_PATH = config.PROFILE_PATH
+APPLICATIONS_PATH = config.APPLICATIONS_PATH
+RESUME_RULES_PATH = config.RESUME_RULES_PATH
 
 
 def read_resume_rules() -> str:
@@ -50,6 +51,7 @@ def save_application(
     *,
     match_score: int | None = None,   # keyword/ATS overlap, 0-100 (from `find`)
     resume_score: int | None = None,  # senior-reviewer quality, 0-10 (from `score_resume`)
+    match_pct: int | None = None,     # % of JD must-haves satisfied, 0-100 (scorer)
     scorer_verdict: str | None = None,
     scorer_gaps: list | None = None,
     resume_diff: dict | None = None,
@@ -79,6 +81,7 @@ def save_application(
         "ats_score": ats_score,
         "match_score": match_score,
         "resume_score": resume_score,
+        "match_pct": match_pct,
         "scorer_verdict": scorer_verdict,
         "scorer_gaps": scorer_gaps or [],
         "resume_diff": resume_diff or {},

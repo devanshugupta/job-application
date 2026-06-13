@@ -12,10 +12,11 @@ qa.py) which appends here; deterministic checks live in qa.py so they cost no to
 from __future__ import annotations
 
 import json
-import pathlib
 from datetime import date
 
-LOG_PATH = pathlib.Path("data/run_log.jsonl")
+from .. import config
+
+LOG_PATH = config.RUN_LOG_PATH
 
 
 def log_step(
