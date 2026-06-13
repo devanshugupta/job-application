@@ -46,6 +46,16 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
   `profiles.read_master_for()` converts it via `latex.tex_to_text()` whenever the `.md`
   master is missing or still a placeholder. `latex.edit_tex()` patches Summary, the
   Technical Skills block, AND the top-2 bullets (all three sections the patch carries).
+- **LaTeX→PDF via tectonic** (`tools/latex.py`): `_latex_engine()` prefers tectonic
+  (`brew install tectonic`, no sudo, one-time, on PATH) over system pdflatex; the source
+  is adapted per engine (`_adapt_for_engine` strips `\pdfgentounicode`, `glyphtounicode`,
+  and the unused `fontawesome5` that SIGABRTs tectonic). NOTE: the PyPI `pdflatex` package
+  is only a wrapper around a system binary — it does NOT provide an engine. Falls back to
+  Markdown→Chromium only if no engine is present.
+- **All prompts live in `src/prompts.py`** — `TAILOR_SYSTEM` (creation; enforces that two
+  different JDs yield two different top-bullet pairs), `SCORER_SYSTEM` (scoring; penalizes
+  generic bullets + flags hard unmet JD requirements), `FINDER_SYSTEM` (browser finder).
+  tailor/scorer/agent import from here. Edit prompts there; nothing else changes.
 - **Composite scoring** (`tools/scoring.py`): Application Quality Score 0-100 =
   0.40 reviewer + 0.35 JD-must-have % + 0.10 ATS keywords + 0.15 recency (renormalized
   when parts are missing) with letter grades. THE headline number; dashboard + status use it.
