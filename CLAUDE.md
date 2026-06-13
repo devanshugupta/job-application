@@ -38,10 +38,13 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
 - **Brain seam** (`src/brain.py`): ALL LLM judgment goes through `brain.structured(...)`.
   `ApiBrain` -> tools/llm.py (Anthropic/OpenAI per-task routing). `ManualBrain` -> file
   packets, zero API. This is the API-optional design point: everything else is plain Python.
-- **Tailoring pipeline** (`tools/tailor.py`): per job, exactly 2 structured LLM calls
-  (patch via TAILOR_SYSTEM, then senior-reviewer score) around deterministic fetch
-  (`tools/jd_fetch.py`, HTTP not browser), patch-apply, lint (1 corrective pass max),
-  LaTeX render, final_check. Replaces the old per-job 40-turn agent loop.
+- **Tailoring pipeline** (`tools/tailor.py`): per job, 3 structured brain calls —
+  (1) PATCH (TAILOR_SYSTEM), (2) REVIEW+revise (REVIEW_SYSTEM: catches repeated bullets,
+  whether the tailored experience actually fits the JD, and summary coherence — applies
+  one correction; `_merge_review`), (3) senior-reviewer SCORE — around deterministic
+  JD fetch (`tools/jd_fetch.py`: greenhouse/lever/ashby/Workday-CXS JSON APIs +
+  embedded-gh_jid + headless-Chromium fallback), patch-apply, lint (1 corrective pass),
+  LaTeX render, final_check. In manual brain mode each call is a data/brain packet.
 - **Master resume source of truth is the `.tex`** (`resume/masters/ml_sde.tex` etc.):
   `profiles.read_master_for()` converts it via `latex.tex_to_text()` whenever the `.md`
   master is missing or still a placeholder. `latex.edit_tex()` patches Summary, the

@@ -132,6 +132,12 @@ def tex_to_text(tex: str) -> str:
     body = re.sub(r"(?<!\\)%.*", "", body)
 
     body = re.sub(r"\\section\*?\{([^}]*)\}", r"\n## \1\n", body)
+    # 2-arg variant (\resumeSubheadingg{Company | Title}{dates}) MUST run before the
+    # 4-arg form so "...Subheadingg" isn't half-consumed. Without this, work-experience
+    # entries get no "### " heading and apply_patch can't locate the role to replace its
+    # top bullets in the markdown the reviewer/scorer read.
+    body = re.sub(r"\\resumeSubheadingg\s*\{(.*?)\}\s*\{([^}]*)\}",
+                  r"\n### \1 (\2)\n", body, flags=re.S)
     body = re.sub(
         r"\\resumeSubheading\s*\{([^}]*)\}\s*\{([^}]*)\}\s*\{([^}]*)\}\s*\{([^}]*)\}",
         r"\n### \1 — \3\n\2 · \4", body)

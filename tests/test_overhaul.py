@@ -161,6 +161,27 @@ def test_manual_brain_roundtrip(tmp_path):
     assert out == {"x": 7}
 
 
+def test_review_merge_applies_only_changed_fields():
+    from src.tools.tailor import _merge_review
+    patch = {"summary": "orig sum", "technical_skills": "orig skills",
+             "top_bullets": ["b1", "b2"], "experience_section_index": 0, "reasoning": "r"}
+
+    # ok=true -> no change
+    out, changed = _merge_review(patch, {"ok": True, "new_summary": "ignored",
+                                         "new_top_bullets": ["x", "y"],
+                                         "new_experience_section_index": 2})
+    assert changed is False and out["summary"] == "orig sum"
+
+    # revise bullets + move experience block, keep summary/skills
+    out, changed = _merge_review(patch, {
+        "ok": False, "new_summary": "", "new_technical_skills": "",
+        "new_top_bullets": ["new1", "new2"], "new_experience_section_index": 1})
+    assert changed is True
+    assert out["top_bullets"] == ["new1", "new2"]
+    assert out["experience_section_index"] == 1
+    assert out["summary"] == "orig sum" and out["technical_skills"] == "orig skills"
+
+
 def test_sources_registry_and_selection():
     from src import sources
     names = set(sources.all_sources())
