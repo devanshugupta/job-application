@@ -161,6 +161,30 @@ def test_manual_brain_roundtrip(tmp_path):
     assert out == {"x": 7}
 
 
+def test_workday_company_detection_and_params():
+    from src.tools import boards
+    # explicit workday config
+    c1 = {"name": "NVIDIA", "ats": "workday",
+          "workday": {"host": "nvidia.wd5.myworkdayjobs.com", "site": "NVIDIAExternalCareerSite"}}
+    assert boards._is_api_company(c1)
+    assert boards._workday_params(c1) == ("nvidia.wd5.myworkdayjobs.com", "NVIDIAExternalCareerSite")
+    # derive from a board URL
+    c2 = {"name": "X", "ats": "workday",
+          "board": "https://acme.wd1.myworkdayjobs.com/en-US/AcmeCareers"}
+    assert boards._workday_params(c2) == ("acme.wd1.myworkdayjobs.com", "AcmeCareers")
+    # token ATS still detected; non-API company (no token/workday) skipped
+    assert boards._is_api_company({"name": "S", "ats": "greenhouse", "token": "stripe"})
+    assert not boards._is_api_company({"name": "Google", "board": "https://google.com/careers"})
+
+
+def test_workday_posted_iso_relative():
+    from src.tools import boards
+    from datetime import date
+    assert boards._workday_posted_iso("Posted Today") == date.today().isoformat()
+    assert boards._workday_posted_iso("Posted 30+ Days Ago") < date.today().isoformat()
+    assert boards._workday_posted_iso("") == ""
+
+
 def test_review_merge_applies_only_changed_fields():
     from src.tools.tailor import _merge_review
     patch = {"summary": "orig sum", "technical_skills": "orig skills",

@@ -35,7 +35,7 @@
     {"name": "Microsoft", "tier": "big-tech", "sponsors_h1b": true, "board": "https://jobs.careers.microsoft.com/global/en/search?lc=United%20States&p=Software%20Engineering"},
     {"name": "Meta", "tier": "big-tech", "sponsors_h1b": true, "board": "https://www.metacareers.com/jobs"},
     {"name": "Apple", "tier": "big-tech", "sponsors_h1b": true, "board": "https://jobs.apple.com/en-us/search?sort=newest&key=software%20engineer"},
-    {"name": "NVIDIA", "tier": "big-tech", "sponsors_h1b": true, "board": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"},
+    {"name": "NVIDIA", "tier": "big-tech", "sponsors_h1b": true, "ats": "workday", "workday": {"host": "nvidia.wd5.myworkdayjobs.com", "site": "NVIDIAExternalCareerSite"}, "board": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"},
     {"name": "Salesforce", "tier": "big-tech", "sponsors_h1b": true, "board": "https://careers.salesforce.com/en/jobs/"},
     {"name": "Oracle", "tier": "big-tech", "sponsors_h1b": true, "board": "https://careers.oracle.com/jobs/"},
     {"name": "Adobe", "tier": "big-tech", "sponsors_h1b": true, "board": "https://careers.adobe.com/us/en/search-results"},

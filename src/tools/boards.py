@@ -20,6 +20,7 @@ returned ``errors`` list, never raised — one bad token must not kill a run.
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -30,8 +31,19 @@ _UA = {"User-Agent": "job-applier-agent/2.0 (personal job search)"}
 TIMEOUT = 20
 
 
+MAX_PER_COMPANY = 1000  # safety cap on pagination so one giant board can't run away
+
+
 def _get_json(url: str):
     req = urllib.request.Request(url, headers=_UA)
+    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:  # noqa: S310
+        return json.loads(r.read().decode())
+
+
+def _post_json(url: str, body: dict):
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(url, data=data, headers={
+        **_UA, "Content-Type": "application/json", "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=TIMEOUT) as r:  # noqa: S310
         return json.loads(r.read().decode())
 
@@ -103,27 +115,96 @@ def fetch_ashby(company: str, token: str) -> list[dict]:
 
 
 def fetch_smartrecruiters(company: str, token: str) -> list[dict]:
-    data = _get_json(f"https://api.smartrecruiters.com/v1/companies/{token}/postings?limit=100")
-    out = []
-    for j in data.get("content", []):
-        loc = j.get("location") or {}
-        loc_s = ", ".join(filter(None, [loc.get("city", ""), loc.get("region", ""),
-                                        loc.get("country", "")]))
-        url = f"https://jobs.smartrecruiters.com/{token}/{j.get('id', '')}"
-        out.append(_job(company, j.get("name", ""), url,
-                        j.get("releasedDate", ""), loc_s, "smartrecruiters-api"))
+    """Paginated — SmartRecruiters caps each page at 100, so walk offset to totalFound."""
+    out, offset = [], 0
+    while offset < MAX_PER_COMPANY:
+        data = _get_json("https://api.smartrecruiters.com/v1/companies/"
+                         f"{token}/postings?limit=100&offset={offset}")
+        page = data.get("content", [])
+        for j in page:
+            loc = j.get("location") or {}
+            loc_s = ", ".join(filter(None, [loc.get("city", ""), loc.get("region", ""),
+                                            loc.get("country", "")]))
+            url = f"https://jobs.smartrecruiters.com/{token}/{j.get('id', '')}"
+            out.append(_job(company, j.get("name", ""), url,
+                            j.get("releasedDate", ""), loc_s, "smartrecruiters-api"))
+        offset += 100
+        if offset >= data.get("totalFound", 0) or not page:
+            break
     return out
 
 
 def fetch_workable(company: str, token: str) -> list[dict]:
-    data = _get_json(
-        f"https://apply.workable.com/api/v1/widget/accounts/{token}?details=false")
-    out = []
-    for j in data.get("jobs", []):
-        loc_s = ", ".join(filter(None, [j.get("city", ""), j.get("state", ""),
-                                        j.get("country", "")]))
-        out.append(_job(company, j.get("title", ""), j.get("url", ""),
-                        j.get("published_on", ""), loc_s, "workable-api"))
+    """Paginated — Workable widget returns `total`; page via offset until covered."""
+    out, offset = [], 0
+    while offset < MAX_PER_COMPANY:
+        data = _get_json("https://apply.workable.com/api/v1/widget/accounts/"
+                         f"{token}?details=false&offset={offset}")
+        page = data.get("jobs", [])
+        for j in page:
+            loc_s = ", ".join(filter(None, [j.get("city", ""), j.get("state", ""),
+                                            j.get("country", "")]))
+            out.append(_job(company, j.get("title", ""), j.get("url", ""),
+                            j.get("published_on", ""), loc_s, "workable-api"))
+        offset += len(page)
+        if not page or offset >= data.get("total", len(out)):
+            break
+    return out
+
+
+def _workday_posted_iso(text: str) -> str:
+    """Workday gives 'Posted Today' / 'Posted Yesterday' / 'Posted N Days Ago' / 'Posted
+    30+ Days Ago'. Map to an ISO date relative to now ('' if unknown)."""
+    from datetime import timedelta
+    t = (text or "").lower()
+    now = datetime.now(timezone.utc)
+    if "today" in t:
+        return now.date().isoformat()
+    if "yesterday" in t:
+        return (now - timedelta(days=1)).date().isoformat()
+    m = re.search(r"(\d+)\+?\s*day", t)
+    if m:
+        return (now - timedelta(days=int(m.group(1)))).date().isoformat()
+    return ""
+
+
+def fetch_workday(company: str, host: str, site: str,
+                  within_hours: int | None = None) -> list[dict]:
+    """Workday career portal via the public CXS jobs search API (paginated).
+
+    host = '<tenant>.wdN.myworkdayjobs.com', site = the career-site path segment
+    (e.g. 'NVIDIAExternalCareerSite'). One POST per page of 20 until `total` is covered
+    or, when `within_hours` is set (a daily pull), until we've paged past the freshness
+    window — Workday returns newest-first, so once a couple of pages are entirely older
+    than the window we stop early instead of dragging the whole 2000-job board.
+    """
+    from datetime import timedelta
+    tenant = host.split(".")[0]
+    api = f"https://{host}/wday/cxs/{tenant}/{site}/jobs"
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=within_hours)).date().isoformat() \
+        if within_hours else None
+    out, offset, total, stale_pages = [], 0, None, 0
+    while offset < MAX_PER_COMPANY:
+        data = _post_json(api, {"appliedFacets": {}, "limit": 20, "offset": offset,
+                                "searchText": ""})
+        page = data.get("jobPostings", [])
+        if total is None:  # Workday reports `total` only on the FIRST page
+            total = data.get("total", 0)
+        page_dates = []
+        for j in page:
+            path = j.get("externalPath", "")
+            pd = _workday_posted_iso(j.get("postedOn", ""))
+            page_dates.append(pd)
+            url = f"https://{host}/{site}{path}" if path else ""  # apply URL needs the site
+            out.append(_job(company, j.get("title", ""), url, pd,
+                            j.get("locationsText", ""), "workday-api"))
+        offset += 20
+        if not page or offset >= total:
+            break
+        if cutoff:  # early-stop once results fall outside the daily window
+            stale_pages = stale_pages + 1 if all(d and d < cutoff for d in page_dates) else 0
+            if stale_pages >= 2:
+                break
     return out
 
 
@@ -145,24 +226,59 @@ def watchlist_companies() -> list[dict]:
     return data.get("companies", [])
 
 
-def fetch_watchlist_jobs(companies: list[dict] | None = None,
-                         verbose: bool = True) -> tuple[list[dict], list[str]]:
-    """Sweep every API-able watchlist company. Returns (jobs, errors)."""
+def _is_api_company(c: dict) -> bool:
+    """True if we can pull this company's portal via API: a token-based ATS, or Workday
+    with host+site (or a parseable myworkdayjobs board URL)."""
+    ats = c.get("ats")
+    if ats in FETCHERS and c.get("token"):
+        return True
+    if ats == "workday" and (c.get("workday") or "myworkdayjobs.com" in (c.get("board") or "")):
+        return True
+    return False
+
+
+def _workday_params(c: dict) -> tuple[str, str] | None:
+    """Resolve (host, site) for a Workday company from explicit config or its board URL."""
+    wd = c.get("workday")
+    if isinstance(wd, dict) and wd.get("host") and wd.get("site"):
+        return wd["host"], wd["site"]
+    m = re.search(r"https?://([a-z0-9-]+\.wd\d+\.myworkdayjobs\.com)/(?:[a-z-]+/)?([^/?]+)",
+                  c.get("board", ""), re.I)
+    if m:
+        return m.group(1), m.group(2)
+    return None
+
+
+def fetch_watchlist_jobs(companies: list[dict] | None = None, verbose: bool = True,
+                         within_hours: int | None = None) -> tuple[list[dict], list[str]]:
+    """Sweep every API-able watchlist company (token ATS + Workday). Returns (jobs, errors).
+
+    `within_hours` lets the big paginated portals (Workday) early-stop at the freshness
+    window instead of pulling their entire board; the single-call ATS APIs ignore it
+    (they return everything in one request and discover filters after)."""
     companies = companies if companies is not None else watchlist_companies()
     jobs: list[dict] = []
     errors: list[str] = []
     for c in companies:
-        ats, token = c.get("ats"), c.get("token")
-        if not ats or not token or ats not in FETCHERS:
+        ats = c.get("ats")
+        if not _is_api_company(c):
             continue
         try:
-            found = FETCHERS[ats](c["name"], token)
+            if ats == "workday":
+                params = _workday_params(c)
+                if not params:
+                    errors.append(f"{c['name']} (workday): need workday.host+site or a "
+                                  "myworkdayjobs board URL")
+                    continue
+                found = fetch_workday(c["name"], *params, within_hours=within_hours)
+            else:
+                found = FETCHERS[ats](c["name"], c["token"])
             jobs.extend(found)
             if verbose:
                 print(f"  {c['name']:<16} {ats:<15} {len(found):>4} postings")
         except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError,
                 json.JSONDecodeError, KeyError, OSError) as e:
-            errors.append(f"{c['name']} ({ats}/{token}): {e}")
+            errors.append(f"{c['name']} ({ats}): {e}")
             if verbose:
                 print(f"  {c['name']:<16} {ats:<15} ERROR: {e}")
     return jobs, errors

@@ -18,10 +18,11 @@ class AtsBoardsSource(Source):
     description = "Public ATS APIs for watchlist companies (token-tagged in watchlist.json)"
 
     def available(self) -> bool:
-        return any(c.get("ats") and c.get("token") for c in boards.watchlist_companies())
+        return any(boards._is_api_company(c) for c in boards.watchlist_companies())
 
     def fetch(self, hours, *, profile=None, verbose=True):
-        jobs, errors = boards.fetch_watchlist_jobs(verbose=verbose)
+        # pass the window so Workday early-stops at the freshness boundary
+        jobs, errors = boards.fetch_watchlist_jobs(verbose=verbose, within_hours=hours)
         # ATS titles aren't pre-level-filtered, so leave seniority_checked unset
         # (discover applies its seniority + profile gates). source name already set.
         return jobs, errors

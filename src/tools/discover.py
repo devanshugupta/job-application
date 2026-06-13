@@ -140,8 +140,22 @@ def gather(hours: int, *, profile: str | None = None, sources: list[str] | None 
     jobs.sort(key=lambda j: (j.get("posted_ts") or 0, j["found_score"] or 0,
                              j["match"]), reverse=True)
 
+    # Per-company coverage: how many we PULLED from each portal vs how many survived the
+    # freshness/US/title/seniority filter — so you can verify nothing is silently dropped.
+    from collections import Counter
+    pulled = Counter(j["company"] for j in raw)
+    kept = Counter(j["company"] for j in jobs)
+    stats["coverage"] = {co: {"pulled": pulled[co], "kept": kept.get(co, 0)}
+                         for co in pulled}
     stats["total_after_filters"] = len(jobs)
     return {"jobs": jobs, "stats": stats, "errors": errors}
+
+
+def coverage(hours: int = 24, *, profile: str | None = None,
+             sources: list[str] | None = None) -> dict:
+    """Run a fresh sweep and return the per-company {pulled, kept} coverage table.
+    Lets you confirm each portal's jobs are fully retrieved and see what the filters drop."""
+    return gather(hours, profile=profile, sources=sources, verbose=False)["stats"]["coverage"]
 
 
 def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,

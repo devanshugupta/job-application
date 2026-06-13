@@ -48,10 +48,20 @@ def _today() -> str:
 # ---------------------------------------------------------------- new pipeline
 
 def cmd_discover(hours: int, target: int, profile: str | None,
-                 sources: list[str] | None = None) -> None:
+                 sources: list[str] | None = None, coverage: bool = False) -> None:
     """Deterministic multi-source discovery. No API key, no browser."""
     print(f"=== DISCOVER: past {hours}h, top {target} "
           f"[sources: {','.join(sources) if sources else 'all available'}] ===")
+    if coverage:
+        cov = discover.coverage(hours, profile=profile, sources=sources)
+        rows = sorted(cov.items(), key=lambda kv: kv[1]["pulled"], reverse=True)
+        print(f"\n=== Per-company coverage (past {hours}h) — pulled vs kept after filter ===")
+        print(f"{'COMPANY':<26}{'PULLED':>8}{'KEPT':>7}")
+        for co, c in rows[:40]:
+            print(f"{co[:26]:<26}{c['pulled']:>8}{c['kept']:>7}")
+        print(f"\n{len(rows)} companies; PULLED = retrieved from the portal, "
+              "KEPT = fresh+US+relevant+right-level. Low KEPT is usually the freshness "
+              "window, not a miss. Re-run with a wider --hours to confirm completeness.\n")
     shortlist = discover.discover(hours=hours, target=target, profile=profile,
                                   sources=sources)
     for j in shortlist[:30]:
@@ -436,6 +446,8 @@ def main(argv: list[str] | None = None) -> None:
     p_disc.add_argument("--source", default=None,
                         help="comma-separated source names/keywords "
                              "(ats_boards,github_feed,linkedin,scoutbetter); default: all available")
+    p_disc.add_argument("--coverage", action="store_true",
+                        help="print a per-company pulled-vs-kept table to verify completeness")
 
     p_pipe = sub.add_parser("pipeline",
                             help="discover -> tailor+score top N -> dashboard (no submit)")
@@ -505,7 +517,8 @@ def main(argv: list[str] | None = None) -> None:
         return [s.strip() for s in v.split(",") if s.strip()] if v else None
 
     if args.command == "discover":
-        cmd_discover(args.hours, args.target, args.profile, _srcs(args.source))
+        cmd_discover(args.hours, args.target, args.profile, _srcs(args.source),
+                     coverage=args.coverage)
     elif args.command == "pipeline":
         cmd_pipeline(args.hours, args.top, args.profile, args.brain, args.from_tracker,
                      refresh=args.refresh, sources=_srcs(args.source))
