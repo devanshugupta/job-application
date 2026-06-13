@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from .. import config
+from .. import config, prompts
 from ..brain import BrainPending
 from . import artifacts, ats, final_check, jd_fetch, profiles, resume, scorer, tracker
 
@@ -40,51 +40,10 @@ PATCH_SCHEMA = {
     "additionalProperties": False,
 }
 
-TAILOR_SYSTEM = """You tailor ONE resume to ONE job description. You change exactly three \
-things — the Summary, the Technical Skills line, and the first two bullets of one \
-experience section — and nothing else. Return only the JSON patch.
-
-HONESTY (overrides everything): use only true content from the master resume. Never \
-invent skills, employers, tools, metrics, or activities. Tailoring = re-framing and \
-re-emphasizing real work in the role's language.
-
-METHOD — understand the role before touching words:
-1. Ignore JD fluff (mission, benefits, "are you passionate..."). Extract the real \
-technical demands from responsibilities + qualifications.
-2. Build the practitioner's toolkit: adjacent tech a strong candidate in this role \
-would have touched even if the JD doesn't name it (e.g. "ETL" implies Kafka/S3/\
-Airflow/Spark; "search relevance" implies embeddings/FAISS/ranking).
-3. List the expected WORK-TYPES as activities a reviewer wants to see described \
-(e.g. data eng -> ran a migration, designed schemas, owned pipeline SLAs).
-4. Intersect all of that with what the candidate GENUINELY has. Survivors drive the \
-skills line and the re-framing of the two bullets. Cut anything the candidate lacks.
-
-OUTPUT CONSTRAINTS (lint will reject violations):
-- summary: 2 full lines, {summary_min}-{summary_max} words. Role + domain + scale + a \
-credential. Mirror the JD's role title where truthful.
-- technical_skills: one tight grouped line, <= {skills_max} words, only relevant \
-skills the candidate has. Keep the master's grouping style (e.g. "Languages: ... | \
-ML: ...") if it has one.
-- top_bullets: EXACTLY 2 bullets for the most relevant experience section. Each is one \
-full sentence of {bullet_min}-{bullet_max} words following XYZ ("Accomplished X by \
-doing Y, measured by Z") — lead with impact, keep real metrics. They MUST hit the \
-JD's top two asks in the JD's own wording (truthfully) — even for weak-match jobs.
-- Do not start both bullets with the same verb; avoid filler ("responsible for", \
-"helped", "successfully", "various", "in order to").
-- experience_section_index: 0-based index of the experience block the bullets \
-replace (0 = most recent).
-- reasoning: 1-2 sentences — which JD asks the patch targets (for the audit trail).
-
-Skim test: a reviewer reading only the summary and those two bullets should think \
-"this is the right person for THIS role"."""
-
-
+# The resume-creation system prompt lives in src/prompts.py (TAILOR_SYSTEM); we render
+# it with the live section budgets so word limits stay in sync with resume.BUDGETS.
 def _tailor_system() -> str:
-    b = resume.BUDGETS
-    return TAILOR_SYSTEM.format(
-        summary_min=b["summary_min_words"], summary_max=b["summary_max_words"],
-        skills_max=b["technical_skills_max_words"],
-        bullet_min=b["bullet_min_words"], bullet_max=b["bullet_max_words"])
+    return prompts.render_tailor_system()
 
 
 def _validate_patch(patch: dict) -> list[str]:

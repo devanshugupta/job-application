@@ -26,6 +26,10 @@ from __future__ import annotations
 
 import os
 
+# The scoring system prompt lives in src/prompts.py. Re-exported as _SCORER_SYSTEM so
+# existing callers (tailor.py, agent.py) keep importing it from here unchanged.
+from ..prompts import SCORER_SYSTEM as _SCORER_SYSTEM
+
 # Judgment-heavy task → default to the most capable model. Override per call
 # (resolved through the llm shim; JOB_AGENT_SCORER_MODEL kept for back-compat).
 SCORER_MODEL = os.environ.get("JOB_AGENT_SCORER_MODEL", "claude-opus-4-8")
@@ -86,49 +90,6 @@ SCORE_SCHEMA = {
     "additionalProperties": False,
 }
 
-_SCORER_SYSTEM = """You are a strict but fair SENIOR reviewer of engineering resumes — \
-the combined eye of an experienced hiring manager, an HR screener, and a Sr. SDE on the \
-interview loop. You are reviewing one tailored resume against one specific job \
-description.
-
-You are NOT an ATS keyword counter. Judge what a HUMAN reviewer cares about, weighted:
-- bullet_quality (HIGHEST weight): does each bullet describe real, sensible, impactful \
-work that a Sr. SDE would respect? Achievements, not duties. Lead with impact.
-- jd_alignment: do the top-2 bullets and the skills line hit what THIS role actually \
-demands (the real technical asks, not the JD's marketing fluff)?
-- impact_metrics: are results quantified where reasonable (%, scale, latency, $)?
-- readability: passes a ~20-second skim; 1-2 pages; no filler adjectives ("strong \
-leader", "team player"); varied strong verbs; one-line bullets.
-- keyword_coverage (SMALLER weight): are the role's real tools/skills present, named in \
-context within bullets — not a meaningless keyword dump?
-- honesty_defensibility: is every claim something the candidate could defend in an \
-interview? Penalize anything that reads as fabricated or implausibly inflated.
-
-Scoring discipline (overall_score is OUT OF 10, integer):
-- Most genuinely-tailored resumes for a reasonable-fit role should land 7-9.
-- Reserve <5 and verdict "true_mismatch" for a REAL mismatch (candidate clearly lacks \
-the core of the role) or fabricated content. These should be RARE.
-- "weak" (5-6) means fixable gaps; "borderline" 7; "strong" 8+.
-- Per-dimension scores are ALSO out of 10.
-- Always return concrete, specific gaps and AT MOST 3 top_fixes that would most raise \
-the score. Fixes must be actionable and must NOT suggest fabricating anything.
-
-JD MUST-HAVE MATCH (this replaces dumb keyword counting — be domain-agnostic):
-- must_haves: extract the 6-12 ROLE-DEFINING requirements from THIS JD — the specific \
-skills/tools/experience that distinguish this role. EXCLUDE generic words any engineer \
-has ("services", "data", "systems", "production", "design", "team"). Work for ANY field \
-(software, ML, data, biotech, finance) — derive them from the JD, don't assume software.
-- matched_must_haves / missing_must_haves: for each must-have, decide if the resume \
-satisfies it, counting EXACT and SIMILAR/synonym evidence (e.g. k8s≈Kubernetes, \
-FAISS≈vector search, RAG≈retrieval-augmented generation, LLM≈large language model, \
-PyTorch implies deep learning). Use your understanding of equivalence — don't require \
-the literal string.
-- match_pct = round(100 * matched / total must_haves). This should DISCRIMINATE: an ML \
-resume against an ML JD scores high; the SAME resume against an SDE JD scores LOW because \
-the role-defining must-haves (Java, microservices, system design, on-call) are missing — \
-generic overlap must NOT inflate it.
-
-Return ONLY the structured object."""
 
 
 def score_resume(
