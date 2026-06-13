@@ -49,19 +49,52 @@ def latex_escape(text: str) -> str:
 
 
 def have_pdflatex() -> bool:
-    """True if a pdflatex binary is reachable (BasicTeX adds /Library/TeX/texbin)."""
-    return _pdflatex_bin() is not None
+    """True if ANY supported LaTeX engine is reachable.
+
+    Named have_pdflatex for back-compat; it really means "can we compile LaTeX".
+    Prefers tectonic (self-contained, installs without sudo via `brew install
+    tectonic`, auto-downloads packages, persists on PATH) over a system pdflatex.
+    """
+    return _latex_engine() is not None
 
 
-def _pdflatex_bin() -> str | None:
-    found = shutil.which("pdflatex")
-    if found:
-        return found
-    # BasicTeX on macOS may not be on PATH in non-login shells.
-    for cand in ("/Library/TeX/texbin/pdflatex", "/usr/local/texlive/2026basic/bin/universal-darwin/pdflatex"):
-        if pathlib.Path(cand).exists():
-            return cand
+def _latex_engine() -> tuple[str, str] | None:
+    """Return (engine, binary_path) for the best available LaTeX toolchain, or None.
+
+    engine ∈ {'tectonic', 'pdflatex'} — the compile step adapts the source per engine
+    (tectonic is XeTeX-based and rejects pdfTeX-only primitives; see _adapt_for_engine).
+    """
+    tec = shutil.which("tectonic") or next(
+        (c for c in ("/opt/homebrew/bin/tectonic", "/usr/local/bin/tectonic")
+         if pathlib.Path(c).exists()), None)
+    if tec:
+        return ("tectonic", tec)
+    pdf = shutil.which("pdflatex") or next(
+        (c for c in ("/Library/TeX/texbin/pdflatex",
+                     "/usr/local/texlive/2026basic/bin/universal-darwin/pdflatex")
+         if pathlib.Path(c).exists()), None)
+    if pdf:
+        return ("pdflatex", pdf)
     return None
+
+
+def _adapt_for_engine(tex: str, engine: str) -> str:
+    r"""Make the source compile under the chosen engine.
+
+    tectonic uses the XeTeX engine, which does NOT have the pdfTeX primitives the
+    Jake's-Resume template carries for ATS-parseable output (`\pdfgentounicode=1`,
+    `\input{glyphtounicode}`). They are a no-op safety feature, so we comment them
+    out for tectonic; pdflatex keeps them.
+    """
+    if engine != "tectonic":
+        return tex
+    tex = re.sub(r"(?m)^\s*\\input\{glyphtounicode\}.*$", "% (stripped for tectonic)", tex)
+    tex = re.sub(r"(?m)^\s*\\pdfgentounicode\s*=\s*1.*$", "% (stripped for tectonic)", tex)
+    # fontawesome5 makes tectonic SIGABRT on this platform; the template only loads it,
+    # it uses no \fa* icons, so dropping the package is safe and changes nothing visible.
+    tex = re.sub(r"(?m)^\s*\\usepackage(\[[^\]]*\])?\{fontawesome5\}.*$",
+                 "% (fontawesome5 stripped for tectonic)", tex)
+    return tex
 
 
 def tex_master_path(profile: str | None) -> pathlib.Path | None:
@@ -217,19 +250,34 @@ def _replace_section_body(tex: str, section: str, new_body: str) -> str:
 
 
 def _replace_skills_block(tex: str, skills: str) -> str:
-    r"""Replace the Technical Skills itemize body with the patch's skills line(s).
+    r"""Replace the Technical Skills body with the patch's skills line(s), brace-safely.
 
-    The template shape is ``\section{Technical Skills} ... \small{\item{ <lines> }}``.
-    The patch value may be grouped ("Languages: ... | ML: ..." or one group per
-    line) or a flat comma list; grouped input becomes one ``\textbf{Group}{: ...}``
-    row per group, matching the template's look. No match -> tex unchanged (safe).
+    Template shape: ``\section{Technical Skills} ... \small{\item{ <lines> }}``. We find
+    the ``\item{`` after the section heading and balance-scan to ITS matching ``}`` (so
+    we never miscount the trailing ``}}`` — the bug that produced "Extra }"). The patch
+    value may be grouped ("Languages: ... | ML: ..." or one group per line) or a flat
+    list; grouped input becomes one ``\textbf{Group}{: ...}`` row, matching the template.
+    No section / no ``\item{`` -> tex unchanged (safe no-op).
     """
-    pat = re.compile(
-        r"(\\section\{Technical Skills\}.*?\\small\s*\{\s*\\item\s*\{)(.*?)(\}\s*\})",
-        re.S | re.I)
-    m = pat.search(tex)
-    if not m:
+    sec = re.search(r"\\section\{Technical Skills\}", tex, re.I)
+    if not sec:
         return tex
+    item = re.search(r"\\item\s*\{", tex[sec.end():])
+    if not item:
+        return tex
+    open_brace = sec.end() + item.end() - 1  # index of the '{' after \item
+    depth, k = 0, open_brace
+    while k < len(tex):
+        if tex[k] == "{":
+            depth += 1
+        elif tex[k] == "}":
+            depth -= 1
+            if depth == 0:
+                break
+        k += 1
+    if depth != 0:
+        return tex  # unbalanced source — don't touch it
+
     parts = [p.strip() for p in re.split(r"\n|(?<!\w)\|(?!\w)", skills) if p.strip()]
     rows = []
     for p in parts:
@@ -241,8 +289,8 @@ def _replace_skills_block(tex: str, skills: str) -> str:
             rows.append(f"    {latex_escape(p)}")
     if not rows:
         return tex
-    body = " \\\\\n".join(rows)
-    return tex[:m.start(2)] + "\n" + body + "\n  " + tex[m.end(2):]
+    body = "\n" + " \\\\\n".join(rows) + "\n  "
+    return tex[:open_brace + 1] + body + tex[k:]  # keep the closing '}' at k
 
 
 def edit_tex(tex_source: str, patch: dict) -> str:
@@ -304,35 +352,44 @@ def _dedupe_resume_items(tex: str, keep: list[str], threshold: float = 0.6) -> s
 # --- compilation -------------------------------------------------------------
 
 def compile_pdf(tex_source: str, out_pdf: pathlib.Path) -> tuple[bool, str]:
-    """Compile LaTeX source to PDF with pdflatex. Returns (ok, message). Never raises.
+    """Compile LaTeX source to PDF. Returns (ok, message). Never raises.
 
-    Writes the .tex next to out_pdf, runs pdflatex twice (refs/links), captures the log.
+    Uses tectonic if available (preferred — self-contained, auto-fetches packages),
+    else a system pdflatex. The source is adapted per engine (see _adapt_for_engine).
     """
-    binp = _pdflatex_bin()
-    if binp is None:
-        return False, "pdflatex not installed"
+    eng = _latex_engine()
+    if eng is None:
+        return False, "no LaTeX engine (install: `brew install tectonic`)"
+    engine, binp = eng
     out_pdf = pathlib.Path(out_pdf)
     out_pdf.parent.mkdir(parents=True, exist_ok=True)
     tex_file = out_pdf.with_suffix(".tex")
-    tex_file.write_text(tex_source)
+    tex_file.write_text(_adapt_for_engine(tex_source, engine))
     try:
-        for _ in range(2):
+        if engine == "tectonic":
             proc = subprocess.run(
-                [binp, "-interaction=nonstopmode", "-halt-on-error",
-                 "-output-directory", str(out_pdf.parent), str(tex_file)],
-                capture_output=True, text=True, timeout=120,
+                [binp, "-X", "compile", "--outdir", str(out_pdf.parent),
+                 "--keep-logs", str(tex_file)],
+                capture_output=True, text=True, timeout=180,
             )
+        else:
+            for _ in range(2):  # twice for refs/links
+                proc = subprocess.run(
+                    [binp, "-interaction=nonstopmode", "-halt-on-error",
+                     "-output-directory", str(out_pdf.parent), str(tex_file)],
+                    capture_output=True, text=True, timeout=120,
+                )
     except (subprocess.TimeoutExpired, OSError) as e:
-        return False, f"pdflatex failed to run: {e}"
+        return False, f"{engine} failed to run: {e}"
     produced = out_pdf.parent / (tex_file.stem + ".pdf")
     if produced != out_pdf and produced.exists():
         produced.replace(out_pdf)
-    # Clean pdflatex scratch so data/ doesn't accumulate .aux/.log/.out litter.
+    # Clean scratch so data/ doesn't accumulate .aux/.log/.out litter.
     for ext in (".aux", ".log", ".out"):
         scratch = out_pdf.with_suffix(ext)
         if scratch.exists():
             scratch.unlink()
     if out_pdf.exists():
-        return True, "ok"
-    tail = (proc.stderr or proc.stdout or "")[-800:]
-    return False, f"pdflatex compile error:\n{tail}"
+        return True, f"ok ({engine})"
+    tail = (proc.stderr or proc.stdout or "")[-1000:]
+    return False, f"{engine} compile error:\n{tail}"
