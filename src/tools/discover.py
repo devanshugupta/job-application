@@ -64,62 +64,66 @@ def _dedupe(jobs: list[dict]) -> list[dict]:
     return out
 
 
-def gather(hours: int, *, profile: str | None = None,
-           include_feeds: bool = True, include_boards: bool = True,
+def _is_fresh(job: dict, cutoff_ts: int, cutoff_date: str) -> bool:
+    """A job is fresh if its timestamp (preferred) or date is within the window."""
+    ts = job.get("posted_ts") or 0
+    if ts:
+        return ts >= cutoff_ts
+    pd = job.get("posted_date") or ""
+    return bool(pd) and pd >= cutoff_date  # unknown date -> not fresh (excluded)
+
+
+def gather(hours: int, *, profile: str | None = None, sources: list[str] | None = None,
            verbose: bool = True, now_ts: int | None = None) -> dict:
-    """Collect, filter, and rank fresh roles. Returns
-    {"jobs": ranked, "stats": {...}, "errors": [...]}  — does NOT save."""
+    """Collect from the SELECTED sources, then filter + rank uniformly. Returns
+    {"jobs": ranked, "stats": {...}, "errors": [...]}  — does NOT save.
+
+    `sources` selects backends by name/keyword (None = all available / settings.json).
+    Every source returns the normalized job shape; the freshness/US/title/seniority/
+    profile gates and ranking below apply identically to all of them — so a new source
+    (LinkedIn, ScoutBetter, a new ATS) needs no changes here.
+    """
+    from .. import sources as source_registry
+
     now = now_ts or int(time.time())
-    cutoff = now - hours * 3600
+    cutoff_ts = now - hours * 3600
+    cutoff_date = date.fromtimestamp(cutoff_ts).isoformat()
     today = date.today().isoformat()
     raw: list[dict] = []
     errors: list[str] = []
     stats: dict[str, int] = {}
 
-    # --- GitHub curated feeds (already level- and category-filtered) ----------
-    if include_feeds:
-        days = max(1, -(-hours // 24))  # ceil
-        for name in feeds.FEEDS:
-            try:
-                listings = feeds.fetch_feed(name)
-                fresh = feeds.fresh_roles(listings, days, today_ts=now)
-                for r in fresh:
-                    r["seniority_checked"] = True  # feed is new-grad only
-                raw.extend(fresh)
-                stats[f"feed:{name}"] = len(fresh)
-                if verbose:
-                    print(f"  feed {name:<22} {len(fresh):>4} fresh roles")
-            except Exception as e:  # network/parse — fail soft per source
-                errors.append(f"feed {name}: {e}")
+    chosen = source_registry.resolve(sources)
+    if verbose:
+        print(f"sources: {', '.join(s.name for s in chosen) or '(none)'}")
+    for src in chosen:
+        try:
+            jobs_s, errs_s = src.fetch(hours, profile=profile, verbose=verbose)
+        except Exception as e:  # a source must never kill the run
+            errors.append(f"{src.name}: {e}")
+            continue
+        errors.extend(errs_s)
+        stats[src.name] = len(jobs_s)
+        raw.extend(jobs_s)
 
-    # --- ATS board APIs for watchlist companies -------------------------------
-    if include_boards:
-        bjobs, berrs = boards.fetch_watchlist_jobs(verbose=verbose)
-        errors.extend(berrs)
-        kept = 0
-        for j in bjobs:
-            if j.get("posted_ts", 0) and j["posted_ts"] < cutoff:
-                continue
-            if not j.get("posted_ts") and j.get("posted_date", "") < (
-                    date.fromtimestamp(cutoff).isoformat()):
-                continue
-            prof = _profile_for_title(j["role"])
-            if prof is None or _SENIOR.search(j["role"]):
-                continue
-            if not feeds._is_usa([j.get("locations", "")]):
-                continue
-            j["profile"] = prof
-            raw.append(j)
-            kept += 1
-        stats["boards"] = kept
-        if verbose:
-            print(f"  boards: {kept} fresh, relevant postings")
-
-    # --- shared filters --------------------------------------------------------
+    # --- unified filters (apply to every source identically) ------------------
     exclude = feeds._load_exclude_companies()
     jobs = []
     for j in _dedupe(raw):
+        if not _is_fresh(j, cutoff_ts, cutoff_date):
+            continue
+        if not feeds._is_usa([j.get("locations", "")]):
+            continue
         if any(ex in j["company"].lower() for ex in exclude):
+            continue
+        # assign a profile if the source didn't, dropping non-relevant titles
+        if not j.get("profile"):
+            prof = _profile_for_title(j["role"])
+            if prof is None:
+                continue
+            j["profile"] = prof
+        # seniority gate for sources that didn't pre-filter level
+        if not j.get("seniority_checked") and _SENIOR.search(j["role"]):
             continue
         if profile and j.get("profile") != profile:
             continue
@@ -141,20 +145,22 @@ def gather(hours: int, *, profile: str | None = None,
 
 
 def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
-             save: bool = True, verbose: bool = True, refresh: bool = False) -> list[dict]:
+             sources: list[str] | None = None, save: bool = True, verbose: bool = True,
+             refresh: bool = False) -> list[dict]:
     """The `discover` command body: gather + take top `target` + record as found.
 
-    Caches the gathered shortlist for the day (keyed by hours+profile) so a re-run —
-    e.g. after a mid-pipeline failure — reuses it instead of re-sweeping every source.
-    Pass refresh=True to force a fresh sweep.
+    Caches the gathered shortlist for the day (keyed by hours+profile+sources) so a
+    re-run — e.g. after a mid-pipeline failure — reuses it instead of re-sweeping every
+    source. Pass refresh=True to force a fresh sweep.
     """
     from . import finder
 
-    cache_key = f"discover-{hours}-{profile or 'auto'}"
+    src_key = "+".join(sorted(sources)) if sources else "all"
+    cache_key = f"discover-{hours}-{profile or 'auto'}-{src_key}"
     today = date.today().isoformat()
     jobs = None if refresh else finder.get_cached(cache_key, profile, today)
     if jobs is None:
-        result = gather(hours, profile=profile, verbose=verbose)
+        result = gather(hours, profile=profile, sources=sources, verbose=verbose)
         jobs = result["jobs"]
         finder.put_cache(cache_key, profile, today, jobs)
         if verbose:

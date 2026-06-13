@@ -23,6 +23,8 @@ driving this repo, can answer).
 ## How it works (architecture)
 
 ```
+
+
                 ┌─────────────────────────────────────────────┐
    you ───────▶ │  cli.py   "apply <url>"                      │
                 └───────────────┬─────────────────────────────┘

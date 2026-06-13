@@ -161,6 +161,32 @@ def test_manual_brain_roundtrip(tmp_path):
     assert out == {"x": 7}
 
 
+def test_sources_registry_and_selection():
+    from src import sources
+    names = set(sources.all_sources())
+    assert {"ats_boards", "github_feed", "linkedin", "scoutbetter"} <= names
+    # select by keyword
+    chosen = sources.resolve(["greenhouse"])
+    assert [s.name for s in chosen] == ["ats_boards"]
+    # linkedin/scoutbetter are off until configured
+    assert sources.all_sources()["linkedin"].available() is False
+    assert sources.all_sources()["scoutbetter"].available() is False
+    # explicit selection bypasses availability (lets you force one on)
+    assert [s.name for s in sources.resolve(["linkedin"])] == ["linkedin"]
+
+
+def test_workday_url_parses_to_cxs_api():
+    import re
+    from src.tools import jd_fetch
+    url = ("https://ngc.wd1.myworkdayjobs.com/Northrop_Grumman_External_Site/job/"
+           "United-States-California-San-Diego/SE_R10234156")
+    m = re.search(r"https?://([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com/([^/]+)/job/(.+)",
+                  url, re.I)
+    assert m and m.group(1) == "ngc" and m.group(3) == "Northrop_Grumman_External_Site"
+    # the fetcher exists and is wired into the API chain
+    assert hasattr(jd_fetch, "_workday_api")
+
+
 def test_config_paths_are_root_anchored():
     assert config.APPLICATIONS_PATH.is_absolute()
     assert str(config.APPLICATIONS_PATH).endswith("data/applications.json")

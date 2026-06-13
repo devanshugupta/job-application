@@ -36,13 +36,7 @@ def _strip_html(raw: str) -> str:
     return raw.strip()
 
 
-def _greenhouse_api(url: str) -> str | None:
-    """boards.greenhouse.io/<token>/jobs/<id> or job-boards.greenhouse.io — clean JSON content."""
-    m = re.search(r"greenhouse\.io/(?:embed/job_app\?[^ ]*token=)?([A-Za-z0-9_-]+)/jobs/(\d+)",
-                  url)
-    if not m:
-        return None
-    token, jid = m.group(1), m.group(2)
+def _greenhouse_fetch(token: str, jid: str) -> str | None:
     try:
         data = json.loads(_get(
             f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{jid}"))
@@ -51,6 +45,40 @@ def _greenhouse_api(url: str) -> str | None:
         return (head + body).strip() or None
     except Exception:
         return None
+
+
+def _greenhouse_api(url: str) -> str | None:
+    """Greenhouse JD via the boards API. Handles both the native board URL
+    (boards.greenhouse.io/<token>/jobs/<id>) and a company page that embeds Greenhouse
+    via ?gh_jid=<id> — in the embed case the board token isn't in the URL, so we try
+    tokens derived from the hostname and the watchlist."""
+    m = re.search(r"greenhouse\.io/(?:embed/job_app\?[^ ]*token=)?([A-Za-z0-9_-]+)/jobs/(\d+)",
+                  url)
+    if m:
+        return _greenhouse_fetch(m.group(1), m.group(2))
+
+    jid_m = re.search(r"[?&]gh_jid=(\d+)", url)
+    if not jid_m:
+        return None
+    jid = jid_m.group(1)
+    # candidate board tokens: watchlist company whose name appears in the host, then the
+    # host's main label (mongodb.com -> "mongodb"), which is the usual Greenhouse token.
+    host = re.sub(r"^https?://(www\.)?", "", url).split("/")[0]
+    label = host.split(".")[0]
+    candidates = [label]
+    try:
+        from . import boards
+        for c in boards.watchlist_companies():
+            tok = c.get("token")
+            if tok and (tok in host or c["name"].lower().replace(" ", "") in host):
+                candidates.insert(0, tok)
+    except Exception:
+        pass
+    for tok in dict.fromkeys(candidates):  # dedupe, keep order
+        out = _greenhouse_fetch(tok, jid)
+        if out:
+            return out
+    return None
 
 
 def _lever_api(url: str) -> str | None:
@@ -69,16 +97,97 @@ def _lever_api(url: str) -> str | None:
         return None
 
 
-def fetch_jd(url: str, max_chars: int = 12000) -> dict:
-    """Return {text, source, looks_complete}. Never raises on fetch errors."""
-    for api_fn, src in ((_greenhouse_api, "greenhouse-api"), (_lever_api, "lever-api")):
-        text = api_fn(url)
-        if text:
-            return {"text": text[:max_chars], "source": src,
-                    "looks_complete": len(text) >= MIN_COMPLETE_CHARS}
+def _workday_api(url: str) -> str | None:
+    """Workday (<tenant>.wdN.myworkdayjobs.com/<site>/job/<path>) — fetch the JD from
+    Workday's public CXS JSON API instead of the JS-rendered page. The API path mirrors
+    the URL: /wday/cxs/<tenant>/<site>/job/<path>."""
+    m = re.search(r"https?://([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com/([^/]+)/job/(.+)",
+                  url, re.I)
+    if not m:
+        return None
+    tenant, wd, site, jobpath = m.group(1), m.group(2), m.group(3), m.group(4)
+    # the site segment sometimes carries a locale prefix (e.g. en-US/Site) — strip it
+    site = site.split("/")[-1]
+    api = f"https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/job/{jobpath}"
     try:
-        text = _strip_html(_get(url))
-    except Exception as e:
-        return {"text": "", "source": f"error: {e}", "looks_complete": False}
-    return {"text": text[:max_chars], "source": "http",
-            "looks_complete": len(text) >= MIN_COMPLETE_CHARS}
+        req = urllib.request.Request(api, headers={**_UA, "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=25) as r:  # noqa: S310
+            info = json.loads(r.read().decode()).get("jobPostingInfo", {})
+        body = _strip_html(_html.unescape(info.get("jobDescription", "")))
+        head = f"{info.get('title', '')}\n{info.get('location', '')}\n\n"
+        return (head + body).strip() or None
+    except Exception:
+        return None
+
+
+def _ashby_api(url: str) -> str | None:
+    """jobs.ashbyhq.com/<org>/<uuid> — pull the JD from Ashby's public posting API."""
+    m = re.search(r"ashbyhq\.com/([A-Za-z0-9_.-]+)/([0-9a-f-]{36})", url)
+    if not m:
+        return None
+    org, jid = m.group(1), m.group(2)
+    try:
+        data = json.loads(_get(
+            f"https://api.ashbyhq.com/posting-api/job-board/{org}?includeCompensation=false"))
+        for j in data.get("jobs", []):
+            if jid in (j.get("jobUrl", "") + j.get("applyUrl", "")) or j.get("id") == jid:
+                body = _strip_html(j.get("descriptionHtml", "")) or j.get("descriptionPlain", "")
+                head = f"{j.get('title', '')}\n{j.get('location', '')}\n\n"
+                return (head + body).strip() or None
+    except Exception:
+        return None
+    return None
+
+
+def _browser_fetch(url: str) -> str:
+    """Last-resort: render the page with the Chromium Playwright already installed and
+    read its visible text. Handles JS-only portals (Ashby SPA, Workday, company sites
+    that embed an ATS) that return almost nothing over plain HTTP. Never raises."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception:
+        return ""
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            page = browser.new_context(user_agent=_UA["User-Agent"]).new_page()
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=8_000)
+                except Exception:
+                    pass
+                text = page.inner_text("body")
+            finally:
+                browser.close()
+        return re.sub(r"\n\s*\n+", "\n\n", text or "").strip()
+    except Exception:
+        return ""
+
+
+def fetch_jd(url: str, max_chars: int = 12000, *, allow_browser: bool = True) -> dict:
+    """Return {text, source, looks_complete}. Never raises on fetch errors.
+
+    Order: cheap ATS JSON APIs (greenhouse/lever/ashby) → plain HTTP strip → if still
+    too thin and allowed, a headless-Chromium render (covers JS-only portals)."""
+    for api_fn, src in ((_greenhouse_api, "greenhouse-api"), (_lever_api, "lever-api"),
+                        (_ashby_api, "ashby-api"), (_workday_api, "workday-api")):
+        text = api_fn(url)
+        if text and len(text) >= MIN_COMPLETE_CHARS:
+            return {"text": text[:max_chars], "source": src, "looks_complete": True}
+    try:
+        http_text = _strip_html(_get(url))
+    except Exception:
+        http_text = ""
+    if len(http_text) >= MIN_COMPLETE_CHARS:
+        return {"text": http_text[:max_chars], "source": "http", "looks_complete": True}
+
+    if allow_browser:
+        rendered = _browser_fetch(url)
+        if len(rendered) >= MIN_COMPLETE_CHARS:
+            return {"text": rendered[:max_chars], "source": "browser",
+                    "looks_complete": True}
+        http_text = rendered or http_text  # keep whatever's longer/available
+
+    return {"text": http_text[:max_chars], "source": "http",
+            "looks_complete": len(http_text) >= MIN_COMPLETE_CHARS}

@@ -47,10 +47,13 @@ def _today() -> str:
 
 # ---------------------------------------------------------------- new pipeline
 
-def cmd_discover(hours: int, target: int, profile: str | None) -> None:
+def cmd_discover(hours: int, target: int, profile: str | None,
+                 sources: list[str] | None = None) -> None:
     """Deterministic multi-source discovery. No API key, no browser."""
-    print(f"=== DISCOVER: feeds + ATS board APIs, past {hours}h, top {target} ===")
-    shortlist = discover.discover(hours=hours, target=target, profile=profile)
+    print(f"=== DISCOVER: past {hours}h, top {target} "
+          f"[sources: {','.join(sources) if sources else 'all available'}] ===")
+    shortlist = discover.discover(hours=hours, target=target, profile=profile,
+                                  sources=sources)
     for j in shortlist[:30]:
         print(f"  {j['posted_date']}  AQS={str(j['found_score'] or '-'):>3}  "
               f"ATS={j['match']:>3}  {j['profile']:<13} "
@@ -62,7 +65,8 @@ def cmd_discover(hours: int, target: int, profile: str | None) -> None:
 
 
 def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str | None,
-                 from_tracker: bool, refresh: bool = False) -> None:
+                 from_tracker: bool, refresh: bool = False,
+                 sources: list[str] | None = None) -> None:
     """discover -> tailor+score top N (two structured LLM calls per job) -> dashboard.
 
     Brain: --brain defaults to manual when no API key is set (LLM-as-brain: prompt
@@ -88,7 +92,7 @@ def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str | No
         print(f"=== PIPELINE: discover (past {hours}h) -> tailor+score top {top} "
               f"[brain={mode}] ===\n")
         jobs = discover.discover(hours=hours, target=top, profile=profile,
-                                 refresh=refresh)
+                                 sources=sources, refresh=refresh)
     if not jobs:
         print("No fresh roles to process.")
         dash.render()
@@ -429,6 +433,9 @@ def main(argv: list[str] | None = None) -> None:
     p_disc.add_argument("--hours", type=int, default=24, help="freshness window in hours")
     p_disc.add_argument("--target", type=int, default=100, help="how many roles to keep")
     p_disc.add_argument("--profile", default=None)
+    p_disc.add_argument("--source", default=None,
+                        help="comma-separated source names/keywords "
+                             "(ats_boards,github_feed,linkedin,scoutbetter); default: all available")
 
     p_pipe = sub.add_parser("pipeline",
                             help="discover -> tailor+score top N -> dashboard (no submit)")
@@ -442,6 +449,8 @@ def main(argv: list[str] | None = None) -> None:
                         help="tailor previously discovered 'found' rows instead of re-discovering")
     p_pipe.add_argument("--refresh", action="store_true",
                         help="force a fresh discovery sweep (ignore today's cache)")
+    p_pipe.add_argument("--source", default=None,
+                        help="comma-separated source names/keywords; default: all available")
 
     sub.add_parser("brain", help="List manual-brain packets awaiting responses")
 
@@ -492,11 +501,14 @@ def main(argv: list[str] | None = None) -> None:
     if args.command in ("find", "score", "apply"):
         _require_key()
 
+    def _srcs(v):
+        return [s.strip() for s in v.split(",") if s.strip()] if v else None
+
     if args.command == "discover":
-        cmd_discover(args.hours, args.target, args.profile)
+        cmd_discover(args.hours, args.target, args.profile, _srcs(args.source))
     elif args.command == "pipeline":
         cmd_pipeline(args.hours, args.top, args.profile, args.brain, args.from_tracker,
-                     refresh=args.refresh)
+                     refresh=args.refresh, sources=_srcs(args.source))
     elif args.command == "run":
         cmd_pipeline(args.days * 24, args.top, args.profile, args.brain, False)
     elif args.command == "brain":
