@@ -141,10 +141,29 @@ def gather(hours: int, *, profile: str | None = None,
 
 
 def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
-             save: bool = True, verbose: bool = True) -> list[dict]:
-    """The `discover` command body: gather + take top `target` + record as found."""
-    result = gather(hours, profile=profile, verbose=verbose)
-    shortlist = result["jobs"][:target]
+             save: bool = True, verbose: bool = True, refresh: bool = False) -> list[dict]:
+    """The `discover` command body: gather + take top `target` + record as found.
+
+    Caches the gathered shortlist for the day (keyed by hours+profile) so a re-run —
+    e.g. after a mid-pipeline failure — reuses it instead of re-sweeping every source.
+    Pass refresh=True to force a fresh sweep.
+    """
+    from . import finder
+
+    cache_key = f"discover-{hours}-{profile or 'auto'}"
+    today = date.today().isoformat()
+    jobs = None if refresh else finder.get_cached(cache_key, profile, today)
+    if jobs is None:
+        result = gather(hours, profile=profile, verbose=verbose)
+        jobs = result["jobs"]
+        finder.put_cache(cache_key, profile, today, jobs)
+        if verbose:
+            for e in result["errors"]:
+                print(f"  ⚠ {e}")
+    elif verbose:
+        print(f"Using today's cached discovery: {len(jobs)} roles "
+              "(--refresh to re-sweep).")
+    shortlist = jobs[:target]
     if save:
         existing_urls = {a.get("url") for a in tracker.list_applications()}
         for j in shortlist:
@@ -156,8 +175,6 @@ def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
                 posted_date=j["posted_date"], profile=j["profile"],
             )
     if verbose:
-        print(f"\nDiscovered {result['stats'].get('total_after_filters', 0)} fresh roles "
-              f"(past {hours}h); kept top {len(shortlist)}.")
-        for e in result["errors"]:
-            print(f"  ⚠ {e}")
+        print(f"\nDiscovered {len(jobs)} fresh roles (past {hours}h); "
+              f"kept top {len(shortlist)}.")
     return shortlist

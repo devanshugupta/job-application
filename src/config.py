@@ -115,6 +115,27 @@ def user_data_dir() -> str | None:
     return str(v) if v else None
 
 
+def has_api_key() -> bool:
+    return bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY"))
+
+
+def brain_mode() -> str:
+    """Which brain the pipeline uses by default.
+
+    'api'    -> call Anthropic/OpenAI (needs a key).
+    'manual' -> no API: write prompt packets to data/brain/ for an LLM (e.g. the
+                Claude Code session driving this repo) to answer.
+
+    Resolution: explicit JOB_AGENT_BRAIN / settings.json wins; otherwise auto —
+    'api' only when a key is actually present, else 'manual'. So a machine with no
+    key transparently uses the LLM-as-brain path instead of erroring.
+    """
+    explicit = setting("brain")
+    if explicit in ("api", "manual"):
+        return explicit
+    return "api" if has_api_key() else "manual"
+
+
 def resume_pdf_name() -> str:
     """Filename for rendered resume PDFs, derived from the profile's full name
     (e.g. 'Devanshu_Gupta_Resume.pdf'). Falls back to a generic name."""

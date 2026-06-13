@@ -188,9 +188,21 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
     return rec
 
 
+def _is_auth_error(e: Exception) -> bool:
+    """Provider failures that hit EVERY job identically (bad key, exhausted quota) —
+    retrying the rest of the shortlist would just repeat the failure N times.
+    Transient rate limits are not matched (plain 429 without insufficient_quota)."""
+    if type(e).__name__ in ("AuthenticationError", "PermissionDeniedError"):
+        return True
+    s = str(e)
+    return ("invalid_api_key" in s or "authentication_error" in s
+            or "insufficient_quota" in s or " 401 " in f" {s} ")
+
+
 def tailor_many(jobs: list[dict], *, brain, verbose: bool = True) -> dict:
     """Tailor+score a discovery shortlist. In manual mode, jobs whose Brain packets
-    lack responses are collected as 'pending' instead of failing the run."""
+    lack responses are collected as 'pending' instead of failing the run. Auth
+    errors abort the whole run immediately — they can never succeed job-by-job."""
     done, pending, failed = [], [], []
     for i, j in enumerate(jobs, 1):
         label = f"{j.get('company', '?')} — {j.get('role', '?')}"
@@ -207,6 +219,15 @@ def tailor_many(jobs: list[dict], *, brain, verbose: bool = True) -> dict:
             if verbose:
                 print(f"    ⏸ {bp}")
         except Exception as e:
+            if _is_auth_error(e):
+                raise SystemExit(
+                    f"\n✗ API authentication failed: {e}\n\n"
+                    "Aborting the run — every remaining job would hit the same error.\n"
+                    "Check which key/provider is in use:\n"
+                    "  - .env: ANTHROPIC_API_KEY / OPENAI_API_KEY and JOB_AGENT_PROVIDER\n"
+                    "  - a stale exported key in your shell overrides .env "
+                    "(`env | grep -E 'OPENAI|ANTHROPIC'`)\n"
+                    "  - or run with no key at all: `pipeline --brain manual`")
             failed.append({"job": label, "error": str(e)})
             if verbose:
                 print(f"    ✗ {e}")

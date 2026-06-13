@@ -61,30 +61,50 @@ def cmd_discover(hours: int, target: int, profile: str | None) -> None:
     _print_results_hint()
 
 
-def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str,
-                 from_tracker: bool) -> None:
+def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str | None,
+                 from_tracker: bool, refresh: bool = False) -> None:
     """discover -> tailor+score top N (two structured LLM calls per job) -> dashboard.
 
-    --brain manual runs with NO API key: prompt packets land in data/brain/; have
-    any LLM write the .response.json files, then re-run this same command.
+    Brain: --brain defaults to manual when no API key is set (LLM-as-brain: prompt
+    packets land in data/brain/ for the running LLM to answer, then re-run). Use
+    --brain api to force the API path.
+
+    Resumable: discovery results are cached for the day, and jobs already scored for
+    a URL are skipped — so re-running after a mid-run failure does NOT re-fetch or
+    redo finished work. --refresh forces a fresh discovery sweep.
     """
-    if brain_mode == "api":
+    mode = brain_mode or config.brain_mode()
+    if mode == "api":
         _require_key()
-    brain = get_brain(brain_mode)
+    else:
+        print("Brain: MANUAL (no API key needed — this LLM answers the prompt packets).")
+    brain = get_brain(mode)
 
     if from_tracker:
         jobs = [a for a in tracker.list_applications() if a.get("status") == "found"]
         jobs = jobs[-top:]
         print(f"=== PIPELINE: {len(jobs)} previously found roles -> tailor+score ===")
     else:
-        print(f"=== PIPELINE: discover (past {hours}h) -> tailor+score top {top} ===\n")
-        jobs = discover.discover(hours=hours, target=top, profile=profile)
+        print(f"=== PIPELINE: discover (past {hours}h) -> tailor+score top {top} "
+              f"[brain={mode}] ===\n")
+        jobs = discover.discover(hours=hours, target=top, profile=profile,
+                                 refresh=refresh)
     if not jobs:
         print("No fresh roles to process.")
         dash.render()
         return
 
-    result = tailor.tailor_many(jobs, brain=brain)
+    # Resumability: skip jobs already scored (so a re-run after a failure only
+    # processes what's left). Manual mode still re-enters scored jobs only if their
+    # packets were never answered — tailor_job is cheap to re-reach for those.
+    scored_urls = {a.get("url") for a in tracker.list_applications()
+                   if a.get("status") == "scored" and a.get("resume_score") is not None}
+    remaining = [j for j in jobs if j["url"] not in scored_urls]
+    skipped = len(jobs) - len(remaining)
+    if skipped:
+        print(f"Skipping {skipped} already-scored role(s); {len(remaining)} to process.")
+
+    result = tailor.tailor_many(remaining, brain=brain)
     dash.render()
 
     print(f"\n=== PIPELINE DONE: {len(result['done'])} scored, "
@@ -415,10 +435,13 @@ def main(argv: list[str] | None = None) -> None:
     p_pipe.add_argument("--hours", type=int, default=24)
     p_pipe.add_argument("--top", type=int, default=10, help="roles to tailor+score")
     p_pipe.add_argument("--profile", default=None)
-    p_pipe.add_argument("--brain", choices=["api", "manual"], default="api",
-                        help="manual = no API key; prompts land in data/brain/")
+    p_pipe.add_argument("--brain", choices=["api", "manual"], default=None,
+                        help="manual = no API key (this LLM answers packets); "
+                             "default: manual when no key is set, else api")
     p_pipe.add_argument("--from-tracker", action="store_true",
                         help="tailor previously discovered 'found' rows instead of re-discovering")
+    p_pipe.add_argument("--refresh", action="store_true",
+                        help="force a fresh discovery sweep (ignore today's cache)")
 
     sub.add_parser("brain", help="List manual-brain packets awaiting responses")
 
@@ -462,7 +485,7 @@ def main(argv: list[str] | None = None) -> None:
     p_run.add_argument("--days", type=int, default=1)
     p_run.add_argument("--profile", default=None)
     p_run.add_argument("--top", type=int, default=10)
-    p_run.add_argument("--brain", choices=["api", "manual"], default="api")
+    p_run.add_argument("--brain", choices=["api", "manual"], default=None)
 
     args = parser.parse_args(argv)
 
@@ -472,7 +495,8 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "discover":
         cmd_discover(args.hours, args.target, args.profile)
     elif args.command == "pipeline":
-        cmd_pipeline(args.hours, args.top, args.profile, args.brain, args.from_tracker)
+        cmd_pipeline(args.hours, args.top, args.profile, args.brain, args.from_tracker,
+                     refresh=args.refresh)
     elif args.command == "run":
         cmd_pipeline(args.days * 24, args.top, args.profile, args.brain, False)
     elif args.command == "brain":
