@@ -161,6 +161,29 @@ def test_manual_brain_roundtrip(tmp_path):
     assert out == {"x": 7}
 
 
+def test_careers_scraper_extractors():
+    from src.sources import careers_page
+    import time
+    now = int(time.time())
+    # icon-only link (Google-style) -> title from container text, location after "place"
+    title, loc = careers_page._title_and_location(
+        "", "Software Engineer III, Web Ecosystem corporate_fare Google place Austin, TX, USA bar_chart Mid")
+    assert title == "Software Engineer III, Web Ecosystem"
+    assert loc == "Austin, TX, USA"
+    # date parsing variants
+    assert careers_page._parse_date("Posted 3 days ago", now)[0] != ""
+    assert careers_page._parse_date("June 10, 2026", now)[0] == "2026-06-10"
+    assert careers_page._parse_date("no date here", now) == ("", 0)
+
+
+def test_careers_source_optin_only():
+    from src import sources
+    src = sources.all_sources()["careers_page"]
+    # selectable by keyword; availability depends on a watchlist scrape block existing
+    assert [s.name for s in sources.resolve(["careers"])] == ["careers_page"]
+    assert hasattr(src, "fetch")
+
+
 def test_workday_company_detection_and_params():
     from src.tools import boards
     # explicit workday config

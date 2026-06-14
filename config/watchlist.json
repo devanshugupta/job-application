@@ -31,7 +31,7 @@
     {"name": "Vanta", "tier": "security", "sponsors_h1b": true, "ats": "ashby", "token": "vanta", "board": "https://www.vanta.com/company/careers"},
 
     {"name": "Amazon", "tier": "big-tech", "sponsors_h1b": true, "board": "https://www.amazon.jobs/en/search?base_query=software+development+engineer&sort=recent"},
-    {"name": "Google", "tier": "big-tech", "sponsors_h1b": true, "board": "https://www.google.com/about/careers/applications/jobs/results/?sort_by=date"},
+    {"name": "Google", "tier": "big-tech", "sponsors_h1b": true, "scrape": {"url": "https://www.google.com/about/careers/applications/jobs/results/?sort_by=date&q=software%20engineer", "wait": 5, "assume_recent": true}, "board": "https://www.google.com/about/careers/applications/jobs/results/?sort_by=date"},
     {"name": "Microsoft", "tier": "big-tech", "sponsors_h1b": true, "board": "https://jobs.careers.microsoft.com/global/en/search?lc=United%20States&p=Software%20Engineering"},
     {"name": "Meta", "tier": "big-tech", "sponsors_h1b": true, "board": "https://www.metacareers.com/jobs"},
     {"name": "Apple", "tier": "big-tech", "sponsors_h1b": true, "board": "https://jobs.apple.com/en-us/search?sort=newest&key=software%20engineer"},

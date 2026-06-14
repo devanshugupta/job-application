@@ -62,7 +62,7 @@ def register(src: Source) -> Source:
 def _load_builtins() -> None:
     if _REGISTRY:
         return
-    from . import ats_boards, github_feed, linkedin, scoutbetter  # noqa: F401
+    from . import ats_boards, careers_page, github_feed, linkedin, scoutbetter  # noqa: F401
 
 
 def all_sources() -> dict[str, Source]:
