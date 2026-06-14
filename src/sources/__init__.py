@@ -52,6 +52,7 @@ class Source:
 # --- registry ---------------------------------------------------------------
 
 _REGISTRY: dict[str, Source] = {}
+_LOADED = False
 
 
 def register(src: Source) -> Source:
@@ -60,9 +61,13 @@ def register(src: Source) -> Source:
 
 
 def _load_builtins() -> None:
-    if _REGISTRY:
+    # Guard on a dedicated flag, NOT on _REGISTRY being non-empty — importing one source
+    # module directly (e.g. in a test) would otherwise trip the guard and skip the rest.
+    global _LOADED
+    if _LOADED:
         return
     from . import ats_boards, careers_page, github_feed, linkedin, scoutbetter  # noqa: F401
+    _LOADED = True
 
 
 def all_sources() -> dict[str, Source]:
