@@ -1,103 +1,135 @@
-"""Source: ScoutBetter (your own job site / saved-search API).
+"""Source: ScoutBetter — a public, paginated jobs API (no login required).
 
-A template for pulling from a personal/3rd-party endpoint that returns JSON. It's
-DISABLED until you point it at your endpoint in config/settings.json and map its fields
-to the normalized shape — no scraping guesswork, just declare where the data is:
+ScoutBetter's web app is auth-gated, but its backend API is public and far richer than
+scraping the page: 318k+ US jobs, hourly-fresh, with a real `posted_at`, the full JD
+(`description`), location, years-of-experience, an h1b_sponsorship flag, and — via the
+per-job detail endpoint — the real apply URL on the company's ATS.
 
-    "scoutbetter": {
-      "enabled": true,
-      "url": "https://scoutbetter.example.com/api/jobs?fresh=24h",
-      "headers": {"Authorization": "Bearer <token>"},   // optional
-      "items_path": "data.jobs",        // dotted path to the list in the response (or "")
-      "map": {                           // your field name -> normalized field
-        "company": "company_name",
-        "role": "title",
-        "url": "apply_url",
-        "posted_date": "posted_at",      // ISO date/datetime; posted_ts derived from it
-        "locations": "location"
-      }
-    }
+    list:   GET .../api/v1/jobs/?market=US&ordering=-posted_at&search=<q>&limit=&offset=
+    detail: GET .../api/v1/jobs/<id>/   -> adds `job_url` (real ATS link) + full description
 
-Once configured it behaves exactly like the other sources (discover applies the same
-freshness/US/profile/ranking). If ScoutBetter exposes RSS or HTML instead of JSON,
-clone this file and swap the parse step — that's the whole point of the source plugin.
+We pull the list newest-first per search term, stop at the freshness window, then resolve
+each kept job's real `job_url` from the detail endpoint (threaded, capped) so the rest of
+the pipeline (dedupe, apply, jd_fetch) works on a normal ATS URL. Tunable via
+config/settings.json {"scoutbetter": {...}}; sensible defaults need no config.
 """
 
 from __future__ import annotations
 
 import json
+import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from . import Source, register
 from .. import config
 
-
-def _dig(obj, dotted: str):
-    if not dotted:
-        return obj
-    for key in dotted.split("."):
-        if isinstance(obj, dict):
-            obj = obj.get(key)
-        else:
-            return None
-    return obj
+API = "https://scoutbetter-production-webapp.azurewebsites.net/api/v1/jobs"
+_UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+       "Accept": "application/json"}
+DEFAULT_SEARCHES = ["software engineer", "machine learning engineer", "data engineer"]
 
 
-def _iso_ts(value) -> tuple[str, int]:
-    s = str(value or "").strip()
-    if not s:
-        return "", 0
+def _get(url: str, timeout: int = 25):
+    return json.loads(urllib.request.urlopen(
+        urllib.request.Request(url, headers=_UA), timeout=timeout).read())
+
+
+def _iso_ts(s: str) -> tuple[str, int]:
     try:
-        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.date().isoformat(), int(dt.timestamp())
-    except ValueError:
-        return s[:10], 0
+    except (ValueError, TypeError):
+        return "", 0
+
+
+def _detail_url(job_id) -> str | None:
+    """Resolve a job's real apply URL from the detail endpoint. None on failure."""
+    try:
+        d = _get(f"{API}/{job_id}/")
+        return d.get("job_url") or None
+    except Exception:
+        return None
 
 
 class ScoutBetterSource(Source):
     name = "scoutbetter"
-    keywords = ("scout", "scoutbetter")
-    description = "Personal ScoutBetter endpoint (configure url + field map in settings.json)"
+    keywords = ("scout", "scoutbetter", "sb")
+    description = "ScoutBetter public jobs API (no login; recency-sorted, real apply URLs)"
 
     def _cfg(self) -> dict:
         c = config._settings().get("scoutbetter")
         return c if isinstance(c, dict) else {}
 
     def available(self) -> bool:
-        c = self._cfg()
-        return bool(c.get("enabled") and c.get("url"))
+        # public API — on by default; set settings.json scoutbetter.enabled=false to disable
+        return self._cfg().get("enabled", True)
 
     def fetch(self, hours, *, profile=None, verbose=True):
         cfg = self._cfg()
-        if not cfg.get("enabled") or not cfg.get("url"):
-            return [], ["scoutbetter: disabled (set settings.json scoutbetter.url + enabled)"]
-        fmap = cfg.get("map", {})
-        try:
-            req = urllib.request.Request(cfg["url"], headers=cfg.get("headers", {}))
-            with urllib.request.urlopen(req, timeout=25) as r:  # noqa: S310
-                payload = json.loads(r.read().decode())
-        except Exception as e:
-            return [], [f"scoutbetter: {e}"]
-        items = _dig(payload, cfg.get("items_path", "")) or []
-        if not isinstance(items, list):
-            return [], ["scoutbetter: items_path did not resolve to a list"]
-        jobs = []
-        for it in items:
-            posted_date, posted_ts = _iso_ts(it.get(fmap.get("posted_date", "posted_date")))
-            jobs.append({
-                "company": str(it.get(fmap.get("company", "company"), "")).strip(),
-                "role": str(it.get(fmap.get("role", "role"), "")).strip(),
-                "url": str(it.get(fmap.get("url", "url"), "")).strip(),
-                "posted_date": posted_date, "posted_ts": posted_ts,
-                "locations": str(it.get(fmap.get("locations", "locations"), "")).strip(),
-                "source": "scoutbetter",
-            })
+        market = cfg.get("market", "US")
+        searches = cfg.get("searches", DEFAULT_SEARCHES)
+        page_size = int(cfg.get("page_size", 50))
+        max_jobs = int(cfg.get("max_jobs", 120))     # cap kept jobs (bounds detail calls)
+        now = int(datetime.now(timezone.utc).timestamp())
+        cutoff = now - hours * 3600
+
+        kept: dict[int, dict] = {}   # job_id -> normalized (dedupe across searches)
+        errors: list[str] = []
+        for term in searches:
+            if len(kept) >= max_jobs:
+                break
+            offset, stop = 0, False
+            while not stop and offset < 1000 and len(kept) < max_jobs:
+                qs = urllib.parse.urlencode({
+                    "market": market, "ordering": "-posted_at", "search": term,
+                    "limit": page_size, "offset": offset})
+                try:
+                    page = _get(f"{API}/?{qs}").get("results", [])
+                except Exception as e:
+                    errors.append(f"scoutbetter '{term}' @{offset}: {e}")
+                    break
+                if not page:
+                    break
+                for j in page:
+                    pd, ts = _iso_ts(j.get("posted_at"))
+                    if ts and ts < cutoff:          # newest-first -> rest are older
+                        stop = True
+                        break
+                    jid = j.get("id")
+                    if jid in kept:
+                        continue
+                    kept[jid] = {
+                        "company": (j.get("company") or {}).get("name", ""),
+                        "role": j.get("title", ""),
+                        "url": "",                  # filled from detail below
+                        "posted_date": pd, "posted_ts": ts,
+                        "locations": j.get("location", ""),
+                        "source": "scoutbetter",
+                        "_id": jid,
+                        "_overview": j.get("job_overview", ""),
+                    }
+                offset += page_size
+            if verbose:
+                print(f"  scoutbetter '{term[:22]:<22}' kept {len(kept)} (cum.)")
+
+        # resolve real apply URLs (threaded, bounded by max_jobs)
+        items = list(kept.values())
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            urls = list(ex.map(lambda it: _detail_url(it["_id"]), items))
+        out = []
+        for it, url in zip(items, urls):
+            it.pop("_id", None); it.pop("_overview", None)
+            it["url"] = url or f"https://scoutbetter.jobs/jobs/{it.get('posted_ts')}"
+            if url:                                  # only keep jobs with a real apply link
+                out.append(it)
         if verbose:
-            print(f"  scoutbetter {len(jobs):>4} jobs")
-        return jobs, []
+            print(f"  scoutbetter resolved {len(out)}/{len(items)} apply URLs")
+        return out, errors
 
 
 register(ScoutBetterSource())

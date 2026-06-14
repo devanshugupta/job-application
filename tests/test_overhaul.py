@@ -236,9 +236,9 @@ def test_sources_registry_and_selection():
     # select by keyword
     chosen = sources.resolve(["greenhouse"])
     assert [s.name for s in chosen] == ["ats_boards"]
-    # linkedin/scoutbetter are off until configured
+    # linkedin is off until configured; scoutbetter is a public API (on by default)
     assert sources.all_sources()["linkedin"].available() is False
-    assert sources.all_sources()["scoutbetter"].available() is False
+    assert sources.all_sources()["scoutbetter"].available() is True
     # explicit selection bypasses availability (lets you force one on)
     assert [s.name for s in sources.resolve(["linkedin"])] == ["linkedin"]
 
