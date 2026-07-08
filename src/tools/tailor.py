@@ -20,6 +20,8 @@ Brain is pluggable, the same pipeline runs with no API key in manual mode.
 
 from __future__ import annotations
 
+import json
+import re
 from datetime import date
 
 from .. import config, prompts
@@ -103,6 +105,25 @@ def _merge_review(patch: dict, review: dict) -> tuple[dict, bool]:
     return merged, changed
 
 
+# JD phrases that hard-disqualify a sponsorship-needing candidate no matter how well
+# the resume matches. Deterministic and cheap — catches these BEFORE any tailoring work.
+_NO_SPONSOR = re.compile(
+    r"without (?:the )?need (?:for|of) (?:employer |visa )?sponsorship|"
+    r"(?:will not|won't|unable to|cannot|can't|do(?:es)? not) (?:provide |offer )?sponsor|"
+    r"no (?:visa )?sponsorship|not eligible for (?:visa )?sponsorship|"
+    r"u\.?s\.? citizens? only|citizenship (?:is )?required|"
+    r"(?:active|current) (?:security )?clearance (?:is )?required|top secret",
+    re.I)
+
+
+def _requires_sponsorship() -> bool:
+    try:
+        prof = json.loads(config.PROFILE_PATH.read_text())
+        return bool(prof.get("work_authorization", {}).get("requires_sponsorship"))
+    except Exception:
+        return False
+
+
 def tailor_job(url: str, *, brain, profile: str | None = None,
                company: str = "", role: str = "", posted_date: str | None = None,
                source: str | None = None, jd_text: str | None = None,
@@ -119,6 +140,19 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
             raise RuntimeError(
                 f"Could not extract a usable JD from {url} (source={fetched['source']}, "
                 f"{len(jd_text)} chars). Use `apply`/`score` (browser agent) for this one.")
+
+    # 1b. Hard gates — don't spend tailoring effort on a role we can't be hired for.
+    if _requires_sponsorship():
+        m = _NO_SPONSOR.search(jd_text)
+        if m:
+            reason = f"hard gate: JD states \"{m.group(0).strip()}\" and profile requires sponsorship"
+            rec = tracker.save_application(
+                company=company or "Unknown", role=role or "Unknown", url=url,
+                status="skipped", source=source, posted_date=posted_date,
+                profile=profile, notes=reason)
+            if verbose:
+                print(f"    ⛔ {reason}")
+            return rec
 
     # 2. Profile + master --------------------------------------------------------
     if not profile:
@@ -202,7 +236,8 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
                                schema=scorer.SCORE_SCHEMA, max_tokens=2000)
 
     # 8. Record ---------------------------------------------------------------------
-    kw = ats.ats_score(jd_text, master)["score"]
+    # ATS keyword score of what we'd actually SEND (the tailored resume), not the master.
+    kw = ats.ats_score(jd_text, tailored_md or master)["score"]
     notes = "; ".join(check["problems"] + [f"review: {i}" for i in review_issues])
     rec = tracker.save_application(
         company=company or "Unknown", role=role or "Unknown", url=url, status="scored",
@@ -248,7 +283,7 @@ def tailor_many(jobs: list[dict], *, brain, verbose: bool = True) -> dict:
             rec = tailor_job(j["url"], brain=brain, profile=j.get("profile"),
                              company=j.get("company", ""), role=j.get("role", ""),
                              posted_date=j.get("posted_date"), source=j.get("source"),
-                             verbose=verbose)
+                             jd_text=j.get("jd_text"), verbose=verbose)
             done.append(rec)
         except BrainPending as bp:
             pending.append({"job": label, "packet": str(bp.packet_path)})

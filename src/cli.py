@@ -48,7 +48,8 @@ def _today() -> str:
 # ---------------------------------------------------------------- new pipeline
 
 def cmd_discover(hours: int, target: int, profile: str | None,
-                 sources: list[str] | None = None, coverage: bool = False) -> None:
+                 sources: list[str] | None = None, coverage: bool = False,
+                 refresh: bool = False) -> None:
     """Deterministic multi-source discovery. No API key, no browser."""
     print(f"=== DISCOVER: past {hours}h, top {target} "
           f"[sources: {','.join(sources) if sources else 'all available'}] ===")
@@ -63,7 +64,7 @@ def cmd_discover(hours: int, target: int, profile: str | None,
               "KEPT = fresh+US+relevant+right-level. Low KEPT is usually the freshness "
               "window, not a miss. Re-run with a wider --hours to confirm completeness.\n")
     shortlist = discover.discover(hours=hours, target=target, profile=profile,
-                                  sources=sources)
+                                  sources=sources, refresh=refresh)
     for j in shortlist[:30]:
         print(f"  {j['posted_date']}  AQS={str(j['found_score'] or '-'):>3}  "
               f"ATS={j['match']:>3}  {j['profile']:<13} "
@@ -101,8 +102,12 @@ def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str | No
     else:
         print(f"=== PIPELINE: discover (past {hours}h) -> tailor+score top {top} "
               f"[brain={mode}] ===\n")
-        jobs = discover.discover(hours=hours, target=top, profile=profile,
+        # Stage 1: wide title-ranked pool; stage 2: re-rank the pool by REAL
+        # full-JD match (+ sponsorship hard gate) so tailoring slots go to the
+        # roles the resume can honestly score highest against.
+        pool = discover.discover(hours=hours, target=top * 3, profile=profile,
                                  sources=sources, refresh=refresh)
+        jobs = discover.rerank_by_jd(pool, top=top)
     if not jobs:
         print("No fresh roles to process.")
         dash.render()
@@ -448,6 +453,8 @@ def main(argv: list[str] | None = None) -> None:
                              "(ats_boards,github_feed,linkedin,scoutbetter); default: all available")
     p_disc.add_argument("--coverage", action="store_true",
                         help="print a per-company pulled-vs-kept table to verify completeness")
+    p_disc.add_argument("--refresh", action="store_true",
+                        help="ignore today's cached sweep and re-pull every source")
 
     p_pipe = sub.add_parser("pipeline",
                             help="discover -> tailor+score top N -> dashboard (no submit)")
@@ -518,7 +525,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "discover":
         cmd_discover(args.hours, args.target, args.profile, _srcs(args.source),
-                     coverage=args.coverage)
+                     coverage=args.coverage, refresh=args.refresh)
     elif args.command == "pipeline":
         cmd_pipeline(args.hours, args.top, args.profile, args.brain, args.from_tracker,
                      refresh=args.refresh, sources=_srcs(args.source))

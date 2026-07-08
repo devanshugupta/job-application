@@ -15,27 +15,18 @@
 \usepackage{fancyhdr}
 \usepackage[english]{babel}
 \usepackage{tabularx}
-% (fontawesome5 stripped for tectonic)
 \usepackage{multicol}
 \setlength{\multicolsep}{-3.0pt}
 \setlength{\columnsep}{-1pt}
 % (stripped for tectonic)
 
-
 %----------FONT OPTIONS----------
-% sans-serif
-% \usepackage[sfdefault]{FiraSans}
-% \usepackage[sfdefault]{roboto}
-% \usepackage[sfdefault]{noto-sans}
-% \usepackage[default]{sourcesanspro}
-\usepackage{helvet}\renewcommand{\familydefault}{\sfdefault}
-% serif
-% \usepackage{CormorantGaramond}
-% \usepackage{charter}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
 
 \hypersetup{pdfborder = 0 0 0 }
 \pagestyle{fancy}
-\fancyhf{} % clear all header and footer fields
+\fancyhf{}
 \fancyfoot{}
 \renewcommand{\headrulewidth}{0pt}
 \renewcommand{\footrulewidth}{0pt}
@@ -55,8 +46,6 @@
 \titleformat{\section}{
   \vspace{-6pt}\scshape\raggedright\large\bfseries
 }{}{0em}{}[\color{black}\titlerule \vspace{-7pt}]
-
-% Ensure that generate pdf is machine readable/ATS parsable
 % (stripped for tectonic)
 
 %-------------------------
@@ -64,12 +53,6 @@
 \newcommand{\resumeItem}[1]{
   \item\small{
     {#1 \vspace{0pt}}
-  }
-}
-
-\newcommand{\classesList}[4]{
-    \item{
-        {#1 #2 #3 #4 \vspace{0pt}}
   }
 }
 
@@ -87,13 +70,6 @@
     \end{tabular*}\vspace{-7pt}
 }
 
-\newcommand{\resumeSubSubheading}[2]{
-    \item
-    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
-      \textit{#1} & \textit{ #2} \\
-    \end{tabular*}\vspace{-7pt}
-}
-
 \newcommand{\resumeProjectHeading}[2]{
     \item
     \begin{tabular*}{1.001\textwidth}{l@{\extracolsep{\fill}}r}
@@ -101,41 +77,26 @@
     \end{tabular*}\vspace{-7pt}
 }
 
-\newcommand{\resumeItemNoBullet}[2]{
-  \item[]{
-    {#1}{#2 \vspace{-6pt}}
-  }
-}
-\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
-
 \renewcommand\labelitemi{$\vcenter{\hbox{\tiny$\bullet$}}$}
 \renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
 
 \newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.0in, label={}]}
 \newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
 \newcommand{\resumeItemListStart}{\begin{itemize}[leftmargin=* , label=\raisebox{0.25ex}{\tiny$\bullet$}]}
-
 \newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-6pt}}
-
-
 
 \begin{document}
 
-
 \begin{center}
     \textbf{\Huge \scshape Devanshu Gupta} \\ \vspace{5pt}
-    \small  
-    \href{mailto:dgupta77@asu.edu}{dgupta77@asu.edu} $|$ 
+    \small
+    \href{mailto:dgupta77@asu.edu}{dgupta77@asu.edu} $|$
     623-290-3858 $|$ \small{\href{https://www.linkedin.com/in/devanshu0gupta}{linkedin.com/in/devanshu0gupta}}
     $|$ {\href{https://www.github.com/devanshugupta}{github.com/devanshugupta}}
 \end{center}
 % -----------Summary-----------
 \section{Summary}
- \small{Machine Learning Engineer at Amazon Prime Video designing and deploying production AI/ML applications on AWS for 1M+ users. First-author EMNLP 2025 researcher experienced in model design, low-latency deployment, and rigorous evaluation for real-world use cases.}
-
-% \small{Machine Learning Engineer at Amazon Prime Video building production LLM, retrieval and evaluation systems for 1M+ users. First-author ACL EMNLP researcher with experience in ranking, RAG and low-latency ML systems.}
-
-% adjust vscape based on the space you want to leave between each section.
+ \small{Software engineer at Amazon Prime Video building backend services and access control serving 1M+ users, including a fail-closed authorization gate for non-adult profiles and intent-based abuse detection.}
 
 %------------------------Research------------------------------
 \section{Research Publications}
@@ -153,133 +114,53 @@
   \resumeSubheadingg
     {Amazon, Prime Video $|$ Machine Learning Engineer}{06/2025 -- Present}
       \resumeItemListStart
-      \resumeItem{Engineered an embedding-based retrieval and ranking model (FAISS, NDCG) deployed on AWS for 1M+ users, improving click-through rate 16\% via offline and online evaluation.}
-      % \resumeItem{Finetuned 7B LLM via LoRA on 100K domain conversation samples; improved offline evaluation accuracy 18\% directly informing RLHF adjacent evaluation methodology.}
-     
-      
-      \resumeItem{Deployed a low-latency ML inference service under a 300ms SLA into a production voice pipeline serving 100K+ daily queries, cutting P99 latency 3x at peak load.}
-      \resumeItem{Developed feature gating and A/B evaluation framework supporting controlled rollouts and repeatable experiments across 10+ AI features enabling scalable oversight of model behavior changes.}
-       \resumeItem{Designed multi turn LLM evaluation framework processing 50K+ conversations/day using LLM as judge and automated fact validation; increased defect discovery 60\%, enabling rigorous empirical feedback loops.}
-         % \resumeItem{Partnered with product and cross-functional stakeholders to translate ambiguous user needs into scalable backend systems for conversational AI serving 100K+ daily requests.}
-         % \resumeItem{Optimized conversational agent performance through prompt engineering, retrieval tuning, and context management, improving production response quality and engagement.}
-
-         % \resumeItem{Architected LLM orchestration and evaluation platform enabling multi-agent feature rollouts, automated quality gates supporting agentic AI pipelines on AWS.}\\
-
-       
-          % \resumeItem{Led Prime Video–Alexa voice service serving 100K+ queries under a 300 ms latency SLA summarizing LLM responses.}
-      % \resumeItem{Fine tuned 7B LLM via LoRA on domain conversation data (100K samples) improved offline evaluation accuracy by 18\% }\\
-
-      % \resumeItem{Built embedding-based retrieval and ranking models KNN + NDCG for ‘Similar to X’ recommendations serving 1M users with 0.5s end-to-end latency and improved CTR by 16\%}
-      
-      % % \resumeItem{Led iterative feature engineering and offline/online evaluation for recommendation ranking models, improving NDCG 12\% across production experiments.}
-      
-      % \resumeItem{Designed multi-turn LLM evaluation framework processing 50K+ conversations/day from Athena with LLM-as-judge and automated fact validation increasing defect discovery 60\%}
-      
-      
-      % \resumeItem{Diagnosed P99 latency spikes via tracing/logs, shipped fixes (timeouts/caching) cutting incident recurrence 30\% and improving P99 by 10\%}
-      
-    % \resumeItem{Developed caching layer in service to record previously recommended titles, intent‑aware de-duplication, reduced repeated recommendations by ~35\% and increased multi‑turn engagement by ~20\%}
-       
-       % \resumeItem{Increased production service availability to 99.9\% by implementing dependency isolation, retries, and monitoring across distributed services.}\\
-
-       % \resumeItem{Designed Python-based REST services supporting high-throughput production traffic across distributed systems.}
-       
-       % \resumeItem{Introduced SSE-based incremental streaming for AI responses, reducing time-to-first-token from 12s to 7s and improving perceived latency. }
-       
-      
-      % \resumeItem{Implemented automated CI-based validation for service reducing regression defects by 30\% before production release.}
-      
-        % \resumeItem{Reduced memory usage 40\% by designing bounded cache strategy, improving JVM stability under peak traffic.}
-        
-        \resumeItem {Architected bounded sliding-window cache reducing memory 40\% and stabilizing GC under peak traffic}
-        
-       
-       % \resumeItem{Parallelized downstream calls with Kotlin coroutines, improved P99 context‑retrieval latency 3x}
-       % \resumeItem{Led root-cause analysis for production latency spikes using logs, metrics, and tracing, reducing recurring incidents by 10\%}\\
-       
-       % \resumeItem{Instrumented LLM pipelines with CloudWatch metrics and distributed tracing, improving adversarial test reproducibility 20\% and reducing mean-time-to-detect}
-
-       % \resumeItem{Owned feature gating framework to support controlled rollouts, A/B testing, repeatable evaluation of 10+ AI features.}\\
-      
-       % \resumeItem{Collaborated with Product and Applied Scientists to iteratively ship LLM features from prototype to production.}
+      \resumeItem{Shipped a server-side fail-closed authorization gate for non-adult profiles using identity context, blocking about 120 unauthorized requests weekly in production}
+      \resumeItem{Closed a content-policy bypass by reworking keyword filtering into intent-based detection, blocking 25 of 25 escalation patterns while allowing all legitimate queries}
+      \resumeItem{Led a backend voice integration serving 100K+ queries/day under a 300ms SLA, parallelizing downstream calls to improve P99 latency 3x}
+      \resumeItem{Hardened production deployments with auto-rollback alarms and dependency health checks, cutting deployment pipeline failures to zero}
+      \resumeItem{Engineered a recommendations backend with retrieval and ranking (FAISS, KNN) serving 1M users at 0.5s end-to-end latency, improving CTR 16\%}
+      \resumeItem{Optimized a high-traffic caching layer by bounding conversation history to 5 turns, cutting cache payload 75\% and memory 40\% under peak traffic}
+      \resumeItem{Automated model-quality evaluation across 50K+ conversations daily with LLM-as-judge and fact validation, increasing defect discovery 60\%}
     \resumeItemListEnd
-\vspace{5pt}    
+\vspace{5pt}
 \resumeSubheadingg
-    {Tata Consultancy Services $|$ Software Engineer}{08/2021 -- 08/2023} 
+    {Tata Consultancy Services $|$ Software Engineer}{08/2021 -- 08/2023}
       \resumeItemListStart
-        \resumeItem{Built scalable demand forecasting pipeline using Spark in Databricks and XGBoost which cut supply chain costs by \$4M}\\
-        
-        % \resumeItem{Developed statistical and LSTM-based time-series models on employee KPI trends to detect performance deviations, improving early risk identification accuracy by 28\%.}
-        
-        % \resumeItem{Designed pySpark ETL pipelines processing terabytes daily reducing manual processing time from 2 hours to 10 seconds.}\\
-        
-        % \resumeItem{Optimized cloud storage layout and distributed pipeline performance, reducing large-scale data retrieval latency by 35\%.}
-        % \resumeItem{Consolidated data from 4 heterogeneous sources into a unified data model, improving data consistency and downstream model training reliability.}
-        \resumeItem{Built distributed data pipelines on Airflow integrating 4+ data sources into unified storage improving data consistency.}
-        
-        % \resumeItem{Built finance churn prediction pipeline (XGBoost/ensemble), deployed scoring into ETL reduced attrition 20\% (\$3M annual)}
-        
-        % \resumeItem{Designed relational schemas and optimized SQL queries supporting high-throughput distributed analytics.}
+        \resumeItem{Built scalable demand forecasting pipeline using Spark in Databricks and XGBoost, cutting supply chain costs by \$4M.}
+        \resumeItem{Designed distributed data pipelines on Airflow integrating 4+ data sources into unified storage, improving data consistency.}
         \resumeItem{Maintained Azure Data Lake Storage (ADLS Gen2) architecture storing terabytes of distributed data, ensuring high availability and scalable ingestion.}
-        
-        % \resumeItem {Built PySpark pipelines processing terabytes daily, enabling scalable analytics for enterprise reporting.}
-        
-        %\resumeItem {Deployed custom large language models (LLMs) + RAG architecture to overcome long context problem, improving content generation quality by 30\%.}
-        
-        % \resumeItem{Optimized ADLS storage layout and partitioning strategy reducing large-scale data retrieval latency 35\%.}
-        
-        % \resumeItem{Worked on Spark-powered RAG service (FAISS + GPT-3.5) now serving 1 million queries per month.}
-        
-        % \resumeItem{Migrated 7000 tables totaling 100TB from on-premise MS SQL Servers to AWS S3 using Talend DI}
-        
-        %\resumeItem{Analyzed user behavior to develop custom Power BI dashboards, identifying trends that led to feature enhancements, increasing user engagement by 30\%.}
-        
-        % \resumeItem{Modelled data in Databricks, boosting query performance and reducing storage costs.}\\
     \resumeItemListEnd
   \resumeSubHeadingListEnd
-% adjust vscape based on the space you want to leave between each section.
-
 
 %-----------PROJECTS-----------
 \section{Projects}
     \vspace{-7pt}
     \resumeSubHeadingListStart
-    
-    % \resumeProjectHeading
-    %       {\textbf{PI - NPT } $|$ \href{https://github.com/devanshugupta/PI-NPT}{[Code]}}{}
-    %       \vspace{-9pt}
-    %       \resumeItemListStart
-    %         \resumeItem{Trained Physics-Informed Non-Parametric Transformer (PI-NPT) for equation prediction incorporating Fourier feature transforms and physics-informed losses to improve accuracy by 20\%}
-    %       \resumeItemListEnd
-    %     \vspace{-8pt}
-        
-    \resumeProjectHeading
-          {\textbf{AdPrompter: Generative AI for Ads} $|$ \href{https://github.com/devanshugupta/AdGenerator/}{[Code]}}{}
-          \vspace{-9pt}
-          \resumeItemListStart
-            % \resumeItem{Built PPO‑based agent on persuasion‑strategies producing 50+ ad variants/product boosting click‑through by ~25\%}
-            \resumeItem{Built reinforcement learning (RL) pipeline generating 50+ multimodal ad variants/product improving Click Through Rate 25\% with bias detection and scalability to text‑to‑video models for generating persuasive ads}
-          \resumeItemListEnd
-        \vspace{-8pt}
-        
-    \resumeProjectHeading
-          {\textbf{Elastic AWS Cloud Application for Face Recognition}{, ASU}  $|$ \href{https://github.com/devanshugupta/Image-Recognitioin-as-Service}{[Code]}}{}
-                \vspace{-9pt}
-          \resumeItemListStart
-            \resumeItem{Architected auto-scaling AWS (EC2, ELB, SQS, S3) Flask-based REST system handling 1,000 concurrent requests, enabling 30-second elastic shutdown and improved cost-efficient scaling.}
-          \resumeItemListEnd
-          
-          \vspace{-7pt}
-    
+
     \resumeProjectHeading
           {\textbf{Image Search Engine}  $|$ \href{https://github.com/devanshugupta/Image-Similarity-Search}{[Code]}}{}
               \vspace{-9pt}
           \resumeItemListStart
           \resumeItem{Built end-to-end image search system on 10K images using clustering + LSH vector indexing, reducing nearest-neighbor retrieval time from 1 hour to 30 seconds.}
           \resumeItemListEnd
-    
+        \vspace{-8pt}
+
+    \resumeProjectHeading
+          {\textbf{AdPrompter: Generative AI for Ads} $|$ \href{https://github.com/devanshugupta/AdGenerator/}{[Code]}}{}
+          \vspace{-9pt}
+          \resumeItemListStart
+            \resumeItem{Built reinforcement learning (RL) pipeline generating 50+ multimodal ad variants/product improving Click Through Rate 25\% with bias detection and scalability to text-to-video models for generating persuasive ads}
+          \resumeItemListEnd
+        \vspace{-8pt}
+
+    \resumeProjectHeading
+          {\textbf{Elastic AWS Cloud Application for Face Recognition}{, ASU}  $|$ \href{https://github.com/devanshugupta/Image-Recognitioin-as-Service}{[Code]}}{}
+                \vspace{-9pt}
+          \resumeItemListStart
+            \resumeItem{Architected auto-scaling AWS (EC2, ELB, SQS, S3) Flask-based REST system handling 1,000 concurrent requests, enabling 30-second elastic shutdown and improved cost-efficient scaling.}
+          \resumeItemListEnd
+
     \resumeSubHeadingListEnd
-    
 
 %-----------EDUCATION-----------
 \section{Education}
@@ -287,16 +168,12 @@
   \vspace{-2pt}
     \resumeSubheading
       {Master of Science in Computer Science}{05/2025}      {Arizona State University, Tempe, AZ, USA}{GPA: 3.9/4}
-      %leave a line after this
-      
+
       \small{Coursework: Statistical Machine Learning, Cloud Computing, Data Mining,  NLP, Multimedia \& Web databases}\\
 \vspace{4pt}
     \resumeSubheading
       {Bachelor of Technology in Computer Science \& Engineering}{06/2021}
       {University Institute of Technology RGPV, India}{GPA: 8.4/10}
-      % leave a line after this
-      
-      % \small{\textit{Coursework: Data Structures and Algorithms, Database Management Systems, Data Science, Machine Learning.}}
   \resumeSubHeadingListEnd
 
 %-----------PROGRAMMING SKILLS-----------
@@ -304,15 +181,11 @@
 \vspace{-4pt}
 \begin{itemize}[leftmargin=0in, label={}]
   \small{\item{
-    \textbf{Languages}{: Python, SQL} \\
-    \textbf{ML}{: PyTorch, TensorFlow, scikit-learn, Model Deployment, Evaluation, Ranking, RAG} \\
-    \textbf{Cloud}{: AWS (SageMaker, S3, Lambda), GCP} \\
-    \textbf{Data}{: Spark, Airflow, FAISS}
+    \textbf{Languages}{: Python, Kotlin, C++, SQL} \\
+    \textbf{Systems}{: REST APIs, gRPC, Distributed Systems, Access Control, Docker, Kubernetes, Linux, CI/CD} \\
+    \textbf{Data}{: PostgreSQL, NoSQL, Kafka} \\
+    \textbf{Cloud}{: AWS (EC2, S3, Lambda, SQS, CloudWatch)}
   }}
-\end{itemize}  
-% adjust vscape based on the space you want to leave between each section.
-%\section{Extra Curricular}
-%\vspace{-4pt}
-  %\small {Teach data structures and algorithms on my YouTube channel with video editing experience in Adobe and Canva. \href{https://www.youtube.com/@devanshugupta9749}{Youtube}}
+\end{itemize}
 
 \end{document}

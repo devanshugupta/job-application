@@ -69,6 +69,7 @@ _US_OK = re.compile(
 
 def _is_usa(locations: list[str]) -> bool:
     """Return True if at least one location is US or Remote, and none are exclusively non-US."""
+    locations = [loc for loc in locations if loc]  # sources may carry None/"" entries
     if not locations:
         return True   # no location info → assume US (most feed entries are US companies)
     for loc in locations:
@@ -100,7 +101,8 @@ _TITLE_NO = re.compile(
     r"technician|operator|labeler|\banalyst\b|manager|instructional|postdoc|"
     r"\bsales\b|recruit|statistician|consultant|specialist|expert\b|"
     r"mechanical|electrical\b|civil\b|aerospace|structural|thermal|optical|"
-    r"soft goods|supply chain|facilities|hvac|process engineer",
+    r"soft goods|supply chain|facilities|hvac|process engineer|"
+    r"technical support|customer support|support engineer|help ?desk|it support",
     re.I,
 )
 

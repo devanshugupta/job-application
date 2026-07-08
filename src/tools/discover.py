@@ -112,7 +112,7 @@ def gather(hours: int, *, profile: str | None = None, sources: list[str] | None 
     for j in _dedupe(raw):
         if not _is_fresh(j, cutoff_ts, cutoff_date):
             continue
-        if not feeds._is_usa([j.get("locations", "")]):
+        if not feeds._is_usa([j.get("locations") or ""]):
             continue
         if any(ex in j["company"].lower() for ex in exclude):
             continue
@@ -137,8 +137,10 @@ def gather(hours: int, *, profile: str | None = None, sources: list[str] | None 
         comp = scoring.composite(ats_score=j["match"], posted_date=j["posted_date"],
                                  today=today)
         j["found_score"] = comp["score"]
-    jobs.sort(key=lambda j: (j.get("posted_ts") or 0, j["found_score"] or 0,
-                             j["match"]), reverse=True)
+    # Rank by the composite found_score (master-match + recency); everything here is
+    # already inside the freshness window, so fit — not minutes of recency — leads.
+    jobs.sort(key=lambda j: (j["found_score"] or 0, j["match"] or 0,
+                             j.get("posted_ts") or 0), reverse=True)
 
     # Per-company coverage: how many we PULLED from each portal vs how many survived the
     # freshness/US/title/seniority filter — so you can verify nothing is silently dropped.
@@ -197,4 +199,73 @@ def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
     if verbose:
         print(f"\nDiscovered {len(jobs)} fresh roles (past {hours}h); "
               f"kept top {len(shortlist)}.")
+    return shortlist
+
+
+def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[dict]:
+    """Second-stage ranking: fetch each candidate's REAL job description (cheap ATS
+    API/HTTP paths only — no browser) and re-rank by full-JD keyword match against
+    the right master resume. Title-vs-master ranking gets the pool roughly right;
+    this stage gets the ORDER right, because the JD is what the resume must match.
+
+    Also applies the sponsorship hard gate here, so a role the candidate is
+    disqualified from never spends a tailoring slot. The fetched JD rides along as
+    job["jd_text"] so the tailor step doesn't fetch it again; jobs whose JD needs a
+    browser keep their title-based match and rank by it (they're fetched with the
+    browser fallback at tailor time)."""
+    from . import finder, jd_fetch
+    from .tailor import _NO_SPONSOR, _requires_sponsorship
+
+    needs_sponsor = _requires_sponsorship()
+    today = date.today().isoformat()
+    masters: dict = {}
+    ranked: list[dict] = []
+    for j in jobs:
+        prof = j.get("profile")
+        if prof not in masters:
+            masters[prof] = profiles.read_master_for(prof)
+        # Day-cache the JD text per URL: portals aren't byte-stable between fetches,
+        # and in manual-brain mode the packet id hashes the JD — an unstable JD would
+        # orphan an already-answered packet on every re-run.
+        cached = finder.get_cached(f"jd:{j['url']}", None, today)
+        if cached is not None:
+            jd = cached[0] if cached else ""
+        else:
+            try:
+                fetched = jd_fetch.fetch_jd(j["url"], allow_browser=False)
+                jd = fetched["text"] if fetched["looks_complete"] else ""
+            except Exception:
+                jd = ""
+            finder.put_cache(f"jd:{j['url']}", None, today, [jd] if jd else [])
+        if jd and needs_sponsor:
+            m = _NO_SPONSOR.search(jd)
+            if m:
+                reason = (f'hard gate: JD states "{m.group(0).strip()}" '
+                          "and profile requires sponsorship")
+                tracker.save_application(
+                    company=j["company"], role=j["role"], url=j["url"],
+                    status="skipped", source=j.get("source"),
+                    posted_date=j.get("posted_date"), profile=prof, notes=reason)
+                if verbose:
+                    print(f"  ⛔ {j['company']} — {j['role']}: {reason}")
+                continue
+        j = dict(j)
+        if jd:
+            j["jd_text"] = jd
+            j["jd_match"] = ats.ats_score(jd, masters[prof])["score"]
+        else:
+            j["jd_match"] = None
+        ranked.append(j)
+    # A readable JD beats any title-only guess: title scores (3-5 words) are
+    # inflated and NOT comparable to full-JD scores, and an unreadable JD can't be
+    # tailored deterministically anyway — so fetched-JD jobs always rank first.
+    ranked.sort(key=lambda x: (x["jd_match"] is not None, x["jd_match"] or 0,
+                               x.get("match") or 0), reverse=True)
+    shortlist = ranked[:top]
+    if verbose:
+        print(f"\nRe-ranked by full-JD match; tailoring top {len(shortlist)}:")
+        for j in shortlist:
+            jm = j["jd_match"]
+            print(f"  JD-match={jm if jm is not None else '  ?'}  "
+                  f"{j['company'][:22]:<22} {j['role'][:44]}")
     return shortlist
