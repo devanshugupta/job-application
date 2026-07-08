@@ -44,6 +44,9 @@ TAILORED_MD_PATH = DATA_DIR / "tailored_resume.md"
 RESUME_RULES_PATH = RESUME_DIR / "formatting_rules.md"
 MASTERS_INDEX_PATH = MASTERS_DIR / "index.json"
 LEGACY_MASTER_PATH = RESUME_DIR / "master_resume.md"
+# Raw work context (projects/metrics beyond what fits on the resume) that grounds
+# tailored bullets — bullets may be sourced ONLY from the master + this doc.
+ACHIEVEMENTS_PATH = RESUME_DIR / "achievements.md"
 
 # --------------------------------------------------------------------------- models
 # Exact current model IDs — never append date suffixes.

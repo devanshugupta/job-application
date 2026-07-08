@@ -72,8 +72,8 @@ def _tailor_system() -> str:
 def _validate_patch(patch: dict) -> list[str]:
     problems = []
     bullets = patch.get("top_bullets") or []
-    if len(bullets) != 2:
-        problems.append(f"top_bullets must have exactly 2 entries (got {len(bullets)}).")
+    if not 2 <= len(bullets) <= 7:  # ≥2 JD-anchored leads; ≤7 bullets on the current role
+        problems.append(f"top_bullets must have 2-7 entries (got {len(bullets)}).")
     for key in ("summary", "technical_skills"):
         if not (patch.get(key) or "").strip():
             problems.append(f"{key} is empty.")
@@ -128,8 +128,13 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
         raise RuntimeError(master)
 
     # 3. Brain call 1: the patch ---------------------------------------------------
+    achievements = (config.ACHIEVEMENTS_PATH.read_text().strip()
+                    if config.ACHIEVEMENTS_PATH.exists() else "")
     user = (f"JOB DESCRIPTION:\n{jd_text.strip()}\n\n"
             f"MASTER RESUME:\n{master.strip()}")
+    if achievements:
+        user += ("\n\nACHIEVEMENTS DOC (raw work context — bullets may be sourced ONLY "
+                 f"from the resume above and this doc):\n{achievements}")
     patch = brain.structured("tailor", system=_tailor_system(), user=user,
                              schema=PATCH_SCHEMA)
     problems = _validate_patch(patch)
@@ -157,12 +162,12 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
     #    actually fit the JD? does the summary make sense? Applies one correction pass.
     tailored_md = (config.TAILORED_MD_PATH.read_text()
                    if config.TAILORED_MD_PATH.exists() else "")
+    numbered = "\n".join(f"{n}. {b}" for n, b in enumerate(patch["top_bullets"], 1))
     review_user = (
         f"JOB DESCRIPTION:\n{jd_text.strip()}\n\n"
         f"TAILORED RESUME (Markdown — full document):\n{tailored_md.strip()}\n\n"
         f"The tailored experience block is index {patch.get('experience_section_index', 0)} "
-        f"(0 = most recent). Its two rewritten bullets are:\n"
-        f"1. {patch['top_bullets'][0]}\n2. {patch['top_bullets'][1]}")
+        f"(0 = most recent). Its rewritten bullets (most relevant first) are:\n{numbered}")
     review = brain.structured("review", system=prompts.REVIEW_SYSTEM, user=review_user,
                              schema=REVIEW_SCHEMA)
     review_issues = list(review.get("issues") or [])

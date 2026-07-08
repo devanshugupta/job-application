@@ -186,19 +186,23 @@ def _on_comment_line(tex: str, idx: int) -> bool:
     return tex[line_start:idx].lstrip().startswith("%")
 
 
-def _replace_first_resume_items(tex: str, bullets: list[str]) -> str:
+def _replace_first_resume_items(tex: str, bullets: list[str],
+                                start: int | None = None, end: int | None = None) -> str:
     r"""Replace the inner text of the first len(bullets) ACTIVE ``\resumeItem{...}`` macros
-    in the document body. Skips the preamble (so the ``\newcommand{\resumeItem}``
-    definition is never touched) and skips commented-out lines. Matches balanced braces."""
+    in the document body — or only within the [start, end) slice when given (used to
+    target one experience block). Skips the preamble (so the ``\newcommand{\resumeItem}``
+    definition is never touched) and skips commented-out lines. Matches balanced braces.
+    Bullets beyond the items present in range are ignored."""
     if not bullets:
         return tex
     token = r"\resumeItem"
-    start = _body_start(tex)
-    out = [tex[:start]]
-    i = start
+    lo = _body_start(tex) if start is None else start
+    hi = len(tex) if end is None else end
+    out = [tex[:lo]]
+    i = lo
     replaced = 0
     while i < len(tex):
-        if (replaced < len(bullets) and tex.startswith(token, i)
+        if (i < hi and replaced < len(bullets) and tex.startswith(token, i)
                 # must be exactly \resumeItem, not \resumeItemListStart etc.
                 and (i + len(token) >= len(tex) or tex[i + len(token)] in " \t\n{")
                 and not _on_comment_line(tex, i)):
@@ -224,6 +228,26 @@ def _replace_first_resume_items(tex: str, bullets: list[str]) -> str:
         out.append(tex[i])
         i += 1
     return "".join(out)
+
+
+def _experience_block_span(tex: str, role_idx: int) -> tuple[int, int] | None:
+    r"""[start, end) span of the role_idx-th job (0 = most recent) inside the
+    Experience \section — delimited by \resumeSubheading/\resumeSubheadingg macros.
+    Scoped to the Experience section so Education's subheadings don't shift the index.
+    None when the section or that many jobs can't be found (caller falls back)."""
+    sec = re.search(r"\\section\{[^}]*Experience[^}]*\}", tex, re.IGNORECASE)
+    if not sec:
+        return None
+    nxt = re.search(r"\\section\{", tex[sec.end():])
+    sec_end = sec.end() + nxt.start() if nxt else len(tex)
+    heads = [m for m in re.finditer(r"\\resumeSubheadingg?(?![A-Za-z])",
+                                    tex[sec.end():sec_end])
+             if not _on_comment_line(tex, sec.end() + m.start())]
+    if role_idx >= len(heads):
+        return None
+    start = sec.end() + heads[role_idx].start()
+    end = sec.end() + heads[role_idx + 1].start() if role_idx + 1 < len(heads) else sec_end
+    return start, end
 
 
 def _replace_section_body(tex: str, section: str, new_body: str) -> str:
@@ -303,7 +327,8 @@ def edit_tex(tex_source: str, patch: dict) -> str:
     """Apply a tailoring patch to the LaTeX source, marker-free. Edits:
       - the Summary section body (patch['summary'])
       - the Technical Skills block (patch['technical_skills'])
-      - the first two \\resumeItem bullets (patch['top_bullets'])
+      - the leading \\resumeItem bullets (patch['top_bullets'], 2-7, most relevant
+        first) of the experience block at patch['experience_section_index']
     Returns edited LaTeX; a compile-check downstream guards against bad edits.
     """
     tex = tex_source
@@ -313,11 +338,15 @@ def edit_tex(tex_source: str, patch: dict) -> str:
         tex = _replace_skills_block(tex, patch["technical_skills"])
     bullets = patch.get("top_bullets") or []
     if bullets:
-        tex = _replace_first_resume_items(tex, bullets[:2])
+        span = _experience_block_span(tex, int(patch.get("experience_section_index", 0) or 0))
+        if span:
+            tex = _replace_first_resume_items(tex, bullets, start=span[0], end=span[1])
+        else:  # block not locatable — old behavior: first items in the document body
+            tex = _replace_first_resume_items(tex, bullets)
         # Tailoring a top bullet can echo a pre-existing bullet further down (e.g. two
         # "Designed an LLM evaluation framework..." lines). Deterministically drop the
         # later near-duplicate so the final resume has no repeated bullet — no LLM needed.
-        tex = _dedupe_resume_items(tex, keep=bullets[:2])
+        tex = _dedupe_resume_items(tex, keep=bullets)
     return tex
 
 

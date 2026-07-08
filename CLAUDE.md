@@ -45,10 +45,14 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
   JD fetch (`tools/jd_fetch.py`: greenhouse/lever/ashby/Workday-CXS JSON APIs +
   embedded-gh_jid + headless-Chromium fallback), patch-apply, lint (1 corrective pass),
   LaTeX render, final_check. In manual brain mode each call is a data/brain packet.
-- **Master resume source of truth is the `.tex`** (`resume/masters/ml_sde.tex` etc.):
-  `profiles.read_master_for()` converts it via `latex.tex_to_text()` whenever the `.md`
-  master is missing or still a placeholder. `latex.edit_tex()` patches Summary, the
-  Technical Skills block, AND the top-2 bullets (all three sections the patch carries).
+- **Master resume source of truth is the `.tex`** (`resume/masters/ml_sde.tex` etc.,
+  gitignored — copy yours in; see `*.example.tex`): `profiles.read_master_for()` converts
+  it via `latex.tex_to_text()` whenever the `.md` master is missing or still a
+  placeholder. `latex.edit_tex()` patches Summary, the Technical Skills block, AND the
+  leading 2-7 bullets of the chosen experience block (section-index-aware; near-duplicate
+  bullets elsewhere are auto-commented). Bullets are grounded in the master PLUS
+  `resume/achievements.md` (gitignored raw work context; see the example) — the tailor
+  prompt forbids sourcing claims from anywhere else.
 - **LaTeX→PDF via tectonic** (`tools/latex.py`): `_latex_engine()` prefers tectonic
   (`brew install tectonic`, no sudo, one-time, on PATH) over system pdflatex; the source
   is adapted per engine (`_adapt_for_engine` strips `\pdfgentounicode`, `glyphtounicode`,

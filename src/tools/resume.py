@@ -38,12 +38,12 @@ MASTER_PATH = config.LEGACY_MASTER_PATH
 # Section word/line budgets. Each section that can be overloaded gets a cap so we
 # don't bury the signal. Tune these freely.
 BUDGETS = {
-    "summary_max_lines": 3,
+    "summary_max_lines": 2,             # 2 rendered lines max, one adjective max
     "summary_min_words": 18,
-    "summary_max_words": 55,
+    "summary_max_words": 40,
     "technical_skills_max_words": 35,   # don't dump every tool you've touched
     "bullet_min_words": 14,
-    "bullet_max_words": 30,
+    "bullet_max_words": 30,             # ~1.5 rendered lines in the PDF
 }
 
 
@@ -213,6 +213,8 @@ def lint(markdown: str | None = None, focus_bullets: list[str] | None = None) ->
         if sw < BUDGETS["summary_min_words"]:
             issues.append(f"Summary too short ({sw}w, min {BUDGETS['summary_min_words']}) "
                           "— write 2 full lines: role + domain + scale + a credential.")
+        if "—" in summary or "–" in summary:
+            issues.append("Em/en dash in summary (use commas).")
 
     # Technical skills
     skills = body_of("technical skills").strip() or body_of("skills").strip()
@@ -237,6 +239,8 @@ def lint(markdown: str | None = None, focus_bullets: list[str] | None = None) ->
             bucket.append(f"Bullet {wc}w (want {BUDGETS['bullet_min_words']}-{BUDGETS['bullet_max_words']}): {b[:50]}...")
         if filler.search(b):
             bucket.append(f"Filler word in bullet: {b[:50]}...")
+        if "—" in b or "–" in b:
+            bucket.append(f"Em/en dash in bullet (use commas): {b[:50]}...")
         verb = b.split()[0].lower() if b.split() else ""
         seen_verbs.setdefault(verb, []).append(b.strip())
     # A repeated leading verb blocks only if a TAILORED bullet is one of the repeats;

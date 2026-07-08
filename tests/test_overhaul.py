@@ -146,6 +146,47 @@ def test_edit_tex_patches_skills_block():
     assert "Python, C++" not in out
 
 
+TEX2 = r"""
+\documentclass{article}
+\newcommand{\resumeItem}[1]{\item #1}
+\begin{document}
+\section{Work Experience}
+\resumeSubheadingg{Amazon | MLE}{2025}
+\resumeItem{Amazon bullet one original text that is here}
+\resumeItem{Amazon bullet two original text that is here}
+\resumeItem{Amazon bullet three original text that is here}
+\resumeSubheadingg{TCS | SDE}{2021}
+\resumeItem{TCS bullet one original text that is here}
+\section{Education}
+\resumeSubheading{MS CS}{2025}{ASU}{Tempe}
+\end{document}
+"""
+
+
+def test_edit_tex_targets_block_and_takes_n_bullets():
+    # 3 bullets, block 0: all three Amazon items replaced, TCS untouched
+    out = latex.edit_tex(TEX2, {"top_bullets": ["New A1", "New A2", "New A3"],
+                                "experience_section_index": 0})
+    assert "New A1" in out and "New A3" in out
+    assert "Amazon bullet one original" not in out
+    assert "TCS bullet one original" in out
+    # block 1: only the TCS item replaced; extra bullets beyond the block are ignored
+    out = latex.edit_tex(TEX2, {"top_bullets": ["New T1", "New T2"],
+                                "experience_section_index": 1})
+    assert "New T1" in out and "New T2" not in out
+    assert "Amazon bullet one original" in out
+
+
+def test_lint_flags_em_dash_in_focus_bullet():
+    from src.tools import resume as resume_mod
+    md = ("## Summary\nA sentence long enough to pass the minimum summary word "
+          "count check for linting right now today.\n\n## Work Experience\n### R (2024)\n"
+          "- Built a data pipeline processing millions of records daily — cutting "
+          "costs by forty percent overall\n")
+    out = resume_mod.lint(markdown=md)
+    assert any("dash" in i.lower() for i in out["issues"])
+
+
 # ----------------------------------------------------------------- brain
 
 def test_manual_brain_roundtrip(tmp_path):
@@ -202,9 +243,10 @@ def test_workday_company_detection_and_params():
 
 def test_workday_posted_iso_relative():
     from src.tools import boards
-    from datetime import date
-    assert boards._workday_posted_iso("Posted Today") == date.today().isoformat()
-    assert boards._workday_posted_iso("Posted 30+ Days Ago") < date.today().isoformat()
+    from datetime import datetime, timezone
+    utc_today = datetime.now(timezone.utc).date().isoformat()  # fn computes in UTC
+    assert boards._workday_posted_iso("Posted Today") == utc_today
+    assert boards._workday_posted_iso("Posted 30+ Days Ago") < utc_today
     assert boards._workday_posted_iso("") == ""
 
 
