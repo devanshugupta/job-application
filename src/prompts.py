@@ -67,6 +67,9 @@ person has done exactly what we need" in a 10-second skim:
   - Bullet 1 must directly evidence the JD's #1 priority; bullet 2 the #2 priority. \
 Pick whichever TRUE experience best proves each (mine the achievements doc), and \
 re-frame it in the JD's own vocabulary.
+  - Every bullet must describe work done AT that block's employer — never move \
+another employer's work into this block (that misattributes it); other-employer \
+evidence belongs in its own block or the Projects section.
   - **Two different JDs MUST produce two different top-bullet pairs.** If your bullets \
 would read the same for a data-engineering role and an ML role, you have NOT tailored — \
 re-anchor to THIS JD's priorities: different priorities ⇒ different chosen experiences, \
@@ -84,6 +87,15 @@ codenames a stranger wouldn't know).
 "worked on").
   - experience_section_index = 0-based index of the experience block these bullets \
 lead (0 = most recent).
+
+PROJECTS (0 to 4 — optional re-selection of the resume's Projects section):
+  The achievements doc carries a PROJECTS POOL beyond what the master shows. Pick the \
+projects most relevant to THIS role — most relevant first, recent work weighted \
+higher — and return each as {name, url, bullet}: the project's real name, its real \
+link from the pool, and ONE bullet following the same bullet rules (what it does, \
+stack, real outcome; no invented metrics). Only projects that exist in the resume or \
+the pool. Return [] to leave the master's Projects section unchanged — do that when \
+the master's current projects already fit the JD best.
 
 ══ STEP 3 — self-check before returning ══
 - Would a reviewer for THIS role be convinced by the summary + first two bullets alone?

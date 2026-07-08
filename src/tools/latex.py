@@ -250,6 +250,34 @@ def _experience_block_span(tex: str, role_idx: int) -> tuple[int, int] | None:
     return start, end
 
 
+def _replace_projects_section(tex: str, projects: list[dict]) -> str:
+    r"""Regenerate the whole ``\section{Projects}`` body from [{name, url, bullet}]
+    (most relevant first) using the template's own macros, so the tailor can
+    re-select which projects appear per JD. No-op if the section is missing."""
+    sec = re.search(r"\\section\{Projects\}", tex)
+    if not sec or not projects:
+        return tex
+    nxt = re.search(r"\\section\{", tex[sec.end():])
+    end = sec.end() + nxt.start() if nxt else len(tex)
+    blocks = []
+    for i, p in enumerate(projects):
+        name = latex_escape((p.get("name") or "").strip())
+        url = (p.get("url") or "").strip()   # URL goes into \href raw, never escaped
+        head = (f"\\textbf{{{name}}} $|$ \\href{{{url}}}{{[Code]}}" if url
+                else f"\\textbf{{{name}}}")
+        tail = "" if i == len(projects) - 1 else "        \\vspace{-8pt}\n\n"
+        blocks.append(
+            "    \\resumeProjectHeading\n"
+            f"          {{{head}}}{{}}\n"
+            "              \\vspace{-9pt}\n"
+            "          \\resumeItemListStart\n"
+            f"          \\resumeItem{{{latex_escape((p.get('bullet') or '').strip())}}}\n"
+            "          \\resumeItemListEnd\n" + tail)
+    body = ("\n    \\vspace{-7pt}\n    \\resumeSubHeadingListStart\n\n"
+            + "".join(blocks) + "\n    \\resumeSubHeadingListEnd\n\n")
+    return tex[:sec.end()] + body + tex[end:]
+
+
 def _replace_section_body(tex: str, section: str, new_body: str) -> str:
     r"""Replace the prose body of ``\section{<section>}`` (up to the next ``\section``),
     leaving the heading intact. Handles the first ACTIVE (non-comment) content line,
@@ -347,6 +375,8 @@ def edit_tex(tex_source: str, patch: dict) -> str:
         # "Designed an LLM evaluation framework..." lines). Deterministically drop the
         # later near-duplicate so the final resume has no repeated bullet — no LLM needed.
         tex = _dedupe_resume_items(tex, keep=bullets)
+    if patch.get("projects"):
+        tex = _replace_projects_section(tex, patch["projects"])
     return tex
 
 

@@ -35,10 +35,18 @@ PATCH_SCHEMA = {
         "technical_skills": {"type": "string"},
         "top_bullets": {"type": "array", "items": {"type": "string"}},
         "experience_section_index": {"type": "integer"},
+        # optional re-selection of the Projects section from the resume +
+        # achievements projects pool; [] = keep the master's Projects unchanged
+        "projects": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"name": {"type": "string"}, "url": {"type": "string"},
+                           "bullet": {"type": "string"}},
+            "required": ["name", "url", "bullet"],
+            "additionalProperties": False}},
         "reasoning": {"type": "string"},
     },
     "required": ["summary", "technical_skills", "top_bullets",
-                 "experience_section_index", "reasoning"],
+                 "experience_section_index", "projects", "reasoning"],
     "additionalProperties": False,
 }
 
@@ -79,6 +87,12 @@ def _validate_patch(patch: dict) -> list[str]:
     for key in ("summary", "technical_skills"):
         if not (patch.get(key) or "").strip():
             problems.append(f"{key} is empty.")
+    projects = patch.get("projects") or []
+    if len(projects) > 4:
+        problems.append(f"projects must have at most 4 entries (got {len(projects)}).")
+    if any(not (p.get("name") or "").strip() or not (p.get("bullet") or "").strip()
+           for p in projects if isinstance(p, dict)):
+        problems.append("every project needs a non-empty name and bullet.")
     return problems
 
 

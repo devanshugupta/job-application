@@ -124,6 +124,19 @@ def apply_patch(patch: dict, profile: str | None = None,
         if i is not None:
             sections[i] = (sections[i][0], "\n" + patch["technical_skills"].strip() + "\n\n")
 
+    # Projects re-selection (from the resume + achievements projects pool)
+    projects = patch.get("projects")
+    if projects:
+        i = find("projects")
+        if i is not None:
+            parts = []
+            for p in projects:
+                head = f"### {(p.get('name') or '').strip()}"
+                if (p.get("url") or "").strip():
+                    head += f" | [Code]({p['url'].strip()})"
+                parts.append(head + "\n- " + (p.get("bullet") or "").strip())
+            sections[i] = (sections[i][0], "\n" + "\n".join(parts) + "\n\n")
+
     # Top two bullets of a chosen experience block
     bullets = patch.get("top_bullets")
     if bullets:

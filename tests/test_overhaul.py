@@ -177,6 +177,37 @@ def test_edit_tex_targets_block_and_takes_n_bullets():
     assert "Amazon bullet one original" in out
 
 
+TEX3 = r"""
+\documentclass{article}
+\newcommand{\resumeItem}[1]{\item #1}
+\begin{document}
+\section{Projects}
+    \resumeSubHeadingListStart
+    \resumeProjectHeading
+          {\textbf{Old Project} $|$ \href{https://x}{[Code]}}{}
+          \resumeItemListStart
+          \resumeItem{Old project bullet text goes right here}
+          \resumeItemListEnd
+    \resumeSubHeadingListEnd
+\section{Education}
+\resumeSubheading{MS}{2025}{ASU}{Tempe}
+\end{document}
+"""
+
+
+def test_edit_tex_reselects_projects():
+    patch = {"projects": [
+        {"name": "Streaming Pipeline", "url": "https://github.com/x/stream",
+         "bullet": "Built a Kafka streaming pipeline on EC2 with Glue cataloging and Athena querying"},
+        {"name": "SafeNet", "url": "", "bullet": "Mitigated tabular ML bias with SMOTE and fairlearn"},
+    ]}
+    out = latex.edit_tex(TEX3, patch)
+    assert r"\textbf{Streaming Pipeline} $|$ \href{https://github.com/x/stream}{[Code]}" in out
+    assert r"\textbf{SafeNet}" in out and "fairlearn" in out
+    assert "Old Project" not in out
+    assert r"\section{Education}" in out  # next section untouched
+
+
 def test_lint_flags_em_dash_in_focus_bullet():
     from src.tools import resume as resume_mod
     md = ("## Summary\nA sentence long enough to pass the minimum summary word "
