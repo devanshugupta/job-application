@@ -43,8 +43,11 @@ CATEGORY_TO_PROFILE = {
 
 # Non-US country names/patterns — drop a role if ALL its locations match one of these.
 _NON_US = re.compile(
-    r"\b(canada|united kingdom|uk\b|england|australia|germany|india|ireland|"
+    r"\b(canada|united kingdom|uk\b|england|scotland|australia|germany|india|ireland|"
     r"netherlands|france|singapore|poland|sweden|denmark|spain|italy|brazil|"
+    r"romania|mexico|japan|china|israel|portugal|czech\w*|colombia|taiwan|korea|"
+    r"philippines|vietnam|hungary|bulgaria|greece|finland|norway|switzerland|"
+    r"austria|belgium|t[uü]rk\w*|united arab emirates|saudi arabia|argentina|chile|"
     r"ontario|british columbia|toronto|vancouver|calgary|montreal|ottawa|"
     r"london(?! ontario)|berlin|amsterdam|sydney|melbourne)\b",
     re.I,

@@ -238,7 +238,21 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
     # 8. Record ---------------------------------------------------------------------
     # ATS keyword score of what we'd actually SEND (the tailored resume), not the master.
     kw = ats.ats_score(jd_text, tailored_md or master)["score"]
+    # The honest path to a higher match: JD asks the resume couldn't claim. The
+    # masters are themselves tailored subsets, so an unclaimed ask may be something
+    # the candidate HAS done but never documented — surfacing it lets them confirm
+    # true items into resume/achievements.md (the grounding corpus) and re-run.
+    # What it is NOT: permission to claim JD items nobody verified.
+    unclaimed = [u for u in (verdict.get("missing_must_haves") or []) if u][:6]
+    if unclaimed and verbose:
+        print("    unclaimed JD asks — if any are TRUE for you, add them to "
+              "resume/achievements.md and re-run:")
+        for u in unclaimed:
+            print(f"      · {u}")
     notes = "; ".join(check["problems"] + [f"review: {i}" for i in review_issues])
+    if unclaimed:
+        extra = "unclaimed asks (add to achievements.md if true): " + "; ".join(unclaimed)
+        notes = f"{notes}; {extra}" if notes else extra
     rec = tracker.save_application(
         company=company or "Unknown", role=role or "Unknown", url=url, status="scored",
         match_score=kw, resume_score=verdict.get("overall_score"),

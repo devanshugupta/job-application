@@ -69,10 +69,11 @@ def _parse_date(text: str, now: int) -> tuple[str, int]:
     if "yesterday" in t:
         d = datetime.fromtimestamp(now, timezone.utc) - timedelta(days=1)
         return d.date().isoformat(), int(d.timestamp())
-    m = re.search(r"(\d+)\+?\s*(hour|day|week|month)s?\s+ago", t)
+    m = re.search(r"(\d+)\+?\s*(minute|hour|day|week|month)s?\s+ago", t)
     if m:
         n, unit = int(m.group(1)), m.group(2)
-        delta = {"hour": timedelta(hours=n), "day": timedelta(days=n),
+        delta = {"minute": timedelta(minutes=n), "hour": timedelta(hours=n),
+                 "day": timedelta(days=n),
                  "week": timedelta(weeks=n), "month": timedelta(days=30 * n)}[unit]
         d = datetime.fromtimestamp(now, timezone.utc) - delta
         return d.date().isoformat(), int(d.timestamp())
@@ -81,13 +82,22 @@ def _parse_date(text: str, now: int) -> tuple[str, int]:
 
 def _title_and_location(link_text: str, ctx: str) -> tuple[str, str]:
     """Pull a clean title + location out of an anchor's text and its container text."""
-    title = (link_text or "").strip()
+    # An anchor may wrap the whole card (title\nlocation\nPosted …) — title is line 1.
+    lines = [l.strip() for l in (link_text or "").splitlines() if l.strip()]
+    title = lines[0] if lines else ""
     if len(title) < 6:  # icon-only link (Google etc.) — title is in the container text
         title = _NOISE.split(ctx, 1)[0].strip() if _NOISE.search(ctx) else ctx[:80].strip()
     loc = ""
     m = re.search(r"\bplace\s+(.+?)(?:\s+bar_chart|\s+Minimum|\s*;|\s*$)", ctx)
     if m:
         loc = m.group(1).strip()
+    elif title and title in ctx:
+        # generic card shape "Title Location Posted X ago" (Microsoft etc.): the chunk
+        # between the title and the Posted marker is the location. Without this,
+        # non-US roles would slip the US filter as "location unknown".
+        m = re.search(re.escape(title) + r"\s*(.+?)\s+Posted\b", ctx)
+        if m:
+            loc = m.group(1).strip(" |·-")
     return title[:120], loc[:80]
 
 

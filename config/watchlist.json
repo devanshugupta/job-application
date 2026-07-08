@@ -1,51 +1,339 @@
 {
-  "_comment": "Companies checked by `discover`/`pipeline`. Entries with 'ats' + 'token' are swept via the ATS's free public JSON API (greenhouse | lever | ashby | smartrecruiters | workable) — fast, reliable dates, no scraping. Entries without a token use a custom portal (Workday etc.); reach those via `find` (agent crawl) or apply directly. Verify tokens by opening e.g. https://boards-api.greenhouse.io/v1/boards/<token>/jobs — fix or remove any that 404. Add/remove companies freely.",
-  "_sponsorship_note": "H1B/OPT-friendliness is based on historical USCIS LCA volume and public sponsor lists. Always re-confirm sponsorship on the specific posting — it varies by role/team/year.",
+  "_comment": "Companies checked by `discover`/`pipeline`. Entries with 'ats' + 'token' are swept via the ATS's free public JSON API (greenhouse | lever | ashby | smartrecruiters | workable) \u2014 fast, reliable dates, no scraping. Entries without a token use a custom portal (Workday etc.); reach those via `find` (agent crawl) or apply directly. Verify tokens by opening e.g. https://boards-api.greenhouse.io/v1/boards/<token>/jobs \u2014 fix or remove any that 404. Add/remove companies freely.",
+  "_sponsorship_note": "H1B/OPT-friendliness is based on historical USCIS LCA volume and public sponsor lists. Always re-confirm sponsorship on the specific posting \u2014 it varies by role/team/year.",
   "companies": [
-    {"name": "Stripe", "tier": "fintech", "sponsors_h1b": true, "ats": "greenhouse", "token": "stripe", "board": "https://stripe.com/jobs/search?teams=Engineering"},
-    {"name": "Databricks", "tier": "data-ai", "sponsors_h1b": true, "ats": "greenhouse", "token": "databricks", "board": "https://www.databricks.com/company/careers/open-positions"},
-    {"name": "Anthropic", "tier": "ai", "sponsors_h1b": true, "ats": "greenhouse", "token": "anthropic", "board": "https://www.anthropic.com/careers"},
-    {"name": "Figma", "tier": "product", "sponsors_h1b": true, "ats": "greenhouse", "token": "figma", "board": "https://www.figma.com/careers/"},
-    {"name": "Pinterest", "tier": "big-tech", "sponsors_h1b": true, "ats": "greenhouse", "token": "pinterest", "board": "https://www.pinterestcareers.com/jobs/"},
-    {"name": "Coinbase", "tier": "fintech", "sponsors_h1b": true, "ats": "greenhouse", "token": "coinbase", "board": "https://www.coinbase.com/careers"},
-    {"name": "Robinhood", "tier": "fintech", "sponsors_h1b": true, "ats": "greenhouse", "token": "robinhood", "board": "https://careers.robinhood.com/"},
-    {"name": "Instacart", "tier": "marketplace", "sponsors_h1b": true, "ats": "greenhouse", "token": "instacart", "board": "https://instacart.careers/current-openings/"},
-    {"name": "Reddit", "tier": "big-tech", "sponsors_h1b": true, "ats": "greenhouse", "token": "reddit", "board": "https://www.redditinc.com/careers"},
-    {"name": "Discord", "tier": "product", "sponsors_h1b": true, "ats": "greenhouse", "token": "discord", "board": "https://discord.com/careers"},
-    {"name": "Samsara", "tier": "iot", "sponsors_h1b": true, "ats": "greenhouse", "token": "samsara", "board": "https://www.samsara.com/company/careers"},
-    {"name": "Gusto", "tier": "fintech", "sponsors_h1b": true, "ats": "greenhouse", "token": "gusto", "board": "https://gusto.com/about/careers"},
-    {"name": "Asana", "tier": "product", "sponsors_h1b": true, "ats": "greenhouse", "token": "asana", "board": "https://asana.com/jobs"},
-    {"name": "Box", "tier": "enterprise", "sponsors_h1b": true, "ats": "greenhouse", "token": "boxinc", "board": "https://careers.box.com/"},
-    {"name": "Affirm", "tier": "fintech", "sponsors_h1b": true, "ats": "greenhouse", "token": "affirm", "board": "https://www.affirm.com/careers"},
-    {"name": "Cloudflare", "tier": "infra", "sponsors_h1b": true, "ats": "greenhouse", "token": "cloudflare", "board": "https://www.cloudflare.com/careers/"},
-    {"name": "Datadog", "tier": "infra", "sponsors_h1b": true, "ats": "greenhouse", "token": "datadog", "board": "https://careers.datadoghq.com/"},
-    {"name": "MongoDB", "tier": "data", "sponsors_h1b": true, "ats": "greenhouse", "token": "mongodb", "board": "https://www.mongodb.com/careers"},
-    {"name": "Scale AI", "tier": "ai", "sponsors_h1b": true, "ats": "greenhouse", "token": "scaleai", "board": "https://scale.com/careers"},
-    {"name": "DoorDash", "tier": "marketplace", "sponsors_h1b": true, "ats": "greenhouse", "token": "doordashusa", "board": "https://careers.doordash.com/"},
-    {"name": "Plaid", "tier": "fintech", "sponsors_h1b": true, "ats": "lever", "token": "plaid", "board": "https://plaid.com/careers/"},
-    {"name": "Palantir", "tier": "data-ai", "sponsors_h1b": true, "ats": "lever", "token": "palantir", "board": "https://www.palantir.com/careers/"},
-    {"name": "OpenAI", "tier": "ai", "sponsors_h1b": true, "ats": "ashby", "token": "openai", "board": "https://openai.com/careers"},
-    {"name": "Ramp", "tier": "fintech", "sponsors_h1b": true, "ats": "ashby", "token": "ramp", "board": "https://ramp.com/careers"},
-    {"name": "Notion", "tier": "product", "sponsors_h1b": true, "ats": "ashby", "token": "notion", "board": "https://www.notion.so/careers"},
-    {"name": "Linear", "tier": "product", "sponsors_h1b": false, "ats": "ashby", "token": "linear", "board": "https://linear.app/careers"},
-    {"name": "Vanta", "tier": "security", "sponsors_h1b": true, "ats": "ashby", "token": "vanta", "board": "https://www.vanta.com/company/careers"},
-
-    {"name": "Amazon", "tier": "big-tech", "sponsors_h1b": true, "board": "https://www.amazon.jobs/en/search?base_query=software+development+engineer&sort=recent"},
-    {"name": "Google", "tier": "big-tech", "sponsors_h1b": true, "scrape": {"url": "https://www.google.com/about/careers/applications/jobs/results/?sort_by=date&q=software%20engineer", "wait": 5, "assume_recent": true}, "board": "https://www.google.com/about/careers/applications/jobs/results/?sort_by=date"},
-    {"name": "Microsoft", "tier": "big-tech", "sponsors_h1b": true, "board": "https://jobs.careers.microsoft.com/global/en/search?lc=United%20States&p=Software%20Engineering"},
-    {"name": "Meta", "tier": "big-tech", "sponsors_h1b": true, "board": "https://www.metacareers.com/jobs"},
-    {"name": "Apple", "tier": "big-tech", "sponsors_h1b": true, "board": "https://jobs.apple.com/en-us/search?sort=newest&key=software%20engineer"},
-    {"name": "NVIDIA", "tier": "big-tech", "sponsors_h1b": true, "ats": "workday", "workday": {"host": "nvidia.wd5.myworkdayjobs.com", "site": "NVIDIAExternalCareerSite"}, "board": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"},
-    {"name": "Salesforce", "tier": "big-tech", "sponsors_h1b": true, "board": "https://careers.salesforce.com/en/jobs/"},
-    {"name": "Oracle", "tier": "big-tech", "sponsors_h1b": true, "board": "https://careers.oracle.com/jobs/"},
-    {"name": "Adobe", "tier": "big-tech", "sponsors_h1b": true, "board": "https://careers.adobe.com/us/en/search-results"},
-    {"name": "Intuit", "tier": "big-tech", "sponsors_h1b": true, "board": "https://www.intuit.com/careers/teams/technology/"},
-    {"name": "Capital One", "tier": "fintech", "sponsors_h1b": true, "board": "https://www.capitalonecareers.com/search-jobs/software%20engineer/"},
-    {"name": "JPMorgan Chase", "tier": "finance", "sponsors_h1b": true, "board": "https://careers.jpmorgan.com/us/en/students/programs"},
-    {"name": "Bloomberg", "tier": "finance-tech", "sponsors_h1b": true, "board": "https://careers.bloomberg.com/job/search?q=software+engineer"},
-    {"name": "TikTok", "tier": "big-tech", "sponsors_h1b": true, "board": "https://lifeattiktok.com/search"},
-    {"name": "Cisco", "tier": "big-tech", "sponsors_h1b": true, "board": "https://jobs.cisco.com/jobs/SearchJobs/software%20engineer"},
-    {"name": "Snowflake", "tier": "data", "sponsors_h1b": true, "board": "https://careers.snowflake.com/us/en/search-results"},
-    {"name": "IBM", "tier": "consulting-tech", "sponsors_h1b": true, "board": "https://www.ibm.com/careers/search"}
+    {
+      "name": "Stripe",
+      "tier": "fintech",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "stripe",
+      "board": "https://stripe.com/jobs/search?teams=Engineering"
+    },
+    {
+      "name": "Databricks",
+      "tier": "data-ai",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "databricks",
+      "board": "https://www.databricks.com/company/careers/open-positions"
+    },
+    {
+      "name": "Anthropic",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "anthropic",
+      "board": "https://www.anthropic.com/careers"
+    },
+    {
+      "name": "Figma",
+      "tier": "product",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "figma",
+      "board": "https://www.figma.com/careers/"
+    },
+    {
+      "name": "Pinterest",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "pinterest",
+      "board": "https://www.pinterestcareers.com/jobs/"
+    },
+    {
+      "name": "Coinbase",
+      "tier": "fintech",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "coinbase",
+      "board": "https://www.coinbase.com/careers"
+    },
+    {
+      "name": "Robinhood",
+      "tier": "fintech",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "robinhood",
+      "board": "https://careers.robinhood.com/"
+    },
+    {
+      "name": "Instacart",
+      "tier": "marketplace",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "instacart",
+      "board": "https://instacart.careers/current-openings/"
+    },
+    {
+      "name": "Reddit",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "reddit",
+      "board": "https://www.redditinc.com/careers"
+    },
+    {
+      "name": "Discord",
+      "tier": "product",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "discord",
+      "board": "https://discord.com/careers"
+    },
+    {
+      "name": "Samsara",
+      "tier": "iot",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "samsara",
+      "board": "https://www.samsara.com/company/careers"
+    },
+    {
+      "name": "Gusto",
+      "tier": "fintech",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "gusto",
+      "board": "https://gusto.com/about/careers"
+    },
+    {
+      "name": "Asana",
+      "tier": "product",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "asana",
+      "board": "https://asana.com/jobs"
+    },
+    {
+      "name": "Box",
+      "tier": "enterprise",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "boxinc",
+      "board": "https://careers.box.com/"
+    },
+    {
+      "name": "Affirm",
+      "tier": "fintech",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "affirm",
+      "board": "https://www.affirm.com/careers"
+    },
+    {
+      "name": "Cloudflare",
+      "tier": "infra",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "cloudflare",
+      "board": "https://www.cloudflare.com/careers/"
+    },
+    {
+      "name": "Datadog",
+      "tier": "infra",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "datadog",
+      "board": "https://careers.datadoghq.com/"
+    },
+    {
+      "name": "MongoDB",
+      "tier": "data",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "mongodb",
+      "board": "https://www.mongodb.com/careers"
+    },
+    {
+      "name": "Scale AI",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "scaleai",
+      "board": "https://scale.com/careers"
+    },
+    {
+      "name": "DoorDash",
+      "tier": "marketplace",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "doordashusa",
+      "board": "https://careers.doordash.com/"
+    },
+    {
+      "name": "Plaid",
+      "tier": "fintech",
+      "sponsors_h1b": true,
+      "ats": "lever",
+      "token": "plaid",
+      "board": "https://plaid.com/careers/"
+    },
+    {
+      "name": "Palantir",
+      "tier": "data-ai",
+      "sponsors_h1b": true,
+      "ats": "lever",
+      "token": "palantir",
+      "board": "https://www.palantir.com/careers/"
+    },
+    {
+      "name": "OpenAI",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "openai",
+      "board": "https://openai.com/careers"
+    },
+    {
+      "name": "Ramp",
+      "tier": "fintech",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "ramp",
+      "board": "https://ramp.com/careers"
+    },
+    {
+      "name": "Notion",
+      "tier": "product",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "notion",
+      "board": "https://www.notion.so/careers"
+    },
+    {
+      "name": "Linear",
+      "tier": "product",
+      "sponsors_h1b": false,
+      "ats": "ashby",
+      "token": "linear",
+      "board": "https://linear.app/careers"
+    },
+    {
+      "name": "Vanta",
+      "tier": "security",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "vanta",
+      "board": "https://www.vanta.com/company/careers"
+    },
+    {
+      "name": "Amazon",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "board": "https://www.amazon.jobs/en/search?base_query=software+development+engineer&sort=recent"
+    },
+    {
+      "name": "Google",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "scrape": {
+        "url": "https://www.google.com/about/careers/applications/jobs/results/?sort_by=date&q=software%20engineer",
+        "wait": 5,
+        "assume_recent": true
+      },
+      "board": "https://www.google.com/about/careers/applications/jobs/results/?sort_by=date"
+    },
+    {
+      "name": "Microsoft",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "board": "https://jobs.careers.microsoft.com/global/en/search?lc=United%20States&p=Software%20Engineering",
+      "scrape": {
+        "url": "https://jobs.careers.microsoft.com/global/en/search?q=software%20engineer&lc=United%20States&o=Recent",
+        "wait": 5,
+        "max": 40
+      }
+    },
+    {
+      "name": "Meta",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "board": "https://www.metacareers.com/jobs"
+    },
+    {
+      "name": "Apple",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "board": "https://jobs.apple.com/en-us/search?sort=newest&key=software%20engineer"
+    },
+    {
+      "name": "NVIDIA",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "ats": "workday",
+      "workday": {
+        "host": "nvidia.wd5.myworkdayjobs.com",
+        "site": "NVIDIAExternalCareerSite"
+      },
+      "board": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+    },
+    {
+      "name": "Salesforce",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "board": "https://careers.salesforce.com/en/jobs/"
+    },
+    {
+      "name": "Oracle",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "board": "https://careers.oracle.com/jobs/"
+    },
+    {
+      "name": "Adobe",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "board": "https://careers.adobe.com/us/en/search-results"
+    },
+    {
+      "name": "Intuit",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "board": "https://www.intuit.com/careers/teams/technology/"
+    },
+    {
+      "name": "Capital One",
+      "tier": "fintech",
+      "sponsors_h1b": true,
+      "board": "https://www.capitalonecareers.com/search-jobs/software%20engineer/"
+    },
+    {
+      "name": "JPMorgan Chase",
+      "tier": "finance",
+      "sponsors_h1b": true,
+      "board": "https://careers.jpmorgan.com/us/en/students/programs"
+    },
+    {
+      "name": "Bloomberg",
+      "tier": "finance-tech",
+      "sponsors_h1b": true,
+      "board": "https://careers.bloomberg.com/job/search?q=software+engineer"
+    },
+    {
+      "name": "TikTok",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "board": "https://lifeattiktok.com/search"
+    },
+    {
+      "name": "Cisco",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "board": "https://jobs.cisco.com/jobs/SearchJobs/software%20engineer"
+    },
+    {
+      "name": "Snowflake",
+      "tier": "data",
+      "sponsors_h1b": true,
+      "board": "https://careers.snowflake.com/us/en/search-results"
+    },
+    {
+      "name": "IBM",
+      "tier": "consulting-tech",
+      "sponsors_h1b": true,
+      "board": "https://www.ibm.com/careers/search"
+    }
   ]
 }
