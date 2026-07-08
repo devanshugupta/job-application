@@ -16,6 +16,7 @@ Self-contained (inline CSS/JS, no CDN, no server): `open data/dashboard.html`.
 from __future__ import annotations
 
 import html
+import re
 import pathlib
 from datetime import date
 
@@ -26,6 +27,25 @@ OUT_PATH = config.DASHBOARD_PATH
 
 _SUBMITTED = {"submitted", "applied", "ready_to_submit", "skipped_submit"}
 
+
+
+_JOB_ID_PATTERNS = [
+    re.compile(r"JobDetail/(\d+)", re.I),               # Siemens/Avature
+    re.compile(r"[_-](R\d{6,})", re.I),                  # Workday requisition
+    re.compile(r"gh_jid=(\d+)"),                          # embedded Greenhouse
+    re.compile(r"greenhouse\.io/.+/jobs/(\d+)"),        # Greenhouse
+    re.compile(r"/jobs?/(\d{5,})"),                       # amazon.jobs etc.
+    re.compile(r"/([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I),  # Ashby/Lever UUID (short)
+]
+
+
+def _job_id(url: str) -> str:
+    """Best-effort requisition/job id from a posting URL ('' if none)."""
+    for pat in _JOB_ID_PATTERNS:
+        m = pat.search(url or "")
+        if m:
+            return m.group(1)
+    return ""
 
 def _grade_color(score) -> str:
     if not isinstance(score, (int, float)):
@@ -104,6 +124,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             f"<td>{cell(a.get('date'))}</td>"
             f"<td class='co'>{cell(a.get('company'))}</td>"
             f"<td>{cell(a.get('role'))}</td>"
+            f"<td class='mut'>{cell(_job_id(a.get('url') or ''))}</td>"
             f"<td>{cell(prof)}</td>"
             f"<td><span class='tag tag-{html.escape(str(a.get('status') or ''))}'>"
             f"{cell(a.get('status'))}</span></td>"
@@ -254,11 +275,12 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
 
 <table id="t"><thead><tr>
   <th onclick="sortBy(0)">Date</th><th onclick="sortBy(1)">Company</th>
-  <th onclick="sortBy(2)">Role</th><th onclick="sortBy(3)">Profile</th>
-  <th onclick="sortBy(4)">Status</th><th onclick="sortBy(5)">AQS</th>
-  <th onclick="sortBy(6)">Reviewer /10</th><th onclick="sortBy(7)">Must-have %</th>
-  <th onclick="sortBy(8)">ATS /100</th><th onclick="sortBy(9)">Verdict</th>
-  <th onclick="sortBy(10)">Posted</th><th>What changed</th><th>Links</th>
+  <th onclick="sortBy(2)">Role</th><th onclick="sortBy(3)">Job ID</th>
+  <th onclick="sortBy(4)">Profile</th>
+  <th onclick="sortBy(5)">Status</th><th onclick="sortBy(6)">AQS</th>
+  <th onclick="sortBy(7)">Reviewer /10</th><th onclick="sortBy(8)">Must-have %</th>
+  <th onclick="sortBy(9)">ATS /100</th><th onclick="sortBy(10)">Verdict</th>
+  <th onclick="sortBy(11)">Posted</th><th>What changed</th><th>Links</th>
 </tr></thead><tbody>{rows}</tbody></table>
 
 <p class="legend">AQS grades: <b>A</b> 80+ apply now · <b>B</b> 65+ strong · <b>C</b> 50+ decent ·
