@@ -91,7 +91,7 @@ lead (0 = most recent).
 PROJECTS (0 to 4 — optional re-selection of the resume's Projects section):
   The achievements doc carries a PROJECTS POOL beyond what the master shows. Pick the \
 projects most relevant to THIS role — most relevant first, recent work weighted \
-higher — and return each as {name, url, bullet}: the project's real name, its real \
+higher — and return each as {{name, url, bullet}}: the project's real name, its real \
 link from the pool, and ONE bullet following the same bullet rules (what it does, \
 stack, real outcome; no invented metrics). Only projects that exist in the resume or \
 the pool. Return [] to leave the master's Projects section unchanged — do that when \
@@ -102,6 +102,9 @@ the master's current projects already fit the JD best.
 - Is every claim defensible in an interview from the resume/achievements? If not, cut.
 - reasoning: 1-2 sentences naming the JD's #1/#2 priorities, which true experience each \
 top bullet uses, and any risky/gap areas an interviewer will probe (audit trail).
+
+BREVITY: keep every free-text field (reasoning) short and precise — one or two sentences \
+max, no restating the rules or the JD, no preamble. Do not over-explain.
 
 Return ONLY the JSON patch."""
 
@@ -160,6 +163,9 @@ bullets must NOT duplicate any other bullet on the resume.
 new_experience_section_index -1 = keep the current block.
 - issues: short human-readable list of every problem you found (for the audit trail).
 
+BREVITY: keep every free-text field (issues, experience_fit_reason) short and precise — \
+terse fragments, not sentences where a fragment works. No preamble, no over-explaining.
+
 Return ONLY the structured object."""
 
 
@@ -217,6 +223,10 @@ JD scores high; the SAME resume vs an SDE JD scores LOW because the role-definin
 must-haves (Java, microservices, system design, on-call) are missing. Generic overlap \
 must NOT inflate it.
 
+BREVITY: keep every free-text field (gaps, top_fixes, summary, evidence) short and \
+precise — one line each, terse and specific. No preamble, no hedging, do not \
+over-explain. Fewer, sharper items beat long lists.
+
 Return ONLY the structured object."""
 
 
@@ -263,4 +273,5 @@ find_posted_date. Keep only roles within the freshness window; exclude unverifie
 4. ats_score each surviving fresh role against the resume for a match signal.
 5. Rank by recency, then match. save_application for the shortlist with status='found', \
 source, posted_date, profile, match_score. Do NOT apply.
-Be concise; respect the token budget. Report the ranked shortlist at the end."""
+Be concise; respect the token budget. Keep all reasoning short and precise — do not \
+over-explain any step. Report the ranked shortlist at the end."""

@@ -208,6 +208,14 @@ def test_edit_tex_reselects_projects():
     assert r"\section{Education}" in out  # next section untouched
 
 
+def test_render_tailor_system_has_no_stray_format_braces():
+    # Literal { } in the prompt must be escaped as {{ }} or .format() raises KeyError.
+    from src import prompts
+    s = prompts.render_tailor_system()  # would KeyError if a brace leaked
+    assert "{name, url, bullet}" in s   # the projects example survived, un-doubled
+    assert "{summary_min}" not in s and "{bullet_max}" not in s  # budgets filled
+
+
 def test_lint_flags_em_dash_in_focus_bullet():
     from src.tools import resume as resume_mod
     md = ("## Summary\nA sentence long enough to pass the minimum summary word "
