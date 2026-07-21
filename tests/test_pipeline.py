@@ -17,6 +17,48 @@ def test_tracker_roundtrip_new_fields(tmp_data):
     assert apps[0]["profile"] == "sde"
 
 
+def test_save_application_upserts_by_url(tmp_data):
+    # Same job across lifecycle stages -> ONE row, status advances, fields merge.
+    tracker.save_application(company="Acme", role="SDE", url="http://x/1?ref=feed",
+                             status="found", source="feed", posted_date="2026-07-01")
+    tracker.save_application(company="Acme", role="SDE", url="http://x/1",  # query differs
+                             status="scored", resume_score=8, match_pct=80,
+                             tailored_pdf="/p.pdf")
+    apps = tracker.list_applications()
+    assert len(apps) == 1                          # not duplicated
+    row = apps[0]
+    assert row["status"] == "scored"               # advanced
+    assert row["resume_score"] == 8 and row["match_pct"] == 80
+    assert row["tailored_pdf"] == "/p.pdf"
+    assert row["source"] == "feed"                 # discovery value preserved (not clobbered)
+    assert row["posted_date"] == "2026-07-01"
+
+
+def test_save_application_empty_url_always_appends(tmp_data):
+    tracker.save_application(company="A", role="R", url="", status="found")
+    tracker.save_application(company="B", role="R", url="", status="found")
+    assert len(tracker.list_applications()) == 2
+
+
+def test_dedupe_applications_merges_same_job(tmp_data):
+    # A found row (real URL, no PDF) + a tailored row (placeholder URL, PDF) for the
+    # same job collapse into one row with the real URL, the PDF, and 'tailored' status.
+    tracker.save_application(company="Cohort AI Inc.", role="Associate Data Engineer",
+                             url="https://ats/cohort/abc", status="found", source="ats")
+    tracker.save_application(company="Cohort AI", role="Associate Data Engineer",
+                             url="manual:cohort", status="tailored", resume_score=8,
+                             tailored_pdf="/r.pdf")
+    assert len(tracker.list_applications()) == 2    # distinct URLs -> two rows for now
+    removed = tracker.dedupe_applications()
+    apps = tracker.list_applications()
+    assert removed == 1 and len(apps) == 1
+    row = apps[0]
+    assert row["status"] == "tailored"
+    assert row["tailored_pdf"] == "/r.pdf"
+    assert row["url"] == "https://ats/cohort/abc"   # real URL beat the placeholder
+    assert row["source"] == "ats"
+
+
 def test_profiles_auto_pick():
     # profiles are configured in the repo (resume/masters/index.json)
     if not profiles.have_profiles():
