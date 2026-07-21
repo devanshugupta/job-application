@@ -61,12 +61,15 @@ def test_resume_patch_and_lint(tmp_data, monkeypatch):
     assert "ok" in lint and "issues" in lint
 
 
-def test_dashboard_pdf_only_when_tailored(tmp_data):
-    # tailored row (has resume_diff) -> pdf link; found row (no diff) -> no link
-    tracker.save_application(company="A", role="SDE", url="u1", status="scored",
-                             resume_diff={"summary": "s"}, tailored_pdf="p.pdf")
+def test_dashboard_pdf_links_when_file_exists(tmp_data):
+    # A tailored PDF is linked when the file actually exists on disk (regardless of
+    # whether resume_diff was recorded); a stored path with no file is not linked.
+    real_pdf = tmp_data / "real_resume.pdf"
+    real_pdf.write_bytes(b"%PDF-1.4 test")
+    tracker.save_application(company="A", role="SDE", url="u1", status="tailored",
+                             tailored_pdf=str(real_pdf))               # file exists -> link
     tracker.save_application(company="B", role="SDE", url="u2", status="found",
-                             tailored_pdf="q.pdf")  # path but no diff
+                             tailored_pdf=str(tmp_data / "missing.pdf"))  # no file -> no link
     dashboard.render(tmp_data / "dash.html")
     html = (tmp_data / "dash.html").read_text()
     assert html.count(">pdf</a>") == 1

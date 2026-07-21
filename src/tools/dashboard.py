@@ -16,6 +16,7 @@ Self-contained (inline CSS/JS, no CDN, no server): `open data/dashboard.html`.
 from __future__ import annotations
 
 import html
+import os
 import re
 import pathlib
 from datetime import date
@@ -112,8 +113,16 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         links = []
         if url:
             links.append(f"<a href='{html.escape(url)}' target='_blank'>job</a>")
-        if pdf and a.get("resume_diff"):
-            links.append(f"<a href='{html.escape(pdf)}' target='_blank'>pdf</a>")
+        # Link the tailored PDF whenever the file actually exists — the dashboard lives
+        # in DATA_DIR, so href must be relative to it (stored paths may be absolute or
+        # repo-relative). Guard on file existence, not on resume_diff being populated.
+        if pdf:
+            pdf_abs = pathlib.Path(pdf)
+            if not pdf_abs.is_absolute():
+                pdf_abs = config.ROOT / pdf
+            if pdf_abs.exists():
+                href = os.path.relpath(pdf_abs, config.DASHBOARD_PATH.parent)
+                links.append(f"<a href='{html.escape(href)}' target='_blank'>pdf</a>")
 
         def cell(v, dash="—"):
             return html.escape(str(v)) if v not in (None, "") else f"<span class='mut'>{dash}</span>"
@@ -145,7 +154,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     total = len(apps)
     found_today = sum(1 for a in apps if a.get("status") == "found"
                       and a.get("date") == today)
-    tailored = sum(1 for a in apps if a.get("resume_diff"))
+    tailored = sum(1 for a in apps if a.get("resume_diff") or a.get("status") == "tailored")
     applied = sum(1 for a in apps if a.get("status") in _SUBMITTED)
     scored = sum(1 for a in apps if a.get("resume_score") is not None)
     avg_aqs = round(sum(aqs_values) / len(aqs_values)) if aqs_values else "—"
