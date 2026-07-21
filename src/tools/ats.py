@@ -40,6 +40,7 @@ _STOPWORDS = {
     "can", "may", "should", "would", "could", "must", "such", "also", "more", "most",
     "using", "use", "used", "able", "well", "both", "each", "other", "over", "under",
     "what", "when", "where", "how", "there", "these", "those", "its", "it's", "if",
+    "about", "above", "below", "after", "before", "again", "once", "here", "off",
     # hiring / JD boilerplate
     "experience", "experienced", "years", "year", "strong", "including", "etc", "role",
     "job", "team", "teams", "work", "working", "ability", "skills", "knowledge",
@@ -56,6 +57,13 @@ _STOPWORDS = {
     "related", "field", "minimum", "qualification", "responsibility", "day", "days",
     "range", "compensation", "pay", "verification", "orientation", "gender", "race",
     "veteran", "disability", "religion", "national", "origin", "legally", "authorized",
+    # benefits / comp / application-chrome boilerplate (pollutes keyword extraction on
+    # portal-scraped JDs — e.g. Apple's "employee stock", "submit resume", "learn about")
+    "stock", "equity", "employee", "employees", "benefits", "benefit", "submit",
+    "resume", "apply", "application", "applications", "program", "programs", "learn",
+    "results", "result", "subject", "area", "relevant", "industry", "contribute",
+    "devices", "device", "profile", "sign", "login", "careers", "career",
+    "footer", "window", "opens", "wallet", "shop", "gift", "cards", "card",
     # weak prose words that ride along in bigrams
     "every", "single", "one", "two", "three", "want", "wants", "someone", "take",
     "takes", "put", "need", "needs", "get", "gets", "see", "really", "just", "only",

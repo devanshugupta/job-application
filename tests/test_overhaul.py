@@ -208,6 +208,21 @@ def test_edit_tex_reselects_projects():
     assert r"\section{Education}" in out  # next section untouched
 
 
+def test_ats_ignores_benefits_and_chrome_boilerplate():
+    from src.tools import ats as ats_mod
+    # A JD padded with portal chrome + benefits copy must still score on real skills,
+    # not on "employee stock", "submit resume", "learn about", etc.
+    jd = ("Machine Learning Engineer. Build retrieval and ranking systems with Python "
+          "and PyTorch for search. Submit resume. Employee stock programs and benefits. "
+          "Learn about careers. Sign in to your profile. Gift cards and wallet.")
+    resume = "Built retrieval and ranking systems in Python and PyTorch for search."
+    r = ats_mod.ats_score(jd, resume)
+    junk = {"employee", "stock", "programs", "benefits", "submit", "resume",
+            "learn", "careers", "profile", "gift", "cards", "wallet"}
+    assert not (junk & set(r["matched_keywords"] + r["missing_keywords"]))
+    assert r["score"] >= 60  # real skills (retrieval/ranking/python/pytorch/search) match
+
+
 def test_render_tailor_system_has_no_stray_format_braces():
     # Literal { } in the prompt must be escaped as {{ }} or .format() raises KeyError.
     from src import prompts

@@ -86,18 +86,10 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     apps = tracker.list_applications()
     today = date.today().isoformat()
 
-    # Default order: real work first, raw discovery leads last. A job you've acted on
-    # (applied/tailored/scored) outranks an untouched 'found' lead regardless of the
-    # lead's inflated title-match AQS; within a status tier, higher AQS then newer wins.
-    # (Columns stay click-sortable client-side; this only sets the initial order.)
-    _rank = {"applied": 4, "tailored": 3, "scored": 2, "skipped": 1, "found": 0}
-
-    def _order_key(rec: dict) -> tuple:
-        aqs = scoring.score_record(rec, today)["score"]
-        return (_rank.get(rec.get("status"), 0), aqs if aqs is not None else -1,
-                rec.get("date") or "", rec.get("id", 0))
-
-    ordered = sorted(apps, key=_order_key, reverse=True)
+    # Default order: most recently touched first (a job's `date` is bumped on every
+    # upsert, so the job you just worked on leads). Columns stay click-sortable.
+    ordered = sorted(apps, key=lambda r: (r.get("date") or "", r.get("id", 0)),
+                     reverse=True)
 
     rows = []
     aqs_values = []
