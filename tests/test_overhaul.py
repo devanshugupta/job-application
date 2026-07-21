@@ -208,6 +208,21 @@ def test_edit_tex_reselects_projects():
     assert r"\section{Education}" in out  # next section untouched
 
 
+def test_bm25_rewards_rare_discriminating_skills():
+    from src.tools import ats as ats_mod
+    resume = "Machine learning engineer with FAISS vector search, ranking, and Python."
+    corpus = [
+        # generic: shares only common terms (engineer, software, python)
+        "Software engineer building web services in Python. Engineer on a software team.",
+        # discriminating: shares the rare skill FAISS + ranking + vector search
+        "ML engineer for search ranking with FAISS vector search and Python.",
+    ]
+    scores = ats_mod.bm25_scores(resume, corpus)
+    assert len(scores) == 2
+    assert scores[1] > scores[0]          # the JD sharing rare skills ranks higher
+    assert ats_mod.bm25_scores(resume, []) == []
+
+
 def test_ats_ignores_benefits_and_chrome_boilerplate():
     from src.tools import ats as ats_mod
     # A JD padded with portal chrome + benefits copy must still score on real skills,

@@ -252,20 +252,33 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
         j = dict(j)
         if jd:
             j["jd_text"] = jd
-            j["jd_match"] = ats.ats_score(jd, masters[prof])["score"]
+            j["jd_match"] = ats.ats_score(jd, masters[prof])["score"]  # Jobscan-style %
         else:
             j["jd_match"] = None
         ranked.append(j)
-    # A readable JD beats any title-only guess: title scores (3-5 words) are
-    # inflated and NOT comparable to full-JD scores, and an unreadable JD can't be
-    # tailored deterministically anyway — so fetched-JD jobs always rank first.
-    ranked.sort(key=lambda x: (x["jd_match"] is not None, x["jd_match"] or 0,
-                               x.get("match") or 0), reverse=True)
+
+    # Corpus-aware ranking: BM25 over all fetched JDs, so a rare discriminating skill
+    # ("faiss", "bandits") outweighs a common one ("engineer") that every JD contains —
+    # which the flat per-pair coverage % can't do. IDF comes from THIS batch's JDs;
+    # each JD is scored against its own profile's master. Jobs without a readable JD
+    # keep no BM25 score and rank last (they can't be deterministically tailored).
+    with_jd = [j for j in ranked if j.get("jd_text")]
+    if with_jd:
+        corpus = [j["jd_text"] for j in with_jd]
+        for prof, mtext in masters.items():
+            prof_scores = ats.bm25_scores(mtext, corpus)
+            for j, s in zip(with_jd, prof_scores):
+                if j.get("profile") == prof:
+                    j["bm25"] = s
+    ranked.sort(key=lambda x: (x.get("bm25") is not None, x.get("bm25") or 0.0,
+                               x.get("jd_match") or 0, x.get("match") or 0), reverse=True)
     shortlist = ranked[:top]
     if verbose:
-        print(f"\nRe-ranked by full-JD match; tailoring top {len(shortlist)}:")
+        print(f"\nRe-ranked by BM25 relevance (corpus-aware); tailoring top "
+              f"{len(shortlist)}:")
         for j in shortlist:
-            jm = j["jd_match"]
-            print(f"  JD-match={jm if jm is not None else '  ?'}  "
-                  f"{j['company'][:22]:<22} {j['role'][:44]}")
+            bm = j.get("bm25")
+            print(f"  BM25={bm if bm is not None else '  ?':>6}  "
+                  f"cov={j.get('jd_match') if j.get('jd_match') is not None else '?'}%  "
+                  f"{j['company'][:20]:<20} {j['role'][:40]}")
     return shortlist

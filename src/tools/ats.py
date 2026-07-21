@@ -25,6 +25,7 @@ neither measures JD↔resume match, so this JD-derived matcher is kept.)
 
 from __future__ import annotations
 
+import math
 import re
 from collections import Counter
 
@@ -135,6 +136,47 @@ def _weighted_terms(jd_text: str) -> Counter:
         if c >= 2:                       # a phrase the JD repeats is a real ask
             weights[p] = min(c, 3) * 2
     return weights
+
+
+def bm25_scores(resume_text: str, jd_corpus: list[str],
+                k1: float = 1.5, b: float = 0.75) -> list[float]:
+    r"""Rank a corpus of JDs by relevance to one resume using Okapi BM25.
+
+    Per-pair keyword coverage (``ats_score``) weights every matched term the same, so
+    a generic JD matching "engineer/python" can tie a genuine match sharing "faiss".
+    BM25 fixes that: it needs a CORPUS, and its IDF term down-weights words common
+    across the JDs and rewards rare, discriminating skills. That is exactly the
+    discovery-ranking problem — score many JDs against the candidate — where per-pair
+    coverage is weakest. (For a single resume↔JD pair the corpus is size 1 and IDF is
+    degenerate, which is why we keep ``ats_score`` as the Jobscan-style per-resume %.)
+
+    The resume is the query; each JD is a document. Returns one score per JD, aligned
+    to ``jd_corpus`` order (higher = better fit). Empty corpus → [].
+    """
+    if not jd_corpus:
+        return []
+    docs = [_tokens(jd) for jd in jd_corpus]
+    dfs: Counter = Counter()
+    for toks in docs:
+        dfs.update(set(toks))
+    n = len(docs)
+    avgdl = sum(len(d) for d in docs) / n or 1.0
+    # IDF with the standard BM25 +0.5 smoothing (non-negative floor for stability).
+    idf = {t: max(0.0, math.log((n - df + 0.5) / (df + 0.5) + 1.0))
+           for t, df in dfs.items()}
+    query = set(_tokens(resume_text))       # candidate's own terms drive relevance
+    scores = []
+    for toks in docs:
+        tf = Counter(toks)
+        dl = len(toks)
+        s = 0.0
+        for t in query:
+            f = tf.get(t, 0)
+            if not f:
+                continue
+            s += idf.get(t, 0.0) * (f * (k1 + 1)) / (f + k1 * (1 - b + b * dl / avgdl))
+        scores.append(round(s, 4))
+    return scores
 
 
 def ats_score(job_description: str, resume_text: str,
