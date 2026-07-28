@@ -74,6 +74,20 @@ evidence belongs in its own block or the Projects section.
 would read the same for a data-engineering role and an ML role, you have NOT tailored — \
 re-anchor to THIS JD's priorities: different priorities ⇒ different chosen experiences, \
 different framing, different keywords.
+  - SELECTION = MATCH → RANK → MMR (do this explicitly when choosing the bullets):
+    1. MATCH: gather every TRUE accomplishment (from the resume + achievements doc) that \
+is relevant to THIS JD — the candidate pool of possible bullets.
+    2. RANK: order that pool by relevance to the JD's priorities.
+    3. MMR-SELECT: build the final list greedily — each next bullet is the one that \
+maximizes (relevance to the JD) MINUS (redundancy with bullets already chosen). So the \
+#1/#2 priorities lead, then every further slot goes to the most relevant accomplishment \
+that adds a NEW competency, not another version of a theme already covered.
+    Why: pure top-N-by-relevance clusters — e.g. three near-identical retrieval/embedding \
+lines that read as "one thing." MMR keeps the set both on-point AND broad, spanning the \
+role's distinct dimensions from the candidate's true work (e.g. modeling / systems & \
+latency / evaluation & experimentation / product & ownership / reliability & monitoring \
+/ a named language or platform). Two bullets may share a theme only if each adds \
+genuinely new evidence; otherwise merge them and spend the slot on breadth.
   - Each bullet: XYZ shape — what they did, how, with quantified impact — ONE sentence, \
 {bullet_min}-{bullet_max} words (≤1.5 rendered lines), the impact METRIC AT THE END.
   - Strong ownership verbs (Designed, Built, Led, Owned); end-to-end framing. Don't \
@@ -129,11 +143,15 @@ fails, return the corrected fields so a clean version can be re-rendered. You ma
 use TRUE content already in the resume — never invent; corrections are re-selection and \
 re-wording, not fabrication.
 
-CHECK 1 — REPEATED BULLETS (across the entire resume, not just the tailored block):
-List any bullet that says essentially the same thing as another (same project, metric, \
-or accomplishment reworded) — including the two new top bullets echoing each other or an \
-existing bullet elsewhere. Near-duplicates dilute the resume; they must be removed or \
-differentiated. Put the offending bullet text in `repeated_bullets`.
+CHECK 1 — REPEATED OR THEMATICALLY CLUSTERED BULLETS (across the whole resume):
+(a) Duplicates: any bullet saying essentially the same thing as another (same project, \
+metric, or accomplishment reworded). (b) CLUSTERING: bullets that aren't duplicates but \
+crowd the SAME theme so the block reads as "one thing" — e.g. three retrieval/embedding \
+lines in a row. The top bullets should span DISTINCT competencies (modeling / systems / \
+evaluation / product / reliability / a named platform), MMR-style: relevance minus \
+redundancy. Put every offending bullet in `repeated_bullets`; if the fix is to \
+diversify, supply `new_top_bullets` that keep the strongest one per theme and replace \
+the redundant ones with the candidate's true work in an UNDER-represented dimension.
 
 CHECK 2 — DOES THE TAILORED EXPERIENCE ACTUALLY FIT THE JD:
 Look at the experience block that was tailored (the one whose top-2 bullets were \
