@@ -8,6 +8,7 @@ anywhere, so the two buttons in the table need a tiny local backend:
   POST /api/remove   {"url": …}  hide a job you don't want (removed=True; never deletes)
   POST /api/restore  {"url": …}  un-hide it (removed=False)
   POST /api/reveal   {"url": …}  open the folder holding its tailored PDF in Finder
+  POST /api/recompile {"url": …}  re-render tailored_resume.tex -> PDF (pick up tex edits)
   POST /api/run-pipeline         launch the full pipeline (find → score → tailor >70) in
                                  the background
   GET  /api/pipeline-status      state + progress of the current/last pipeline run
@@ -20,6 +21,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
 import pathlib
 import subprocess
 import sys
@@ -59,6 +61,35 @@ def mark_applied(url: str) -> dict | None:
         url, status="applied", applied_date=date.today().isoformat())
 
 
+def recompile_resume(rec: dict) -> pathlib.Path:
+    """Re-render this job's tailored_resume.tex into its PDF, overwriting it — so editing
+    the .tex and clicking 'recompile' picks up the changes. Returns the PDF path."""
+    from . import latex
+    # Derive the folder/PDF name from the stored path WITHOUT requiring the PDF to exist
+    # yet — recompiling is exactly how a missing/edited PDF gets (re)generated.
+    stored = pathlib.Path(rec["tailored_pdf"]) if rec.get("tailored_pdf") else None
+    if stored is not None and not stored.is_absolute():
+        stored = config.ROOT / stored
+    folder = (stored.parent if stored else
+              artifacts.folder(rec.get("company", ""), rec.get("role", ""), rec.get("url")))
+    tex = folder / "tailored_resume.tex"
+    if not tex.exists():
+        raise FileNotFoundError(f"no tailored_resume.tex in {folder}")
+    out = folder / (stored.name if stored else "Devanshu_Gupta_Resume.pdf")
+    ok, msg = latex.compile_pdf(tex.read_text(), out)
+    if not ok:
+        raise RuntimeError(f"compile failed: {msg[:200]}")
+    # compile_pdf drops a .tex sidecar named after the PDF; remove it so `tailored_
+    # resume.tex` stays the single editable source (never delete that source itself).
+    sidecar = out.with_suffix(".tex")
+    if sidecar.exists() and sidecar != tex:
+        sidecar.unlink()
+    if not rec.get("tailored_pdf"):
+        tracker.update_application(rec.get("url", ""),
+                                   tailored_pdf=artifacts.rel_to_root(out))
+    return out
+
+
 # --- full-pipeline runner ---------------------------------------------------------
 # The funnel's "Run pipeline" button launches `src.cli pipeline` (discover → score →
 # tailor >70) as ONE background subprocess, streaming its output to a log so the
@@ -91,30 +122,54 @@ def start_pipeline(hours: int = 24, top: int = 20) -> dict:
     global _proc
     if _proc is not None and _proc.poll() is None:
         return {"status": "running", "already": True}
-    cmd = [sys.executable, "-m", "src.cli", "pipeline",
+    # -u / PYTHONUNBUFFERED so the child flushes each print to the log line-by-line;
+    # otherwise a file-redirected Python subprocess block-buffers and the progress line
+    # stays empty for the whole run, which looks stuck even though it's working.
+    cmd = [sys.executable, "-u", "-m", "src.cli", "pipeline",
            "--hours", str(hours), "--top", str(top)]
+    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
     _RUN_LOG.parent.mkdir(parents=True, exist_ok=True)
     logf = _RUN_LOG.open("w")
     _proc = subprocess.Popen(cmd, cwd=str(config.ROOT), stdout=logf,
-                             stderr=subprocess.STDOUT, text=True)
+                             stderr=subprocess.STDOUT, text=True, env=env)
     _write_run_state({"status": "running", "started_at": _now(),
-                      "cmd": " ".join(cmd[2:])})
+                      "pid": _proc.pid, "cmd": " ".join(cmd[2:])})
     return {"status": "running"}
 
 
+def _pid_alive(pid: int | None) -> bool:
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)          # signal 0 = liveness probe, doesn't touch the process
+        return True
+    except (ProcessLookupError, PermissionError, OverflowError, TypeError):
+        return False
+
+
+# Log markers the pipeline prints when it finishes cleanly (incl. manual-brain, which
+# ends at packets). Presence of any => the run completed rather than crashed.
+_DONE_MARKERS = ("PIPELINE DONE", "Submit a chosen role", "No fresh roles",
+                 "packets awaiting")
+
+
 def pipeline_status(tail_lines: int = 4) -> dict:
-    """Current/last run: reconcile the tracked process, then attach a progress tail."""
+    """Current/last run + a progress tail. Completion is detected by PID liveness (works
+    even if THIS server didn't launch the run, or was restarted), then confirmed by a
+    log marker — so the status never sticks on 'running' after the process is gone."""
     st = _read_run_state()
-    if _proc is not None and _proc.poll() is not None and st.get("status") == "running":
-        st["status"] = "done" if _proc.returncode == 0 else "failed"
-        st["returncode"] = _proc.returncode
-        st["finished_at"] = _now()
-        _write_run_state(st)
     try:
         lines = [ln for ln in _RUN_LOG.read_text().splitlines() if ln.strip()]
-        st["progress"] = lines[-tail_lines:]
     except OSError:
-        st["progress"] = []
+        lines = []
+    if st.get("status") == "running":
+        alive = _proc.poll() is None if _proc is not None else _pid_alive(st.get("pid"))
+        if not alive:
+            done = any(m in ln for ln in lines for m in _DONE_MARKERS)
+            st["status"] = "done" if done else "failed"
+            st["finished_at"] = _now()
+            _write_run_state(st)
+    st["progress"] = lines[-tail_lines:]
     return st
 
 
@@ -174,6 +229,9 @@ class _Handler(BaseHTTPRequestHandler):
                 pdf = resume_path(rec)
                 reveal(pdf)
                 return self._json(200, {"dir": artifacts.rel_to_root(pdf.parent)})
+            if self.path.startswith("/api/recompile"):
+                out = recompile_resume(rec)
+                return self._json(200, {"pdf": artifacts.rel_to_root(out)})
         except Exception as e:  # never let an HTML error page reach the fetch() caller
             return self._json(500, {"error": f"{type(e).__name__}: {e}"})
         self._json(404, {"error": "unknown endpoint"})

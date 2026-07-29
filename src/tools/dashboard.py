@@ -49,15 +49,25 @@ def _job_id(url: str) -> str:
     return ""
 
 def _fmt_date(iso: str | None) -> tuple[str, str]:
-    """('29 Jul 26', '20260729') — human display + a numeric key so click-sort on the
-    column stays chronological. Non-date/empty values pass through as-is with key ''."""
+    """('29 Jul 26, 18:20', '202607291820') — human display + a numeric sort key. Shows
+    the time when the stored value carries one (rows are stamped 'YYYY-MM-DD HH:MM'), so
+    you can see WHEN a job was found; falls back to date-only for legacy values."""
     if not iso:
         return "", ""
+    s = str(iso)
+    has_time = False
     try:
-        d = datetime.strptime(str(iso)[:10], "%Y-%m-%d")
+        d = datetime.strptime(s[:16], "%Y-%m-%d %H:%M")
+        has_time = True
     except ValueError:
-        return str(iso), ""
-    return f"{d.day} {d.strftime('%b')} {d.strftime('%y')}", d.strftime("%Y%m%d")
+        try:
+            d = datetime.strptime(s[:10], "%Y-%m-%d")
+        except ValueError:
+            return s, ""
+    disp = f"{d.day} {d.strftime('%b %y')}"
+    if has_time:
+        disp += f", {d.strftime('%H:%M')}"
+    return disp, d.strftime("%Y%m%d%H%M")
 
 
 def _grade_color(score) -> str:
@@ -139,10 +149,17 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             pdf_abs = pathlib.Path(pdf)
             if not pdf_abs.is_absolute():
                 pdf_abs = config.ROOT / pdf
+            u = html.escape(url, quote=True)
+            # find-resume needs the PDF; recompile only needs the editable .tex — so it
+            # stays available to REBUILD a PDF you've deleted or edited the source of.
             if pdf_abs.exists():
                 links.append(
-                    f"<button class='btn' data-url=\"{html.escape(url, quote=True)}\" "
+                    f"<button class='btn' data-url=\"{u}\" "
                     f"onclick='findResume(this)'>find resume</button>")
+            if (pdf_abs.parent / "tailored_resume.tex").exists():
+                links.append(
+                    f"<button class='btn' data-url=\"{u}\" title='re-render the .tex to PDF' "
+                    f"onclick='recompile(this)'>recompile</button>")
         # Remove / restore lives in a leading column (before Date), not in Actions.
         # A small icon: removed rows offer restore (↺); live rows offer "−" (confirms).
         if url:
@@ -184,7 +201,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     live = [a for a in apps if not a.get("removed")]   # removed rows count toward nothing
     total = len(live)
     found_today = sum(1 for a in live if a.get("status") == "found"
-                      and a.get("date") == today)
+                      and (a.get("date") or "")[:10] == today)
     tailored = sum(1 for a in live if a.get("resume_diff") or a.get("status") == "tailored")
     applied = sum(1 for a in live if a.get("status") in _SUBMITTED)
     scored = sum(1 for a in live if a.get("resume_score") is not None)
@@ -412,6 +429,15 @@ function findResume(btn) {{
   }}).catch(function(e) {{
     toast(e.noBackend ? 'Cannot open Finder from a static page. ' + HINT
                       : 'Could not open the folder: ' + e.message, true);
+  }});
+}}
+function recompile(btn) {{
+  // Re-render the row's edited tailored_resume.tex into its PDF (overwrites).
+  post('/api/recompile', btn.dataset.url).then(function(j) {{
+    toast('Recompiled <code>' + j.pdf + '</code>.');
+  }}).catch(function(e) {{
+    toast(e.noBackend ? 'Recompiling needs the backend. ' + HINT
+                      : 'Recompile failed: ' + e.message, true);
   }});
 }}
 // Remove/restore. Removed rows are hidden but NEVER deleted (removed=True in the tracker).

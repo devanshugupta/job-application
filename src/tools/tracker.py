@@ -10,13 +10,19 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import date
+from datetime import datetime
 
 from .. import config
 
 PROFILE_PATH = config.PROFILE_PATH
 APPLICATIONS_PATH = config.APPLICATIONS_PATH
 RESUME_RULES_PATH = config.RESUME_RULES_PATH
+
+
+def _stamp() -> str:
+    """Timestamp stored on a row's `date` (minute precision) so the dashboard can show
+    WHEN a job was found/last touched, not just the day. `[:10]` still yields the date."""
+    return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
 def read_resume_rules() -> str:
@@ -115,14 +121,14 @@ def save_application(
     existing = _find_by_url(apps, url)
     if existing is not None:
         existing.update(incoming)
-        existing["date"] = date.today().isoformat()
+        existing["date"] = _stamp()
         record = existing
     else:
         record = {
             "id": max((r.get("id", 0) for r in apps), default=0) + 1,
             "scorer_gaps": [], "resume_diff": {},
             **incoming,
-            "date": date.today().isoformat(),
+            "date": _stamp(),
         }
         apps.append(record)
     _save_db(db)
@@ -136,7 +142,7 @@ def update_application(url: str, **fields) -> dict | None:
     if record is None:
         return None
     record.update({k: v for k, v in fields.items() if v is not None})
-    record["date"] = date.today().isoformat()
+    record["date"] = _stamp()
     _save_db(db)
     return record
 

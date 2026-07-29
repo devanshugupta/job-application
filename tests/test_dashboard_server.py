@@ -156,6 +156,21 @@ def test_run_pipeline_launches_and_status_is_json(server, monkeypatch):
     assert "status" in st and "progress" in st and isinstance(st["progress"], list)
 
 
+def test_recompile_rebuilds_pdf_from_tex_without_existing_pdf(server, job, monkeypatch):
+    # Deleting the PDF must NOT block recompile — it rebuilds from tailored_resume.tex.
+    from src.tools import artifacts, latex
+    folder = artifacts.folder("Acme Inc", "ML Engineer",
+                              "https://boards.greenhouse.io/acme/jobs/4951814008")
+    (folder / "tailored_resume.tex").write_text("dummy tex source")
+    (folder / "Devanshu_Gupta_Resume.pdf").unlink()          # user deleted the PDF
+    def fake_compile(src, out):
+        pathlib.Path(out).write_bytes(b"%PDF-1.4 rebuilt"); return True, "ok"
+    monkeypatch.setattr(latex, "compile_pdf", fake_compile)
+    status, body = _post(server, "/api/recompile", job)
+    assert status == 200
+    assert (folder / "Devanshu_Gupta_Resume.pdf").read_bytes() == b"%PDF-1.4 rebuilt"
+
+
 def test_path_traversal_is_refused(server, job):
     with pytest.raises(urllib.error.HTTPError) as e:
         urllib.request.urlopen(server + "/../config/profile.json")
