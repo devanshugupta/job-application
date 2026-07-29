@@ -226,6 +226,15 @@ def bm25_scores(resume_text: str, jd_corpus: list[str],
 _MIN_JD_CONCEPTS = 4   # below this the JD is too skill-sparse for concept-mode to be stable
 
 
+def jd_match(job_description: str) -> dict:
+    """THE single JD↔candidate match: score the JD against the ONE combined master
+    (all of the candidate's ML+SDE+DE points). Every scorer — discovery, JD-rerank, the
+    tracker rescore — calls this so the same logic runs once, not three copies. Returns
+    the usual ats_score dict; `missing_keywords` are the real skill gaps for this JD."""
+    from . import profiles  # local import: avoid an import cycle at module load
+    return ats_score(job_description, profiles.combined_master_text())
+
+
 def ats_score(job_description: str, resume_text: str,
               top_n: int | None = DEFAULT_TOP_N) -> dict:
     """Score how well the resume's SKILLS cover the JD's skills. Domain-agnostic.

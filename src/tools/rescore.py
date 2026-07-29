@@ -21,12 +21,12 @@ import pathlib
 from datetime import date
 
 from .. import config
-from . import ats, jd_fetch, latex, profiles, tracker
+from . import ats, jd_fetch, latex, tracker
 
 
-def _resume_text_for(rec: dict, masters: dict) -> str:
-    """The resume this row should be scored against: its tailored artifact if present
-    (what it was really measured on), else the profile master."""
+def _tailored_text(rec: dict) -> str | None:
+    """The row's TAILORED resume text if it has one, else None (caller then scores against
+    the shared combined master via ats.jd_match)."""
     pdf = rec.get("tailored_pdf")
     if pdf:
         d = pathlib.Path(pdf)
@@ -38,10 +38,7 @@ def _resume_text_for(rec: dict, masters: dict) -> str:
             return latex.tex_to_text(tex.read_text())
         if md.exists():
             return md.read_text()
-    prof = rec.get("profile")
-    if prof not in masters:
-        masters[prof] = profiles.read_master_for(prof)
-    return masters[prof]
+    return None   # not tailored -> caller scores against the BEST master (see below)
 
 
 def refresh_match_scores(*, verbose: bool = True) -> dict:
@@ -51,7 +48,6 @@ def refresh_match_scores(*, verbose: bool = True) -> dict:
 
     db = tracker._load_applications()
     rows = db["applications"]
-    masters: dict = {}
     today = date.today().isoformat()
     updated = unchanged = skipped = 0
     for rec in rows:
@@ -68,7 +64,9 @@ def refresh_match_scores(*, verbose: bool = True) -> dict:
         if not jd:
             skipped += 1
             continue
-        new = ats.ats_score(jd, _resume_text_for(rec, masters))["score"]
+        tailored = _tailored_text(rec)
+        new = (ats.ats_score(jd, tailored)["score"] if tailored is not None
+               else ats.jd_match(jd)["score"])
         old = rec.get("match_score")
         if new == old:
             unchanged += 1

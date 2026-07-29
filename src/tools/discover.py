@@ -147,10 +147,10 @@ def gather(hours: int, *, profile: str | None = None, sources: list[str] | None 
         jobs.append(j)
 
     # --- match + rank -----------------------------------------------------------
-    masters = {p: profiles.read_master_for(p) for p in {j["profile"] for j in jobs}}
+    # Title-level match against the ONE combined master (all ML+SDE+DE points), via the
+    # shared ats.jd_match — so discovery, rerank, and rescore all score identically.
     for j in jobs:
-        text = f"{j['role']} {j.get('locations', '')}"
-        j["match"] = ats.ats_score(text, masters[j["profile"]])["score"]
+        j["match"] = ats.jd_match(f"{j['role']} {j.get('locations', '')}")["score"]
         comp = scoring.composite(ats_score=j["match"], posted_date=j["posted_date"],
                                  today=today)
         j["found_score"] = comp["score"]
@@ -246,12 +246,9 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
 
     needs_sponsor = _requires_sponsorship()
     today = date.today().isoformat()
-    masters: dict = {}
     ranked: list[dict] = []
     for j in jobs:
         prof = j.get("profile")
-        if prof not in masters:
-            masters[prof] = profiles.read_master_for(prof)
         # Day-cache the JD text per URL: portals aren't byte-stable between fetches,
         # and in manual-brain mode the packet id hashes the JD — an unstable JD would
         # orphan an already-answered packet on every re-run.
@@ -280,24 +277,22 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
         j = dict(j)
         if jd:
             j["jd_text"] = jd
-            j["jd_match"] = ats.ats_score(jd, masters[prof])["score"]  # Jobscan-style %
+            j["jd_match"] = ats.jd_match(jd)["score"]  # vs the ONE combined master
         else:
             j["jd_match"] = None
         ranked.append(j)
 
     # Corpus-aware ranking: BM25 over all fetched JDs, so a rare discriminating skill
     # ("faiss", "bandits") outweighs a common one ("engineer") that every JD contains —
-    # which the flat per-pair coverage % can't do. IDF comes from THIS batch's JDs;
-    # each JD is scored against its own profile's master. Jobs without a readable JD
-    # keep no BM25 score and rank last (they can't be deterministically tailored).
+    # which the flat per-pair coverage % can't do. IDF comes from THIS batch's JDs; the
+    # query is the combined master (all the candidate's points). Jobs without a readable
+    # JD keep no BM25 score and rank last (they can't be deterministically tailored).
     with_jd = [j for j in ranked if j.get("jd_text")]
     if with_jd:
         corpus = [j["jd_text"] for j in with_jd]
-        for prof, mtext in masters.items():
-            prof_scores = ats.bm25_scores(mtext, corpus)
-            for j, s in zip(with_jd, prof_scores):
-                if j.get("profile") == prof:
-                    j["bm25"] = s
+        combined = profiles.combined_master_text()
+        for j, s in zip(with_jd, ats.bm25_scores(combined, corpus)):
+            j["bm25"] = s
     ranked.sort(key=lambda x: (x.get("bm25") is not None, x.get("bm25") or 0.0,
                                x.get("jd_match") or 0, x.get("match") or 0), reverse=True)
 

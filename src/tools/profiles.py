@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+from functools import lru_cache
 import re
 
 from .. import config
@@ -37,6 +38,34 @@ def load_index() -> dict:
 
 def list_profiles() -> list[str]:
     return list(load_index().keys())
+
+
+def all_master_texts() -> dict[str, str]:
+    """Every DISTINCT real master resume, keyed by one profile that maps to it. Many
+    profiles resolve to the same `.tex` (e.g. ml_ai/data_engineer -> ml_sde.tex), so
+    dedupe by content."""
+    out: dict[str, str] = {}
+    seen: set[int] = set()
+    for pid in list_profiles():
+        txt = read_master_for(pid)
+        if not txt or txt.startswith("No master"):
+            continue
+        h = hash(txt)
+        if h not in seen:
+            seen.add(h)
+            out[pid] = txt
+    return out
+
+
+@lru_cache(maxsize=1)
+def combined_master_text() -> str:
+    """ONE superset resume = all distinct masters concatenated (ML + SDE + DE points).
+
+    A combined-background candidate should be scored against everything they can do, so a
+    JD's skills are matched if ANY of their resumes covers them — this is what stops both
+    ML and SDE roles from scoring low for one narrow per-profile master. Out-of-domain
+    roles (Rust, hardware) still score low because no master carries those concepts."""
+    return "\n".join(all_master_texts().values())
 
 
 def master_path(profile: str | None) -> pathlib.Path:
