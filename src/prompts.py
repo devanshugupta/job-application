@@ -231,6 +231,14 @@ the JD, don't assume software.
 counting EXACT and SIMILAR/synonym evidence (k8s≈Kubernetes, FAISS≈vector search, \
 RAG≈retrieval-augmented, PyTorch⇒deep learning). Judge equivalence; don't require the \
 literal string.
+- TRANSFERABLE CORE: for Applied-ML / ML / AI roles, treat strong retrieval, ranking, \
+recommendation, RAG, model training/fine-tuning (LoRA/PEFT), and evaluation experience as \
+a STRONG match to the role's ML core even when the specific stack differs — the ML \
+fundamentals transfer. Credit them as matched must-haves; don't penalize for a missing \
+brand-name tool when the equivalent skill is clearly demonstrated.
+- SENIORITY: state the years-of-experience delta explicitly as its own point. A 1-2 year \
+stretch below a "Senior/Staff" bar is a MINOR gap (still worth applying), not a \
+true_mismatch; only a large gap (e.g. 3 yrs vs "10+ / Principal") is disqualifying.
 - match_pct = round(100 * matched / total). It must DISCRIMINATE: an ML resume vs an ML \
 JD scores high; the SAME resume vs an SDE JD scores LOW because the role-defining \
 must-haves (Java, microservices, system design, on-call) are missing. Generic overlap \
