@@ -26,10 +26,18 @@ def test_composite_match_blends_must_have_and_keywords():
     assert scoring.match_pct_combined(None, None) is None
 
 
-def test_composite_renormalizes_missing_parts():
+def test_composite_unreviewed_is_capped_by_missing_reviewer():
+    # No reviewer: its 0.40 weight stays in the denominator as an unmet ceiling, so a
+    # perfect skill-match + fresh posting can't present as an "A". (80*.45+100*.15)/1.0 = 51
     c = scoring.composite(ats_score=80, posted_date="2026-06-12", today="2026-06-12")
-    # only match (=keywords 80, .45) + recency (100, .15): (80*.45 + 100*.15)/.60 = 85
-    assert c["score"] == 85
+    assert c["score"] == 51 and c["grade"] == "C"
+
+
+def test_composite_reviewed_row_unaffected_by_the_cap():
+    # With a reviewer present, only genuinely-absent components renormalize (recency here).
+    c = scoring.composite(reviewer_score=8, match_pct=88)  # no recency
+    # (80*.40 + 88*.45) / (.40+.45) = 84
+    assert c["score"] == 84
 
 
 def test_composite_no_signals():

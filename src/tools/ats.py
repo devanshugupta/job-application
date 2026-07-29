@@ -1,26 +1,22 @@
-"""ATS keyword scoring — fully dynamic, no hardcoded skill list.
+"""ATS skill-match scoring — how well a resume's SKILLS cover a JD's skills.
 
-Real Applicant Tracking Systems (and match tools like Jobscan) rank resumes on
-coverage of the JD's PROMINENT keywords, not every word in the posting. We
-approximate that, domain-agnostically:
+Modern matchers (Jobscan, Eightfold, LinkedIn) score against a SKILLS TAXONOMY, not raw
+word overlap — that's what makes the number track real fit. We do the same:
 
-  1. extract the JD's own meaningful terms (drop stopwords/boilerplate) plus its
-     repeated two-word phrases ("machine learning", "distributed systems"),
-  2. weight each by prominence (frequency, capped; phrases count double),
-  3. evaluate the TOP-N weighted terms (default 30) against the resume, after
-     normalizing common aliases (k8s≈kubernetes, postgres≈postgresql).
+  1. a skill ontology (`config/skill_synonyms.json`) maps every surface form to a
+     canonical concept, so "FAISS", "qdrant", "vector database" all read as
+     `vector-search` and match a JD's "embeddings" or "ANN" (see `_ontology`),
+  2. `_normalize` rewrites BOTH the JD and the resume into that concept space,
+  3. `ats_score` takes the JD's recognized skill concepts (weighted by how much the JD
+     emphasizes each) and scores what fraction the resume's concepts cover.
 
-`score` = weighted % of the evaluated JD keywords the resume contains, 0-100.
-Nothing is hardcoded to software — importance is derived from the JD text, so the
-same logic works for a biotech or finance JD. The anti-signal stopword list below
-is the ONLY word list.
-
-Evaluated against a capped, weighted set, 95%+ is an achievable target for a
-well-tailored resume on a genuinely matching role — which makes the number
-actionable instead of noise. (Compared for this purpose against
-itslovepatel/Resume-ATS — JD-independent fixed domain lists — and
-interviewstreet/hiring-agent — employer-side LLM rubric for one fixed role;
-neither measures JD↔resume match, so this JD-derived matcher is kept.)
+`score` = weighted % of the JD's SKILLS the resume has, 0-100. This is the fix for the
+old "% of prominent words" approach, which penalized a resume for lacking a posting's
+company jargon ("fulfillment home", "phishing coach") and so disagreed sharply with the
+LLM reviewer. `missing_keywords` now lists real skill GAPS. A JD too skill-sparse for
+the ontology (`_MIN_JD_CONCEPTS`) falls back to the old prominent-term coverage so
+non-tech postings still get a number. The stopword list is anti-signal only — the
+ontology is the skill vocabulary, extend it freely (a new alias needs no code change).
 """
 
 from __future__ import annotations
@@ -132,6 +128,13 @@ def _ontology() -> tuple[re.Pattern | None, dict[str, str]]:
     return pattern, forms
 
 
+@lru_cache(maxsize=1)
+def _concept_names() -> frozenset[str]:
+    """The ontology's canonical concept tokens (what surface forms rewrite to)."""
+    _, forms = _ontology()
+    return frozenset(forms.values())
+
+
 def _normalize(text: str) -> str:
     t = text.lower()
     t = t.replace("ci/cd", "cicd")
@@ -220,40 +223,69 @@ def bm25_scores(resume_text: str, jd_corpus: list[str],
     return scores
 
 
+_MIN_JD_CONCEPTS = 4   # below this the JD is too skill-sparse for concept-mode to be stable
+
+
 def ats_score(job_description: str, resume_text: str,
               top_n: int | None = DEFAULT_TOP_N) -> dict:
-    """Match the JD's most prominent keywords against the resume. Domain-agnostic.
+    """Score how well the resume's SKILLS cover the JD's skills. Domain-agnostic.
+
+    A real recruiter (and the LLM reviewer) judges skill FIT, not how many of a posting's
+    prominent words happen to appear on the resume — a resume can't contain a JD's
+    company jargon ("fulfillment home", "phishing coach"), and penalizing that made the
+    old prominent-word score disagree sharply with the LLM. So we score on the ontology's
+    concept space: the JD's recognized SKILL concepts (weighted by how much the JD
+    emphasizes each) vs the concepts on the resume. `missing_keywords` then lists real
+    skill GAPS, not noise.
+
+    Falls back to the prominent-term coverage when the JD names too few recognized skills
+    (`_MIN_JD_CONCEPTS`) for concept-mode to be reliable — so niche/non-tech JDs still get
+    a number.
 
     Args:
         job_description: raw JD text.
         resume_text: resume text (tailored Markdown or stripped LaTeX) — score the
             TAILORED resume when judging an application, the master when pre-filtering.
-        top_n: how many of the JD's top weighted terms to evaluate (default 30);
-            pass None to evaluate every meaningful term (strict, mostly diagnostic).
+        top_n: cap on prominent terms in the FALLBACK path (concept-mode uses all skills).
     """
     weights = _weighted_terms(job_description)
-    ranked = [w for w, _ in weights.most_common()]
-    important = ranked[:top_n] if top_n else ranked
-    resume_norm = _normalize(resume_text)
-    resume_uni = set(_tokens(resume_text))
+    concepts = _concept_names()
+    resume_concepts = set(_tokens(resume_text)) & concepts
+    jd_concepts = {t: w for t, w in weights.items() if t in concepts}
 
-    def _hit(term: str) -> bool:
-        return (term in resume_norm) if " " in term else (term in resume_uni)
+    if len(jd_concepts) >= _MIN_JD_CONCEPTS:
+        matched = [c for c in jd_concepts if c in resume_concepts]
+        missing = [c for c in jd_concepts if c not in resume_concepts]
+        total_w = sum(jd_concepts.values())
+        match_w = sum(jd_concepts[c] for c in matched)
+        score = round(100 * match_w / total_w) if total_w else 0
+        # order by JD emphasis so the top gaps/matches lead
+        matched.sort(key=lambda c: -jd_concepts[c])
+        missing.sort(key=lambda c: -jd_concepts[c])
+    else:
+        ranked = [w for w, _ in weights.most_common()]
+        important = ranked[:top_n] if top_n else ranked
+        resume_norm = _normalize(resume_text)
+        resume_uni = set(_tokens(resume_text))
 
-    matched = [w for w in important if _hit(w)]
-    missing = [w for w in important if not _hit(w)]
-    total_w = sum(weights[w] for w in important)
-    match_w = sum(weights[w] for w in matched)
-    score = round(100 * match_w / total_w) if total_w else 0
+        def _hit(term: str) -> bool:
+            return (term in resume_norm) if " " in term else (term in resume_uni)
+
+        matched = [w for w in important if _hit(w)]
+        missing = [w for w in important if not _hit(w)]
+        total_w = sum(weights[w] for w in important)
+        match_w = sum(weights[w] for w in matched)
+        score = round(100 * match_w / total_w) if total_w else 0
+
     return {
-        "score": score,  # 0-100 = weighted % of the evaluated JD keywords matched
-        "evaluated_count": len(important),
+        "score": score,  # 0-100 = weighted % of the JD's skills the resume covers
+        "evaluated_count": len(matched) + len(missing),
         "matched_keywords": matched,
-        "missing_keywords": missing,
+        "missing_keywords": missing,   # real skill gaps for THIS JD, ranked by emphasis
         "advice": (
-            "Strong keyword match."
+            "Strong skill match."
             if score >= 75
-            else "Consider naturally incorporating the missing keywords IF they are "
-            "truthful for your background — never fabricate."
+            else "Missing skills the JD emphasizes — surface them from your real "
+            "experience if truthful; never fabricate."
         ),
     }

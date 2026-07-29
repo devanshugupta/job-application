@@ -1,0 +1,86 @@
+"""Recompute stored deterministic keyword-ATS scores with the CURRENT ats logic.
+
+The tracker's ``match_score`` (keyword ATS) is written once, at discovery/tailor time.
+When the matcher changes — a bigger skill ontology, better JD cleaning — those stored
+numbers go stale, and the unified Match on the dashboard blends a stale keyword score
+with a fresh must-have. This recomputes ``match_score`` in place so the whole tracker
+reflects today's ats:
+
+  - JD text: reused from the day-cache when available, else fetched via the cheap
+    API/HTTP path (no browser); a row whose JD can't be fetched is left untouched.
+  - resume: the row's TAILORED resume when it has one (that's what a scored/applied row
+    was actually measured against), otherwise the profile master.
+
+Deterministic and free — no LLM, no browser. The must-have side (``match_pct``) is an
+LLM judgment and is NOT recomputed here.
+"""
+
+from __future__ import annotations
+
+import pathlib
+from datetime import date
+
+from .. import config
+from . import ats, jd_fetch, latex, profiles, tracker
+
+
+def _resume_text_for(rec: dict, masters: dict) -> str:
+    """The resume this row should be scored against: its tailored artifact if present
+    (what it was really measured on), else the profile master."""
+    pdf = rec.get("tailored_pdf")
+    if pdf:
+        d = pathlib.Path(pdf)
+        if not d.is_absolute():
+            d = config.ROOT / d
+        folder = d.parent
+        tex, md = folder / "tailored_resume.tex", folder / "tailored_resume.md"
+        if tex.exists():
+            return latex.tex_to_text(tex.read_text())
+        if md.exists():
+            return md.read_text()
+    prof = rec.get("profile")
+    if prof not in masters:
+        masters[prof] = profiles.read_master_for(prof)
+    return masters[prof]
+
+
+def refresh_match_scores(*, verbose: bool = True) -> dict:
+    """Recompute every tracker row's keyword ATS with the current matcher. Returns
+    {updated, unchanged, skipped}."""
+    from . import finder  # local: avoid a heavy import at module load
+
+    db = tracker._load_applications()
+    rows = db["applications"]
+    masters: dict = {}
+    today = date.today().isoformat()
+    updated = unchanged = skipped = 0
+    for rec in rows:
+        url = rec.get("url") or ""
+        cached = finder.get_cached(f"jd:{url}", None, today) if url else None
+        if cached is not None:
+            jd = cached[0] if cached else ""
+        else:
+            try:
+                f = jd_fetch.fetch_jd(url, allow_browser=False)
+                jd = f["text"] if f["looks_complete"] else ""
+            except Exception:
+                jd = ""
+        if not jd:
+            skipped += 1
+            continue
+        new = ats.ats_score(jd, _resume_text_for(rec, masters))["score"]
+        old = rec.get("match_score")
+        if new == old:
+            unchanged += 1
+            continue
+        rec["match_score"] = new
+        updated += 1
+        if verbose:
+            print(f"  {rec.get('company','?')[:22]:22} {str(old):>4} -> {new:>3}  "
+                  f"{(rec.get('role') or '')[:40]}")
+    if updated:
+        tracker._save_db(db)
+    if verbose:
+        print(f"\nrescored: {updated} updated, {unchanged} unchanged, "
+              f"{skipped} skipped (no JD).")
+    return {"updated": updated, "unchanged": unchanged, "skipped": skipped}

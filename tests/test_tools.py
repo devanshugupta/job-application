@@ -36,6 +36,27 @@ def test_ontology_no_restacking_or_false_positives():
     assert ats._normalize("serving customers coffee") == "serving customers coffee"
 
 
+def test_ats_scores_skill_coverage_not_word_overlap():
+    # An ML resume covers an ML JD's skills even though the JD is full of company noise
+    # the resume can't (and shouldn't) contain.
+    jd = ("Build retrieval and ranking with FAISS vector search, RAG, PyTorch, and "
+          "recommendation systems on AWS. Perks: free lunch, dog-friendly campus, "
+          "quarterly offsites, generous parental leave, phishing awareness training.")
+    resume = ("ML engineer: FAISS retrieval, XGBoost ranking, RAG, PyTorch, "
+              "recommender systems, AWS SageMaker.")
+    r = ats.ats_score(jd, resume)
+    assert r["score"] >= 80                             # skills covered -> high
+    assert "parental" not in " ".join(r["missing_keywords"])   # noise never a "gap"
+
+
+def test_ats_discriminates_by_skill_fit():
+    ml_resume = "ML engineer: FAISS retrieval, ranking, RAG, PyTorch, AWS, recommendation"
+    ml_jd = "vector search retrieval ranking recommendation LLM PyTorch AWS model serving"
+    rust_jd = "Rust systems programmer, embedded firmware, RTOS, drivers, PCB, CAN bus, soldering"
+    assert ats.ats_score(ml_jd, ml_resume)["score"] > 70
+    assert ats.ats_score(rust_jd, ml_resume)["score"] < 25   # wrong domain -> low
+
+
 # --- finder freshness + ranking ------------------------------------------------
 
 def test_is_fresh_within_window():

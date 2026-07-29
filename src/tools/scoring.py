@@ -111,7 +111,14 @@ def composite(
     if not parts:
         return {"score": None, "grade": None, "meaning": "no signals yet", "breakdown": {}}
 
+    # The reviewer is the deepest fit signal. When it's absent (a discovered-but-
+    # un-reviewed role), we DON'T renormalize its weight away — we keep it in the
+    # denominator as an unmet ceiling, so skill-coverage + recency alone can't push an
+    # un-reviewed role to an "A" above roles the LLM actually vetted. Other missing
+    # components (e.g. recency) renormalize normally.
     total_w = sum(WEIGHTS[k] for k in parts)
+    if "reviewer" not in parts:
+        total_w += WEIGHTS["reviewer"]
     score = round(sum(parts[k] * WEIGHTS[k] for k in parts) / total_w)
     grade, meaning = next((g, m) for cut, g, m in GRADES if score >= cut)
     return {
