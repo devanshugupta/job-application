@@ -151,6 +151,7 @@ def test_dashboard_renders_score_columns(tmp_data):
                              posted_date="2026-06-10")
     dashboard.render(tmp_data / "dash.html")
     html = (tmp_data / "dash.html").read_text()
-    # composite AQS column + component columns all present
-    assert "AQS" in html and "Reviewer /10" in html and "Must-have %" in html
+    # composite AQS column + reviewer + the ONE unified match column
+    assert "AQS" in html and "Reviewer /10" in html and "Match %" in html
+    assert "Must-have %" not in html and "ATS /100" not in html  # unified, not separate
     assert "class='aqs'" in html  # the scored row got a composite badge

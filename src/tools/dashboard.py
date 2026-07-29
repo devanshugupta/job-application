@@ -61,8 +61,7 @@ def _grade_color(score) -> str:
 
 
 def _breakdown_title(comp: dict) -> str:
-    names = {"reviewer": "Reviewer", "must_have": "Must-haves",
-             "keywords": "Keywords", "recency": "Recency"}
+    names = {"reviewer": "Reviewer", "match": "Match", "recency": "Recency"}
     parts = [f"{names[k]} {v}" for k, v in comp.get("breakdown", {}).items()]
     return f"{comp.get('meaning', '')} · " + " · ".join(parts) if parts else ""
 
@@ -98,6 +97,11 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     for a in ordered:
         comp = scoring.score_record(a, today)
         aqs = comp["score"]
+        # ONE unified fit number = must-have coverage blended with keyword ATS.
+        m = scoring.match_pct_combined(a.get("match_pct"),
+                                       a.get("match_score") if a.get("match_score")
+                                       is not None else a.get("ats_score"))
+        match_v = round(m) if m is not None else None
         if aqs is not None and a.get("status") != "found":
             aqs_values.append(aqs)
         statuses[a.get("status") or "?"] = statuses.get(a.get("status") or "?", 0) + 1
@@ -154,10 +158,8 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             f"<td data-v='{aqs if aqs is not None else -1}'>{aqs_cell}</td>"
             f"<td data-v='{a.get('resume_score') if a.get('resume_score') is not None else -1}'>"
             f"{cell(a.get('resume_score'))}</td>"
-            f"<td data-v='{a.get('match_pct') if a.get('match_pct') is not None else -1}'>"
-            f"{cell(a.get('match_pct'))}</td>"
-            f"<td data-v='{a.get('match_score') if a.get('match_score') is not None else -1}'>"
-            f"{cell(a.get('match_score'))}</td>"
+            f"<td data-v='{match_v if match_v is not None else -1}'>"
+            f"{cell(match_v)}</td>"
             f"<td>{cell(a.get('posted_date'))}</td>"
             f"<td>{diff_cell}</td>"
             f"<td>{' · '.join(links) or '—'}</td>"
@@ -309,16 +311,15 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   <th onclick="sortBy(2)">Role</th><th onclick="sortBy(3)">Job ID</th>
   <th onclick="sortBy(4)">Profile</th>
   <th onclick="sortBy(5)">Status</th><th onclick="sortBy(6)">AQS</th>
-  <th onclick="sortBy(7)">Reviewer /10</th><th onclick="sortBy(8)">Must-have %</th>
-  <th onclick="sortBy(9)">ATS /100</th>
-  <th onclick="sortBy(10)">Posted</th><th>What changed</th><th>Actions</th>
+  <th onclick="sortBy(7)">Reviewer /10</th><th onclick="sortBy(8)">Match %</th>
+  <th onclick="sortBy(9)">Posted</th><th>What changed</th><th>Actions</th>
 </tr></thead><tbody>{rows}</tbody></table>
 
 <p class="legend">AQS color: <b style="color:var(--ok)">green</b> 80+ apply now ·
 <b style="color:var(--good)">lime</b> 65+ strong · <b style="color:var(--warn)">amber</b> 50+ decent ·
 <b style="color:var(--bad)">red</b> below 50 weak/mismatch. Reviewer = senior hiring-manager score /10.
-Must-have % = share of the JD's role-defining requirements the resume satisfies.
-ATS = raw keyword overlap. Tailored files live in <code>data/applications/&lt;Company&gt;/&lt;role-id&gt;/</code>.</p>
+Match % = JD↔resume fit: must-have coverage blended with concept-keyword ATS (the gate
+runs on the keyword part pre-LLM). Tailored files live in <code>data/applications/&lt;Company&gt;/&lt;role-id&gt;/</code>.</p>
 
 <div id="toast"></div>
 <script>

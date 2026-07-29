@@ -11,16 +11,25 @@ from src.tools import discover, forms, latex, scoring
 # ----------------------------------------------------------------- scoring
 
 def test_composite_full_blend():
+    # match = 0.6*75 + 0.4*60 = 69; score = 80*.40 + 69*.45 + 100*.15 = 78
     c = scoring.composite(reviewer_score=8, match_pct=75, ats_score=60,
                           posted_date="2026-06-12", today="2026-06-12")
-    assert c["score"] == 79 and c["grade"] == "B"
-    assert set(c["breakdown"]) == {"reviewer", "must_have", "keywords", "recency"}
+    assert c["score"] == 78 and c["grade"] == "B"
+    assert set(c["breakdown"]) == {"reviewer", "match", "recency"}
+
+
+def test_composite_match_blends_must_have_and_keywords():
+    # must-have coverage weighs 0.6, keyword ATS 0.4, into one match number
+    assert scoring.match_pct_combined(75, 60) == 69.0
+    assert scoring.match_pct_combined(80, None) == 80.0   # only one present -> that one
+    assert scoring.match_pct_combined(None, 40) == 40.0
+    assert scoring.match_pct_combined(None, None) is None
 
 
 def test_composite_renormalizes_missing_parts():
     c = scoring.composite(ats_score=80, posted_date="2026-06-12", today="2026-06-12")
-    # only keywords (.10) + recency (.15): (80*.10 + 100*.15) / .25 = 92
-    assert c["score"] == 92
+    # only match (=keywords 80, .45) + recency (100, .15): (80*.45 + 100*.15)/.60 = 85
+    assert c["score"] == 85
 
 
 def test_composite_no_signals():
