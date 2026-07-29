@@ -1,6 +1,5 @@
 """Tests for the overhaul modules: scoring, discover, forms, latex tex handling, brain."""
 
-import json
 
 import pytest
 
@@ -62,6 +61,18 @@ def test_seniority_gate():
     assert discover._SENIOR.search("Senior Software Engineer")
     assert discover._SENIOR.search("Software Engineering Intern")
     assert not discover._SENIOR.search("Software Engineer II")
+
+
+def test_llm_gate_filters_low_match_and_stale():
+    today = "2026-07-29"
+    fresh_strong = {"jd_match": 60, "posted_date": "2026-07-28"}
+    fresh_weak = {"jd_match": 10, "posted_date": "2026-07-28"}
+    stale_strong = {"jd_match": 60, "posted_date": "2026-06-01"}
+    unknown_jd = {"jd_match": None, "posted_date": "2026-07-28"}   # can't judge -> keep
+    assert discover._passes_llm_gate(fresh_strong, 25, 21, today)
+    assert not discover._passes_llm_gate(fresh_weak, 25, 21, today)    # below match bar
+    assert not discover._passes_llm_gate(stale_strong, 25, 21, today)  # older than window
+    assert discover._passes_llm_gate(unknown_jd, 25, 21, today)
 
 
 # ----------------------------------------------------------------- forms / question bank

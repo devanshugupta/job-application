@@ -8,15 +8,15 @@ row gets one headline number with a grade and a hover breakdown of its component
   - pipeline funnel: found -> scored -> ready -> applied
   - AQS distribution histogram
   - filter chips (status), profile filter, text search, sortable columns
-  - per-row "what changed" expander + links to the posting and the tailored PDF
+  - per-row "what changed" expander + apply / find-resume action buttons
 
-Self-contained (inline CSS/JS, no CDN, no server): `open data/dashboard.html`.
+Self-contained (inline CSS/JS): `open data/dashboard.html` works read-only; the action
+buttons need the backend (`dashboard --serve`, see dashboard_server.py).
 """
 
 from __future__ import annotations
 
 import html
-import os
 import re
 import pathlib
 from datetime import date
@@ -105,9 +105,10 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         if prof:
             profiles_seen.add(prof)
 
+        # The color already conveys the grade, so the badge shows just the number.
         aqs_cell = (
             f"<span class='aqs' style='background:{_grade_color(aqs)}' "
-            f"title='{html.escape(_breakdown_title(comp))}'>{aqs} {comp['grade']}</span>"
+            f"title='{html.escape(_breakdown_title(comp))}'>{aqs}</span>"
             if aqs is not None else "<span class='mut'>—</span>"
         )
         url = a.get("url") or ""
@@ -115,19 +116,27 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         diff = _diff_html(a.get("resume_diff") or {})
         diff_cell = (f"<details><summary>diff</summary><div class='diff'>{diff}</div>"
                      f"</details>") if diff else "<span class='mut'>—</span>"
+        # Actions. Under `dashboard --serve` these POST back (mark applied / file the
+        # PDF into the save folder); opened as a plain file:// page they degrade to
+        # ordinary links, so the static dashboard keeps working.
+        applied = a.get("status") in _SUBMITTED
         links = []
         if url:
-            links.append(f"<a href='{html.escape(url)}' target='_blank'>job</a>")
-        # Link the tailored PDF whenever the file actually exists — the dashboard lives
-        # in DATA_DIR, so href must be relative to it (stored paths may be absolute or
-        # repo-relative). Guard on file existence, not on resume_diff being populated.
+            u = html.escape(url, quote=True)
+            links.append(
+                f"<button class='btn btn-apply{' done' if applied else ''}' "
+                f"data-url=\"{u}\" onclick='applyJob(this)'>"
+                f"{'applied ✓' if applied else 'apply ↗'}</button>")
+        # Show "find resume" only when the tailored PDF actually exists on disk (guard on
+        # the file, not on resume_diff). Clicking asks the backend to reveal it in Finder.
         if pdf:
             pdf_abs = pathlib.Path(pdf)
             if not pdf_abs.is_absolute():
                 pdf_abs = config.ROOT / pdf
             if pdf_abs.exists():
-                href = os.path.relpath(pdf_abs, config.DASHBOARD_PATH.parent)
-                links.append(f"<a href='{html.escape(href)}' target='_blank'>pdf</a>")
+                links.append(
+                    f"<button class='btn' data-url=\"{html.escape(url, quote=True)}\" "
+                    f"onclick='findResume(this)'>find resume</button>")
 
         def cell(v, dash="—"):
             return html.escape(str(v)) if v not in (None, "") else f"<span class='mut'>{dash}</span>"
@@ -149,7 +158,6 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             f"{cell(a.get('match_pct'))}</td>"
             f"<td data-v='{a.get('match_score') if a.get('match_score') is not None else -1}'>"
             f"{cell(a.get('match_score'))}</td>"
-            f"<td>{cell(a.get('scorer_verdict'))}</td>"
             f"<td>{cell(a.get('posted_date'))}</td>"
             f"<td>{diff_cell}</td>"
             f"<td>{' · '.join(links) or '—'}</td>"
@@ -262,6 +270,15 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .diff {{ max-width:420px; font-size:12px; color:var(--mut); padding-top:6px; }}
   .diff b {{ color:var(--txt); }}
   a {{ color:var(--acc); text-decoration:none; }} a:hover {{ text-decoration:underline; }}
+  .btn {{ background:#23264a; color:var(--txt); border:1px solid var(--acc);
+         border-radius:7px; padding:3px 10px; font-size:12px; cursor:pointer;
+         white-space:nowrap; margin-right:4px; }}
+  .btn:hover {{ background:var(--acc); }}
+  .btn.done {{ background:transparent; color:var(--ok); border-color:var(--ok);
+              cursor:default; }}
+  #toast {{ position:fixed; bottom:20px; right:20px; background:var(--panel);
+           border:1px solid var(--acc); border-radius:8px; padding:10px 14px;
+           font-size:12.5px; max-width:520px; display:none; z-index:9; }}
   .legend {{ color:var(--mut); font-size:11.5px; margin:10px 0 24px; }}
 </style></head><body>
 <h1>Job Pipeline — Scores Dashboard</h1>
@@ -293,16 +310,72 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   <th onclick="sortBy(4)">Profile</th>
   <th onclick="sortBy(5)">Status</th><th onclick="sortBy(6)">AQS</th>
   <th onclick="sortBy(7)">Reviewer /10</th><th onclick="sortBy(8)">Must-have %</th>
-  <th onclick="sortBy(9)">ATS /100</th><th onclick="sortBy(10)">Verdict</th>
-  <th onclick="sortBy(11)">Posted</th><th>What changed</th><th>Links</th>
+  <th onclick="sortBy(9)">ATS /100</th>
+  <th onclick="sortBy(10)">Posted</th><th>What changed</th><th>Actions</th>
 </tr></thead><tbody>{rows}</tbody></table>
 
-<p class="legend">AQS grades: <b>A</b> 80+ apply now · <b>B</b> 65+ strong · <b>C</b> 50+ decent ·
-<b>D</b> 35+ weak · <b>F</b> mismatch. Reviewer = senior hiring-manager score /10.
+<p class="legend">AQS color: <b style="color:var(--ok)">green</b> 80+ apply now ·
+<b style="color:var(--good)">lime</b> 65+ strong · <b style="color:var(--warn)">amber</b> 50+ decent ·
+<b style="color:var(--bad)">red</b> below 50 weak/mismatch. Reviewer = senior hiring-manager score /10.
 Must-have % = share of the JD's role-defining requirements the resume satisfies.
-ATS = raw keyword overlap. Tailored files live in <code>data/applications/&lt;slug&gt;/</code>.</p>
+ATS = raw keyword overlap. Tailored files live in <code>data/applications/&lt;Company&gt;/&lt;role-id&gt;/</code>.</p>
 
+<div id="toast"></div>
 <script>
+// The action buttons POST back to `dashboard --serve`. The page can also be opened as a
+// plain file or served by some OTHER web server (an IDE preview) with no such backend —
+// so we don't guess up front: each click just TRIES the POST and, only if it fails,
+// falls back to opening the link/file. That removes any load-time race.
+var HINT = 'Start the backend with <code>python -m src.cli dashboard --serve</code> ' +
+           'and open <code>http://localhost:8765</code> (not the file or an IDE preview).';
+function toast(msg, bad) {{
+  var t = document.getElementById('toast');
+  t.innerHTML = msg; t.style.borderColor = bad ? 'var(--bad)' : 'var(--acc)';
+  t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(function() {{ t.style.display = 'none'; }}, 7000);
+}}
+// Resolve to parsed JSON on success; reject with a flag distinguishing a reachable
+// backend that refused (has JSON error) from no-backend-at-all (network / HTML page).
+function post(path, url) {{
+  return fetch(path, {{method: 'POST', headers: {{'Content-Type': 'application/json'}},
+                      body: JSON.stringify({{url: url}})}})
+    .then(function(r) {{
+      return r.text().then(function(txt) {{
+        var j; try {{ j = JSON.parse(txt); }} catch (e) {{
+          var err = new Error('no dashboard backend here'); err.noBackend = true; throw err;
+        }}
+        if (!r.ok) throw new Error(j.error || r.status);
+        return j;
+      }});
+    }}, function() {{
+      var err = new Error('backend not reachable'); err.noBackend = true; throw err;
+    }});
+}}
+function applyJob(btn) {{
+  var url = btn.dataset.url;
+  window.open(url, '_blank');
+  if (btn.classList.contains('done')) return;
+  post('/api/applied', url).then(function() {{
+    btn.classList.add('done'); btn.textContent = 'applied ✓';
+    var tr = btn.closest('tr'), tag = tr.querySelector('.tag');
+    tr.dataset.status = 'applied';
+    if (tag) {{ tag.textContent = 'applied'; tag.className = 'tag tag-applied'; }}
+    toast('Marked applied.');
+  }}).catch(function(e) {{
+    toast(e.noBackend ? 'Opened the posting, but could NOT mark it applied. ' + HINT
+                      : 'Could not mark applied: ' + e.message, true);
+  }});
+}}
+function findResume(btn) {{
+  // Only the backend can open Finder — a web page can't. So on no-backend we do NOT
+  // open the PDF in a tab (that just dumps it in the browser); we point you at --serve.
+  post('/api/reveal', btn.dataset.url).then(function(j) {{
+    toast('Revealed <code>' + j.dir + '</code> in Finder.');
+  }}).catch(function(e) {{
+    toast(e.noBackend ? 'Cannot open Finder from a static page. ' + HINT
+                      : 'Could not open the folder: ' + e.message, true);
+  }});
+}}
 var activeStatus = null;
 function chip(el) {{
   var on = el.classList.contains('on');

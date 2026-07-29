@@ -6,15 +6,34 @@ from src.tools import ats, feeds, final_check, finder, latex, portals, usage as 
 # --- ATS scoring ---------------------------------------------------------------
 
 def test_ats_score_basic():
-    r = ats.ats_score("python aws docker kubernetes distributed systems",
-                      "python developer with aws and docker")
+    # kafka (data-pipeline) is in the JD but nowhere in the resume's concept space.
+    r = ats.ats_score("python aws kafka streaming pipelines",
+                      "python developer with aws experience")
     assert 0 <= r["score"] <= 100
     assert "python" in r["matched_keywords"]
-    assert "kubernetes" in r["missing_keywords"]
+    assert "data-pipeline" in r["missing_keywords"]
 
 
 def test_ats_score_empty_jd():
     assert ats.ats_score("", "anything")["score"] == 0
+
+
+def test_ontology_matches_synonyms_at_concept_level():
+    # JD wording and resume wording share NO literal skill word, yet match via concepts:
+    # "vector database" + "model serving" (JD) <-> "FAISS" + "SageMaker inference" (resume).
+    jd = "experience with vector database and model serving for recommendations"
+    resume = "built FAISS index and SageMaker inference endpoint for a recommender system"
+    r = ats.ats_score(jd, resume)
+    assert "vector-search" in r["matched_keywords"]
+    assert "model-serving" in r["matched_keywords"]
+    assert "recommendation" in r["matched_keywords"]
+
+
+def test_ontology_no_restacking_or_false_positives():
+    # concept tokens must not re-trigger sub-rules, and generic words stay literal
+    assert ats._normalize("model serving infrastructure") == "model-serving infrastructure"
+    assert "model-model" not in ats._normalize("machine learning model serving")
+    assert ats._normalize("serving customers coffee") == "serving customers coffee"
 
 
 # --- finder freshness + ranking ------------------------------------------------

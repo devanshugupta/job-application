@@ -1,0 +1,126 @@
+"""Component tests for the live dashboard backend — a real HTTP server on a real port.
+
+These drive the exact requests the dashboard's buttons make, so a broken endpoint fails
+here instead of in the browser. Every response must be JSON: the buttons parse with
+`fetch().json()`, so an HTML error page surfaces as "Unexpected token '<'".
+"""
+
+import json
+import threading
+import urllib.error
+import urllib.request
+from http.server import HTTPServer
+
+import pytest
+
+from src.tools import artifacts, dashboard_server, tracker
+
+
+@pytest.fixture
+def revealed(monkeypatch):
+    """Capture what the server would open in Finder instead of spawning it."""
+    seen = []
+    monkeypatch.setattr(dashboard_server, "reveal", seen.append)
+    return seen
+
+
+@pytest.fixture
+def server(tmp_data, monkeypatch):
+    """Live server bound to an ephemeral port, serving files out of tmp_data."""
+    monkeypatch.setattr(dashboard_server.config, "DATA_DIR", tmp_data)
+    monkeypatch.setattr(dashboard_server.config, "DASHBOARD_PATH", tmp_data / "d.html")
+    monkeypatch.setattr(dashboard_server.dashboard, "OUT_PATH", tmp_data / "d.html")
+    httpd = HTTPServer(("127.0.0.1", 0), dashboard_server._Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{httpd.server_port}"
+    httpd.shutdown()
+    httpd.server_close()
+
+
+def _post(base, path, url):
+    """Returns (status, parsed-JSON body). Fails loudly if the body is not JSON."""
+    req = urllib.request.Request(base + path, data=json.dumps({"url": url}).encode(),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        r = urllib.request.urlopen(req)
+        return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        body = e.read()
+        assert not body.lstrip().startswith(b"<"), f"HTML error page, not JSON: {body[:80]}"
+        return e.code, json.loads(body)
+
+
+@pytest.fixture
+def job(tmp_data):
+    """One tracked, tailored job — filed under a company name containing a space, the
+    case that broke the un-encoded href."""
+    url = "https://boards.greenhouse.io/acme/jobs/4951814008"
+    pdf = artifacts.folder("Acme Inc", "ML Engineer", url) / "Devanshu_Gupta_Resume.pdf"
+    pdf.write_bytes(b"%PDF-1.4 x")
+    tracker.save_application(company="Acme Inc", role="ML Engineer", url=url,
+                             status="scored", tailored_pdf=str(pdf))
+    return url
+
+
+def test_get_root_serves_freshly_rendered_dashboard(server, job):
+    body = urllib.request.urlopen(server + "/").read().decode()
+    assert "Acme Inc" in body and "applyJob(this)" in body
+
+
+def test_applied_marks_the_tracker(server, job):
+    status, body = _post(server, "/api/applied", job)
+    assert status == 200 and body["status"] == "applied"
+    rec = tracker.list_applications()[0]
+    assert rec["status"] == "applied" and rec["applied_date"]
+
+
+def test_reveal_opens_only_the_clicked_jobs_folder(server, job, revealed):
+    """One click reveals exactly one resume — never the whole tracker."""
+    other = "https://boards.greenhouse.io/other/jobs/1111111"
+    other_pdf = artifacts.folder("Other Co", "SDE", other) / "Devanshu_Gupta_Resume.pdf"
+    other_pdf.write_bytes(b"%PDF")
+    tracker.save_application(company="Other Co", role="SDE", url=other,
+                             status="scored", tailored_pdf=str(other_pdf))
+    status, body = _post(server, "/api/reveal", job)
+    assert status == 200
+    assert body["dir"].endswith("Acme Inc/ml-engineer-4951814008")
+    assert revealed == [artifacts.BASE / "Acme Inc" / "ml-engineer-4951814008"
+                        / "Devanshu_Gupta_Resume.pdf"]
+
+
+def test_resume_is_downloadable_from_the_dashboard_href(server, job):
+    """The button only renders when the PDF exists, and its href (which contains a
+    space) must resolve — percent-encoded on the wire, decoded by the server."""
+    href = ("applications/Acme%20Inc/ml-engineer-4951814008/"
+            "Devanshu_Gupta_Resume.pdf")
+    r = urllib.request.urlopen(f"{server}/{href}")
+    assert r.status == 200 and r.headers["Content-Type"] == "application/pdf"
+    assert r.read() == b"%PDF-1.4 x"
+
+
+def test_errors_are_json_not_html(server, job, tmp_data):
+    assert _post(server, "/api/applied", "https://nope")[0] == 404      # unknown job
+    assert _post(server, "/api/nonsense", job)[0] == 404                # bad endpoint
+    tracker.update_application(job, tailored_pdf=str(tmp_data / "gone.pdf"))
+    status, body = _post(server, "/api/reveal", job)                    # missing file
+    assert status == 500 and "gone.pdf" in body["error"]
+
+
+def test_ping_identifies_the_backend(server):
+    body = json.loads(urllib.request.urlopen(server + "/api/ping").read())
+    assert body == {"ok": True}
+
+
+def test_reveal_failure_is_reported_json_not_swallowed(server, job, monkeypatch):
+    # A Finder/open failure must reach the client as a JSON 500, not a silent no-op.
+    def boom(_path):
+        raise OSError("open -R failed (1): no such file")
+    monkeypatch.setattr(dashboard_server, "reveal", boom)
+    status, body = _post(server, "/api/reveal", job)
+    assert status == 500 and "open -R failed" in body["error"]
+
+
+def test_path_traversal_is_refused(server, job):
+    with pytest.raises(urllib.error.HTTPError) as e:
+        urllib.request.urlopen(server + "/../config/profile.json")
+    assert e.value.code == 404

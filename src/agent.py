@@ -437,7 +437,7 @@ def run_agent(
                              max_total_tokens=token_budget)
 
     def _finish(result: str) -> str:
-        rec = meter.record()  # persist this application's usage to data/usage_log.jsonl
+        meter.record()  # persist this application's usage to data/usage_log.jsonl
         if verbose:
             print(f"\n💸 {meter.summary()}")
         return result

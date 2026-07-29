@@ -22,7 +22,8 @@ import re
 import time
 from datetime import date
 
-from . import ats, boards, feeds, profiles, scoring, tracker
+from .. import config
+from . import ats, feeds, profiles, scoring, tracker
 
 # Titles that are never a fit for an entry-level SWE/ML/Data search, regardless
 # of source. Seniority gating only applies to board-API results (the new-grad
@@ -44,7 +45,23 @@ def _profile_for_title(title: str) -> str | None:
     return "sde"
 
 
+_LOC_SUFFIX = re.compile(
+    r"\s*[-–—,(|]\s*(remote|hybrid|onsite|on-site|us|usa|united states|"
+    r"[a-z .]+,\s*[a-z]{2}\b|"                     # "Austin, TX"
+    r"(new york|san francisco|seattle|austin|boston|chicago|denver|atlanta|"
+    r"los angeles|san jose|palo alto|mountain view|bellevue|dallas|miami|"
+    r"toronto|london|bangalore|hyderabad|remote)\b.*)$", re.I)
+
+
 def _norm_title(t: str) -> str:
+    """Normalize a posting title for dedupe. Multi-location postings repeat the SAME
+    role with a city/remote suffix per city ("… - Seattle", "… (Remote)"); strip that
+    so they collapse to one job instead of N near-identical rows."""
+    t = (t or "").strip()
+    prev = None
+    while prev != t:                       # strip repeated suffixes ("… - US - Remote")
+        prev = t
+        t = _LOC_SUFFIX.sub("", t).strip()
     return re.sub(r"[^a-z0-9]+", " ", t.lower()).strip()
 
 
@@ -202,6 +219,17 @@ def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
     return shortlist
 
 
+def _passes_llm_gate(job: dict, min_match: int, recency_days: int, today: str) -> bool:
+    """Cheap pre-LLM filter: keep a role only if its deterministic JD-match clears the
+    bar AND it's recent. An unfetchable JD (jd_match None) can't be judged cheaply, so it
+    passes (it ranks last anyway); recency is only enforced when we know the posted date."""
+    jm = job.get("jd_match")
+    if jm is not None and jm < min_match:
+        return False
+    rec = scoring.recency_score(job.get("posted_date"), today, window_days=recency_days)
+    return rec is None or rec > 0
+
+
 def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[dict]:
     """Second-stage ranking: fetch each candidate's REAL job description (cheap ATS
     API/HTTP paths only — no browser) and re-rank by full-JD keyword match against
@@ -272,7 +300,19 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
                     j["bm25"] = s
     ranked.sort(key=lambda x: (x.get("bm25") is not None, x.get("bm25") or 0.0,
                                x.get("jd_match") or 0, x.get("match") or 0), reverse=True)
-    shortlist = ranked[:top]
+
+    # Gate the EXPENSIVE LLM review on the cheap deterministic signals: a role must clear
+    # a minimum concept-level JD-match (ontology-aware ats) AND be recent enough. Roles
+    # whose JD we couldn't fetch (jd_match is None) are kept — we can't cheaply judge
+    # them and they already rank last. This is what stops us LLM-scoring 1000 weak jobs.
+    min_match = config.int_setting("min_jd_match", 25)
+    recency_days = config.int_setting("llm_gate_recency_days", 21)
+    gated = [j for j in ranked if _passes_llm_gate(j, min_match, recency_days, today)]
+    dropped = len(ranked) - len(gated)
+    if verbose and dropped:
+        print(f"LLM gate: dropped {dropped} role(s) below {min_match}% JD-match or older "
+              f"than {recency_days}d; {len(gated)} eligible.")
+    shortlist = gated[:top]
     if verbose:
         print(f"\nRe-ranked by BM25 relevance (corpus-aware); tailoring top "
               f"{len(shortlist)}:")

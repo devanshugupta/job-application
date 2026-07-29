@@ -206,8 +206,6 @@ def lint(markdown: str | None = None, focus_bullets: list[str] | None = None) ->
     issues: list[str] = []
     advisory: list[str] = []
     focus = {b.strip() for b in (focus_bullets or [])}
-    sections = dict(_split_sections(md))
-
     def body_of(name: str) -> str:
         for h, b in _split_sections(md):
             if h.lower().startswith(f"## {name}"):

@@ -66,9 +66,14 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
 - **Composite scoring** (`tools/scoring.py`): Application Quality Score 0-100 =
   0.40 reviewer + 0.35 JD-must-have % + 0.10 ATS keywords + 0.15 recency (renormalized
   when parts are missing) with letter grades. THE headline number; dashboard + status use it.
-- **Dashboard** (`tools/dashboard.py`): dark self-contained HTML — KPI cards, funnel,
-  AQS histogram, status chips/profile filter/search, sortable table, AQS badges with
-  hover breakdowns, per-row diff expanders.
+- **Dashboard** (`tools/dashboard.py` + `tools/dashboard_server.py`): dark self-contained
+  HTML — KPI cards, funnel, AQS histogram, status chips/profile filter/search, sortable
+  table, AQS badges with hover breakdowns, per-row diff expanders. `dashboard --serve`
+  runs a stdlib localhost backend so the per-row buttons act: **apply ↗** opens the
+  posting AND marks the row applied in the tracker; **save pdf** files the tailored PDF
+  into its canonical folder and downloads it. Opened as a plain file it degrades to
+  links. Artifacts live in `data/applications/<Company>/<job-id>/`
+  (`dashboard --migrate` refiles folders written under the old flat scheme).
 - **Question bank** (`config/question_bank.json` + `tools/forms.py`): all form-question
   patterns/answers are DATA resolved against profile.json. greenhouse.py consumes it; no
   employer-specific logic is hardcoded anywhere. The resume PDF filename derives from the

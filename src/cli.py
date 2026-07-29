@@ -402,9 +402,18 @@ def cmd_fill(url: str, headless: bool) -> None:
     _print_results_hint()
 
 
-def cmd_dashboard() -> None:
+def cmd_dashboard(serve: bool = False, port: int = 8765, migrate: bool = False) -> None:
+    if migrate:
+        from .tools import artifacts
+        moves = artifacts.migrate_layout()
+        print(f"Refiled {len(moves)} application folder(s) as <Company>/<job-id>/")
+    if serve:
+        from .tools import dashboard_server
+        return dashboard_server.serve(port)
     print(dash.render())
     print(f"Open it with:  open {config.DASHBOARD_PATH.resolve()}")
+    print("Interactive (apply / find-resume buttons):  "
+          "python -m src.cli dashboard --serve")
 
 
 def cmd_report() -> None:
@@ -498,7 +507,12 @@ def main(argv: list[str] | None = None) -> None:
 
     p_status = sub.add_parser("status", help="Show application history")
     p_status.add_argument("--verbose", action="store_true")
-    sub.add_parser("dashboard", help="Regenerate the scores dashboard")
+    p_dash = sub.add_parser("dashboard", help="Regenerate the scores dashboard")
+    p_dash.add_argument("--serve", action="store_true",
+                        help="serve it live so apply / save-pdf buttons work")
+    p_dash.add_argument("--port", type=int, default=8765)
+    p_dash.add_argument("--migrate", action="store_true",
+                        help="refile legacy application folders as <Company>/<job-id>/")
     sub.add_parser("report", help="QA run-log: per-step pass/fail + issues")
     sub.add_parser("watchlist", help="Show the company watchlist (ATS APIs flagged)")
     sub.add_parser("usage", help="Token + cost usage per run and totals")
@@ -542,7 +556,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "status":
         cmd_status(verbose=args.verbose)
     elif args.command == "dashboard":
-        cmd_dashboard()
+        cmd_dashboard(args.serve, args.port, args.migrate)
     elif args.command == "report":
         cmd_report()
     elif args.command == "feed":

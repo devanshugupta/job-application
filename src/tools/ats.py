@@ -25,9 +25,13 @@ neither measures JD↔resume match, so this JD-derived matcher is kept.)
 
 from __future__ import annotations
 
+import json
 import math
 import re
 from collections import Counter
+from functools import lru_cache
+
+from .. import config
 
 # Generic, domain-neutral stopwords + hiring/JD boilerplate that carries no matching
 # signal. This is the ONLY word list, and it's anti-signal (words to ignore), not a
@@ -72,31 +76,70 @@ _STOPWORDS = {
     "people", "everything", "own", "owned", "beyond", "means", "come", "comes",
     "don", "doesn", "isn", "aren", "didn", "won", "small", "full", "fast", "key",
     "many", "much", "very", "still", "here",
+    # page chrome from scraped careers pages (nav / legal / cookie / EEO footers) — these
+    # dominate the "prominent terms" of a whole-page scrape and crush the real match, so
+    # they must be treated as anti-signal (see the JD-cleaning diagnostic).
+    "cookie", "cookies", "privacy", "policy", "policies", "terms", "agreement", "consent",
+    "linkedin", "login", "password", "continue", "clicking", "outline", "noogler", "hat",
+    "press", "blog", "investor", "relations", "newsroom", "affirmative", "eeo",
+    "discrimination", "harassment", "criminal", "histories", "conviction", "ordinance",
+    "protected", "veterans", "reasonable", "accommodation", "accommodations",
+    "background", "check", "chance", "genetic", "ancestry", "citizenship", "sexual",
+    "manage", "cookie", "preferences", "settings", "notice", "copyright", "reserved",
+    "rights", "learn", "more", "read", "click", "menu", "search", "share", "save",
+    "posted", "ago", "today", "yesterday", "week", "weeks", "month", "months", "hour",
+    "hours", "minute", "minutes", "date", "life", "follow", "outline", "open", "close",
+    # location chrome (city/state fragments that ride in as bigrams on scraped pages)
+    "san", "francisco", "jose", "mateo", "diego", "angeles", "county", "mountain",
+    "view", "palo", "alto", "bay", "seattle", "york", "boston", "austin", "chicago",
+    "atlanta", "denver", "remote", "hybrid", "onsite", "usa", "united", "states",
 }
 
 _TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9+#.\-]{1,}")
 
-# Tiny alias map so the SAME skill spelled differently still matches. Deliberately
-# minimal + unambiguous (deeper synonym judgment is the LLM scorer's job).
-_ALIASES = {
-    "k8s": "kubernetes",
-    "postgres": "postgresql",
-    "js": "javascript",
-    "ts": "typescript",
-    "golang": "go",
-    "ci/cd": "cicd", "ci-cd": "cicd", "cicd": "cicd",
-    "ml": "machine-learning", "machine-learning": "machine-learning",
-    "nlp": "natural-language-processing",
-}
-
 DEFAULT_TOP_N = 30   # evaluate the JD's 30 most prominent terms (Jobscan-style)
+
+
+@lru_cache(maxsize=1)
+def _ontology() -> tuple[re.Pattern | None, dict[str, str]]:
+    """A single alternation regex + {surface form -> concept token} from the ontology.
+
+    This is how JD wording matches resume wording at the CONCEPT level: a JD's "model
+    serving" and a resume's "SageMaker inference endpoint" both rewrite to the token
+    `model-serving`, so they match with no shared literal word. ONE regex (alternatives
+    ordered longest-first) rewrites all forms in a single left-to-right pass, so a
+    concept token is never re-scanned — e.g. `model-serving` can't re-trigger the bare
+    `serving` rule. Missing/empty file -> (None, {}) = pure literal matching, unchanged."""
+    path = config.CONFIG_DIR / "skill_synonyms.json"
+    if not path.exists():
+        return None, {}
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None, {}
+    forms: dict[str, str] = {}
+    for concept, surface in data.items():
+        if concept.startswith("_") or not isinstance(surface, list):
+            continue
+        for form in surface:
+            f = str(form).strip().lower()
+            if f:
+                forms.setdefault(f, concept.strip().lower())
+    if not forms:
+        return None, {}
+    ordered = sorted(forms, key=len, reverse=True)   # longest match wins at each position
+    pattern = re.compile(r"\b(" + "|".join(re.escape(f) for f in ordered) + r")\b")
+    return pattern, forms
 
 
 def _normalize(text: str) -> str:
     t = text.lower()
     t = t.replace("ci/cd", "cicd")
-    t = re.sub(r"\bmachine learning\b", "machine-learning", t)
-    t = re.sub(r"\bnatural language processing\b", "natural-language-processing", t)
+    # Rewrite every known skill surface form to its canonical concept token so all
+    # downstream tokenizing, weighting, and matching happens in concept space.
+    pattern, forms = _ontology()
+    if pattern is not None:
+        t = pattern.sub(lambda m: forms[m.group(1)], t)
     return t
 
 
@@ -104,7 +147,6 @@ def _tokens(text: str) -> list[str]:
     out = []
     for t in _TOKEN.findall(_normalize(text)):
         t = t.strip(".-")
-        t = _ALIASES.get(t, t)
         if len(t) > 2 and t not in _STOPWORDS:
             out.append(t)
     return out
@@ -128,7 +170,6 @@ def _weighted_terms(jd_text: str) -> Counter:
     for segment in re.split(r"[,.;:()!?/\n]", _normalize(jd_text)):
         raw = [t.strip(".-") for t in _TOKEN.findall(segment)]
         for a, b in zip(raw, raw[1:]):
-            a, b = _ALIASES.get(a, a), _ALIASES.get(b, b)
             if (len(a) > 2 and len(b) > 2
                     and a not in _STOPWORDS and b not in _STOPWORDS):
                 phrase_counts[f"{a} {b}"] += 1

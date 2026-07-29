@@ -1,0 +1,47 @@
+{
+  "_comment": "Skill ontology for concept-level ATS matching. Each entry maps a CANONICAL concept token to the surface forms that mean it in JDs and resumes. ats.py rewrites both the JD and the resume into concept space before matching, so 'model serving' in a JD matches 'SageMaker inference endpoint' on the resume. Keep forms lowercase; multi-word forms are matched as phrases. AWS/ML/SDE-centric, grounded in the master resume — extend freely (a new alias here is picked up with zero code changes).",
+
+  "machine-learning": ["machine learning", "machine-learning", "ml", "deep learning", "dl", "supervised learning", "unsupervised learning", "neural network", "neural networks", "ml models", "ml pipeline", "ml pipelines", "ml systems", "applied ml", "applied machine learning"],
+
+  "vector-search": ["vector search", "vector database", "vector db", "vector store", "faiss", "qdrant", "pinecone", "milvus", "weaviate", "opensearch", "elasticsearch", "ann", "approximate nearest neighbor", "knn", "k-nearest", "nearest neighbor", "similarity search", "semantic search", "embedding search", "embeddings", "embedding", "dense retrieval"],
+
+  "retrieval": ["retrieval", "retriever", "information retrieval", "rag", "retrieval augmented", "retrieval-augmented generation", "hybrid retrieval", "hybrid search", "document retrieval", "passage retrieval", "search relevance", "search ranking"],
+
+  "ranking": ["ranking", "learning to rank", "ltr", "ranker", "reranking", "rerank", "re-ranking", "relevance ranking", "candidate ranking", "ndcg", "recall@k", "mrr", "map@k", "precision@k"],
+
+  "recommendation": ["recommendation", "recommendations", "recommender", "recommender systems", "recsys", "recommendation systems", "personalization", "personalized recommendations", "content recommendation", "collaborative filtering", "candidate generation"],
+
+  "llm": ["llm", "llms", "large language model", "large language models", "foundation model", "foundation models", "generative ai", "genai", "gpt", "chatgpt", "claude", "gemini", "llama", "transformer", "transformers", "prompt engineering", "prompting", "in-context learning", "llm-as-judge", "llm as a judge"],
+
+  "fine-tuning": ["fine-tuning", "fine tuning", "finetuning", "lora", "peft", "qlora", "instruction tuning", "rlhf", "sft", "model training", "training pipeline"],
+
+  "model-serving": ["model serving", "model deployment", "serving infrastructure", "model inference", "inference endpoint", "real-time inference", "online inference", "sagemaker endpoint", "model hosting", "low-latency serving", "batch inference"],
+
+  "ml-frameworks": ["pytorch", "torch", "tensorflow", "keras", "jax", "scikit-learn", "sklearn", "scikit learn", "xgboost", "lightgbm", "gradient boosting", "mlflow", "huggingface", "hugging face", "transformers library"],
+
+  "nlp": ["nlp", "natural language processing", "natural language understanding", "nlu", "text classification", "named entity recognition", "ner", "language modeling", "content understanding", "text mining"],
+
+  "evaluation": ["evaluation", "offline evaluation", "online evaluation", "model evaluation", "a/b testing", "ab testing", "experimentation", "experiment", "controlled experiments", "metrics", "model metrics", "quality metrics", "offline metrics", "online metrics", "feature engineering", "feature store"],
+
+  "aws": ["aws", "amazon web services", "ec2", "s3", "lambda", "sqs", "sns", "cloudwatch", "elb", "ecs", "eks", "dynamodb", "sagemaker", "bedrock", "amazon bedrock", "amazon sagemaker", "cloud"],
+
+  "azure": ["azure", "adls", "azure data lake", "data lake", "databricks", "azure data factory", "data factory"],
+
+  "data-pipeline": ["data pipeline", "data pipelines", "etl", "elt", "spark", "apache spark", "pyspark", "kafka", "apache kafka", "airflow", "apache airflow", "data ingestion", "ingestion", "streaming", "batch processing", "data processing", "dbt"],
+
+  "api": ["rest", "rest api", "restful", "rest apis", "grpc", "api", "apis", "microservices", "microservice", "backend services", "web services", "graphql", "service oriented"],
+
+  "distributed-systems": ["distributed systems", "distributed system", "scalable systems", "large-scale systems", "high availability", "fault tolerance", "concurrency", "parallelism", "system design", "scalability"],
+
+  "infra": ["kubernetes", "k8s", "docker", "containers", "containerization", "ci/cd", "cicd", "continuous integration", "continuous deployment", "terraform", "infrastructure as code", "linux", "observability", "monitoring"],
+
+  "python": ["python", "pandas", "numpy", "scipy"],
+  "java": ["java", "spring", "spring boot", "jvm"],
+  "cpp": ["c++", "cpp"],
+  "sql": ["sql", "postgresql", "postgres", "mysql", "nosql", "database", "databases", "relational database"],
+  "kotlin": ["kotlin"],
+  "go": ["go", "golang"],
+  "typescript": ["typescript", "javascript", "node.js", "nodejs", "react"],
+
+  "latency": ["latency", "low latency", "low-latency", "p99", "p95", "throughput", "performance optimization", "latency optimization", "query optimization", "caching", "cache"]
+}

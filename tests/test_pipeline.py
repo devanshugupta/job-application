@@ -114,7 +114,35 @@ def test_dashboard_pdf_links_when_file_exists(tmp_data):
                              tailored_pdf=str(tmp_data / "missing.pdf"))  # no file -> no link
     dashboard.render(tmp_data / "dash.html")
     html = (tmp_data / "dash.html").read_text()
-    assert html.count(">pdf</a>") == 1
+    assert html.count("findResume(this)") == 1
+
+
+def test_dashboard_apply_button_reflects_status(tmp_data):
+    tracker.save_application(company="A", role="SDE", url="u1", status="scored")
+    tracker.save_application(company="B", role="SDE", url="u2", status="applied")
+    dashboard.render(tmp_data / "dash.html")
+    html = (tmp_data / "dash.html").read_text()
+    assert "apply ↗" in html and "applied ✓" in html
+    assert html.count("applyJob(this)") == 2   # both rows get a button
+
+
+def test_migrate_layout_refiles_and_repoints(tmp_data):
+    from src.tools import artifacts
+
+    url = "https://boards.greenhouse.io/acme/jobs/4951814008"
+    old = artifacts.BASE / artifacts.slug("Acme Inc", "ML Engineer", url)
+    old.mkdir(parents=True)
+    (old / "Resume.pdf").write_bytes(b"%PDF")
+    tracker.save_application(company="Acme Inc", role="ML Engineer", url=url,
+                             status="tailored",
+                             tailored_pdf=str(old / "Resume.pdf"))
+    moves = artifacts.migrate_layout()
+    assert moves == [(old.name, "Acme Inc/ml-engineer-4951814008")]
+    new = artifacts.BASE / "Acme Inc" / "ml-engineer-4951814008" / "Resume.pdf"
+    assert new.exists() and not old.exists()
+    assert tracker.list_applications()[0]["tailored_pdf"].endswith(
+        "Acme Inc/ml-engineer-4951814008/Resume.pdf")
+    assert artifacts.migrate_layout() == []    # idempotent
 
 
 def test_dashboard_renders_score_columns(tmp_data):

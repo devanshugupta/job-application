@@ -29,7 +29,6 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from . import Source, register
-from .. import config
 from ..tools import boards
 
 _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "

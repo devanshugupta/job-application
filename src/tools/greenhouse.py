@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import pathlib
-import re
 import shutil
 import time
 
@@ -312,7 +311,7 @@ def fill_greenhouse_form(browser: Browser, url: str, pdf_path: str,
     first_name = name_parts[0]
     last_name  = name_parts[1] if len(name_parts) > 1 else ""
 
-    print(f"\nOpening application page …")
+    print("\nOpening application page …")
     browser.open_page(url)
     page = browser.page
 

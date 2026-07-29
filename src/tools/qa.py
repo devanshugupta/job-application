@@ -12,7 +12,7 @@ catches the mechanical "did this step even work" failures that should never slip
 
 from __future__ import annotations
 
-from . import resume, runlog
+from . import runlog
 
 
 def qa_check(step: str, context: dict) -> dict:

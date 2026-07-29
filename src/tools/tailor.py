@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import date
 
 from .. import config, prompts
 from ..brain import BrainPending
@@ -144,8 +143,6 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
                verbose: bool = True) -> dict:
     """Run the full pipeline for one job URL. Returns the saved record (or raises
     BrainPending in manual mode when a packet awaits its response)."""
-    today = date.today().isoformat()
-
     # 1. JD ---------------------------------------------------------------------
     if not jd_text:
         fetched = jd_fetch.fetch_jd(url)
