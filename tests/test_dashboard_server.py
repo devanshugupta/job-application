@@ -111,6 +111,30 @@ def test_ping_identifies_the_backend(server):
     assert body == {"ok": True}
 
 
+def test_remove_and_restore_flag_without_deleting(server, job):
+    # remove sets removed=True but keeps the record; restore clears it. Nothing is deleted.
+    status, body = _post(server, "/api/remove", job)
+    assert status == 200 and body["removed"] is True
+    rec = tracker.list_applications()[0]
+    assert rec["removed"] is True and rec["url"] == job    # still present, just flagged
+    assert _post(server, "/api/restore", job)[1]["removed"] is False
+    assert tracker.list_applications()[0]["removed"] is False
+
+
+def test_removed_rows_hidden_and_excluded_from_stats(tmp_data):
+    from src.tools import dashboard
+    tracker.save_application(company="Keep", role="SDE", url="u1", status="scored",
+                             resume_score=8, match_pct=80)
+    tracker.save_application(company="Drop", role="SDE", url="u2", status="scored",
+                             resume_score=9, match_pct=90)
+    tracker.update_application("u2", removed=True)
+    dashboard.render(tmp_data / "d.html")
+    h = (tmp_data / "d.html").read_text()
+    assert "Keep" in h and "Drop" in h            # removed row still RENDERED (for restore)
+    assert "data-removed='1'" in h                 # but flagged hidden
+    assert "🗑 removed (1)" in h                    # and offered via the toggle
+
+
 def test_reveal_failure_is_reported_json_not_swallowed(server, job, monkeypatch):
     # A Finder/open failure must reach the client as a JSON 500, not a silent no-op.
     def boom(_path):

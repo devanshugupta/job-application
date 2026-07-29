@@ -19,7 +19,7 @@ from __future__ import annotations
 import html
 import re
 import pathlib
-from datetime import date
+from datetime import date, datetime
 
 from .. import config
 from . import scoring, tracker
@@ -47,6 +47,18 @@ def _job_id(url: str) -> str:
         if m:
             return m.group(1)
     return ""
+
+def _fmt_date(iso: str | None) -> tuple[str, str]:
+    """('29 Jul 26', '20260729') — human display + a numeric key so click-sort on the
+    column stays chronological. Non-date/empty values pass through as-is with key ''."""
+    if not iso:
+        return "", ""
+    try:
+        d = datetime.strptime(str(iso)[:10], "%Y-%m-%d")
+    except ValueError:
+        return str(iso), ""
+    return f"{d.day} {d.strftime('%b')} {d.strftime('%y')}", d.strftime("%Y%m%d")
+
 
 def _grade_color(score) -> str:
     if not isinstance(score, (int, float)):
@@ -94,7 +106,14 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     aqs_values = []
     statuses: dict[str, int] = {}
     profiles_seen: set[str] = set()
+    removed_count = 0
     for a in ordered:
+        # Rows you removed are kept in the tracker (never deleted) but hidden by default
+        # and excluded from every stat/KPI; a "show removed" toggle can reveal them to
+        # restore. So a removed row still renders (for restore) but counts toward nothing.
+        removed = bool(a.get("removed"))
+        if removed:
+            removed_count += 1
         comp = scoring.score_record(a, today)
         aqs = comp["score"]
         # ONE unified fit number = must-have coverage blended with keyword ATS.
@@ -102,11 +121,12 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
                                        a.get("match_score") if a.get("match_score")
                                        is not None else a.get("ats_score"))
         match_v = round(m) if m is not None else None
-        if aqs is not None and a.get("status") != "found":
-            aqs_values.append(aqs)
-        statuses[a.get("status") or "?"] = statuses.get(a.get("status") or "?", 0) + 1
+        if not removed:
+            if aqs is not None and a.get("status") != "found":
+                aqs_values.append(aqs)
+            statuses[a.get("status") or "?"] = statuses.get(a.get("status") or "?", 0) + 1
         prof = a.get("profile") or ""
-        if prof:
+        if prof and not removed:
             profiles_seen.add(prof)
 
         # The color already conveys the grade, so the badge shows just the number.
@@ -141,14 +161,32 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
                 links.append(
                     f"<button class='btn' data-url=\"{html.escape(url, quote=True)}\" "
                     f"onclick='findResume(this)'>find resume</button>")
+        # Remove / restore: a small icon, not a word. Removed rows offer restore (↺);
+        # live rows offer a select checkbox (for bulk remove) + a "−" that confirms first.
+        if url:
+            u = html.escape(url, quote=True)
+            if removed:
+                links.append(f"<button class='ic' title='restore' data-url=\"{u}\" "
+                             f"onclick='restoreJob(this)'>↺</button>")
+            else:
+                links.append(
+                    f"<input type='checkbox' class='sel' data-url=\"{u}\" "
+                    f"onchange='selChanged()' title='select'>"
+                    f"<button class='ic ic-rm' title='remove' data-url=\"{u}\" "
+                    f"onclick='removeJob(this)'>−</button>")
 
         def cell(v, dash="—"):
             return html.escape(str(v)) if v not in (None, "") else f"<span class='mut'>{dash}</span>"
 
+        def date_cell(v):
+            disp, key = _fmt_date(v)
+            return (f"<td data-v='{key or 0}'>{html.escape(disp)}</td>" if disp
+                    else "<td class='mut'>—</td>")
+
         rows.append(
             f"<tr data-status='{html.escape(str(a.get('status') or ''))}' "
-            f"data-profile='{html.escape(prof)}'>"
-            f"<td>{cell(a.get('date'))}</td>"
+            f"data-profile='{html.escape(prof)}' data-removed='{1 if removed else 0}'>"
+            f"{date_cell(a.get('date'))}"
             f"<td class='co'>{cell(a.get('company'))}</td>"
             f"<td>{cell(a.get('role'))}</td>"
             f"<td class='mut'>{cell(_job_id(a.get('url') or ''))}</td>"
@@ -160,18 +198,19 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             f"{cell(a.get('resume_score'))}</td>"
             f"<td data-v='{match_v if match_v is not None else -1}'>"
             f"{cell(match_v)}</td>"
-            f"<td>{cell(a.get('posted_date'))}</td>"
+            f"{date_cell(a.get('posted_date'))}"
             f"<td>{diff_cell}</td>"
             f"<td>{' · '.join(links) or '—'}</td>"
             "</tr>"
         )
 
-    total = len(apps)
-    found_today = sum(1 for a in apps if a.get("status") == "found"
+    live = [a for a in apps if not a.get("removed")]   # removed rows count toward nothing
+    total = len(live)
+    found_today = sum(1 for a in live if a.get("status") == "found"
                       and a.get("date") == today)
-    tailored = sum(1 for a in apps if a.get("resume_diff") or a.get("status") == "tailored")
-    applied = sum(1 for a in apps if a.get("status") in _SUBMITTED)
-    scored = sum(1 for a in apps if a.get("resume_score") is not None)
+    tailored = sum(1 for a in live if a.get("resume_diff") or a.get("status") == "tailored")
+    applied = sum(1 for a in live if a.get("status") in _SUBMITTED)
+    scored = sum(1 for a in live if a.get("resume_score") is not None)
     avg_aqs = round(sum(aqs_values) / len(aqs_values)) if aqs_values else "—"
     a_grades = sum(1 for v in aqs_values if v >= 80)
 
@@ -200,6 +239,9 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         f"<button class='chip' data-status='{html.escape(s)}' onclick='chip(this)'>"
         f"{html.escape(s)} ({n})</button>"
         for s, n in sorted(statuses.items(), key=lambda kv: -kv[1]))
+    if removed_count:
+        status_chips += (f"<button class='chip chip-rm' onclick='toggleRemoved(this)'>"
+                         f"🗑 removed ({removed_count})</button>")
     profile_opts = "".join(f"<option>{html.escape(p)}</option>"
                            for p in sorted(profiles_seen))
 
@@ -208,7 +250,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         applied=applied, avg_aqs=avg_aqs, a_grades=a_grades,
         funnel=funnel_html, hist=hist_html, chips=status_chips,
         profile_opts=profile_opts,
-        rows="\n".join(rows) or "<tr><td colspan='13' class='mut'>No applications yet — "
+        rows="\n".join(rows) or "<tr><td colspan='12' class='mut'>No applications yet — "
                                 "run <code>python -m src.cli pipeline</code>.</td></tr>",
     )
     dest = pathlib.Path(out_path)
@@ -278,13 +320,29 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .btn:hover {{ background:var(--acc); }}
   .btn.done {{ background:transparent; color:var(--ok); border-color:var(--ok);
               cursor:default; }}
+  .ic {{ background:transparent; color:var(--mut); border:1px solid var(--line);
+        border-radius:6px; width:22px; height:22px; line-height:1; font-size:15px;
+        cursor:pointer; padding:0; margin-left:4px; vertical-align:middle; }}
+  .ic-rm:hover {{ color:#fff; background:var(--bad); border-color:var(--bad); }}
+  .ic:hover {{ border-color:var(--acc); }}
+  .sel {{ width:auto; vertical-align:middle; cursor:pointer; accent-color:var(--acc); }}
+  .chip-rm.on {{ color:#fff; border-color:var(--bad); background:#3a2330; }}
+  tr[data-removed='1'] {{ display:none; }}
+  body.show-removed tr[data-removed='1'] {{ display:table-row; opacity:.55; }}
+  #bulkbar {{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+             background:var(--panel); border:1px solid var(--bad); border-radius:10px;
+             padding:10px 16px; font-size:13px; display:none; z-index:10;
+             align-items:center; gap:12px; }}
+  #bulkbar button {{ background:var(--bad); color:#fff; border:0; border-radius:7px;
+             padding:6px 12px; font-size:12.5px; cursor:pointer; }}
+  #bulkbar .cancel {{ background:transparent; color:var(--mut); border:1px solid var(--line); }}
   #toast {{ position:fixed; bottom:20px; right:20px; background:var(--panel);
            border:1px solid var(--acc); border-radius:8px; padding:10px 14px;
            font-size:12.5px; max-width:520px; display:none; z-index:9; }}
   .legend {{ color:var(--mut); font-size:11.5px; margin:10px 0 24px; }}
 </style></head><body>
 <h1>Job Pipeline — Scores Dashboard</h1>
-<div class="sub">generated {generated} · AQS = 0.40·reviewer + 0.35·must-haves + 0.10·keywords + 0.15·recency (renormalized when a part is missing) · hover a score for its breakdown</div>
+<div class="sub">generated {generated} · AQS = 0.40·reviewer + 0.45·match + 0.15·recency (match = must-haves blended with keyword ATS; missing reviewer caps un-reviewed rows) · hover a score for its breakdown</div>
 
 <div class="grid">
   <div class="card"><b>{total}</b><span>tracked</span></div>
@@ -320,6 +378,10 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
 <b style="color:var(--bad)">red</b> below 50 weak/mismatch. Reviewer = senior hiring-manager score /10.
 Match % = JD↔resume fit: must-have coverage blended with concept-keyword ATS (the gate
 runs on the keyword part pre-LLM). Tailored files live in <code>data/applications/&lt;Company&gt;/&lt;role-id&gt;/</code>.</p>
+
+<div id="bulkbar"><span id="bulklabel"></span>
+  <button onclick="removeSelected()">Remove selected</button>
+  <button class="cancel" onclick="clearSel()">Cancel</button></div>
 
 <div id="toast"></div>
 <script>
@@ -376,6 +438,50 @@ function findResume(btn) {{
     toast(e.noBackend ? 'Cannot open Finder from a static page. ' + HINT
                       : 'Could not open the folder: ' + e.message, true);
   }});
+}}
+// Remove/restore. Removed rows are hidden but NEVER deleted (removed=True in the tracker).
+function hideRow(url) {{
+  var tr = document.querySelector('.ic[data-url=\"' + CSS.escape(url) + '\"]');
+  tr = tr && tr.closest('tr'); if (tr) tr.dataset.removed = '1';
+}}
+function removeJob(btn) {{
+  if (!confirm('Hide this job from the dashboard? It stays in the tracker (not deleted).')) return;
+  post('/api/remove', btn.dataset.url).then(function() {{
+    var tr = btn.closest('tr'); tr.dataset.removed = '1';
+    var cb = tr.querySelector('.sel'); if (cb) cb.checked = false;
+    selChanged(); toast('Removed (still in the tracker).');
+  }}).catch(function(e) {{ toast(e.noBackend ? 'Removing needs the backend. ' + HINT
+                                             : 'Could not remove: ' + e.message, true); }});
+}}
+function restoreJob(btn) {{
+  post('/api/restore', btn.dataset.url).then(function() {{
+    btn.closest('tr').dataset.removed = '0'; toast('Restored.');
+  }}).catch(function(e) {{ toast(e.noBackend ? 'Restoring needs the backend. ' + HINT
+                                             : 'Could not restore: ' + e.message, true); }});
+}}
+function selChanged() {{
+  var n = document.querySelectorAll('.sel:checked').length;
+  var bar = document.getElementById('bulkbar');
+  document.getElementById('bulklabel').textContent = n + ' selected';
+  bar.style.display = n ? 'flex' : 'none';
+}}
+function clearSel() {{
+  document.querySelectorAll('.sel:checked').forEach(function(c) {{ c.checked = false; }});
+  selChanged();
+}}
+function removeSelected() {{
+  var urls = Array.prototype.map.call(document.querySelectorAll('.sel:checked'),
+                                      function(c) {{ return c.dataset.url; }});
+  if (!urls.length) return;
+  if (!confirm('Hide ' + urls.length + ' job(s) from the dashboard? They stay in the tracker.')) return;
+  Promise.all(urls.map(function(u) {{ return post('/api/remove', u).then(function() {{ hideRow(u); }}); }}))
+    .then(function() {{ clearSel(); toast('Removed ' + urls.length + ' job(s).'); }})
+    .catch(function(e) {{ toast(e.noBackend ? 'Removing needs the backend. ' + HINT
+                                            : 'Could not remove: ' + e.message, true); }});
+}}
+function toggleRemoved(el) {{
+  document.body.classList.toggle('show-removed');
+  el.classList.toggle('on');
 }}
 var activeStatus = null;
 function chip(el) {{

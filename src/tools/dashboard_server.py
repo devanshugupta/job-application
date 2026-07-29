@@ -5,6 +5,8 @@ anywhere, so the two buttons in the table need a tiny local backend:
 
   GET  /             re-render the dashboard from the tracker and serve it
   POST /api/applied  {"url": …}  mark that job applied (tracker upsert)
+  POST /api/remove   {"url": …}  hide a job you don't want (removed=True; never deletes)
+  POST /api/restore  {"url": …}  un-hide it (removed=False)
   POST /api/reveal   {"url": …}  open the folder holding its tailored PDF in Finder
   GET  /<rel>        any file under data/ (serves the PDF itself)
 
@@ -94,6 +96,12 @@ class _Handler(BaseHTTPRequestHandler):
             if self.path.startswith("/api/applied"):
                 mark_applied(url)
                 return self._json(200, {"status": "applied"})
+            if self.path.startswith("/api/remove"):
+                tracker.update_application(url, removed=True)
+                return self._json(200, {"removed": True})
+            if self.path.startswith("/api/restore"):
+                tracker.update_application(url, removed=False)
+                return self._json(200, {"removed": False})
             if self.path.startswith("/api/reveal"):
                 pdf = resume_path(rec)
                 reveal(pdf)

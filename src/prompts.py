@@ -231,11 +231,18 @@ the JD, don't assume software.
 counting EXACT and SIMILAR/synonym evidence (k8s≈Kubernetes, FAISS≈vector search, \
 RAG≈retrieval-augmented, PyTorch⇒deep learning). Judge equivalence; don't require the \
 literal string.
-- TRANSFERABLE CORE: for Applied-ML / ML / AI roles, treat strong retrieval, ranking, \
-recommendation, RAG, model training/fine-tuning (LoRA/PEFT), and evaluation experience as \
-a STRONG match to the role's ML core even when the specific stack differs — the ML \
-fundamentals transfer. Credit them as matched must-haves; don't penalize for a missing \
-brand-name tool when the equivalent skill is clearly demonstrated.
+- TRANSFERABLE CORE (with a hard limit): for GENERAL Applied-ML/ML/AI roles, credit \
+strong retrieval, ranking, recommendation, RAG, training/fine-tuning (LoRA/PEFT), and \
+evaluation as matching the ML core even when the stack differs — fundamentals transfer, \
+so don't penalize a missing brand-name TOOL when the equivalent skill is shown. This does \
+NOT extend to a REQUIRED ML SPECIALIZATION the resume can't back: if the role demands a \
+specific subfield (reinforcement learning, speech/audio, computer vision, ML \
+infrastructure/systems, on-device/edge ML, ads pCTR/CVR prediction, research depth, etc.) \
+and the resume shows no REAL, substantial evidence of it, that is a genuine unmet \
+must-have — mark it missing, cap match_pct accordingly, and name it in gaps. General ML \
+strength must NOT paper over a required specialization; "not every ML role fits." A thin \
+tangential touch (one project, a passing mention) does NOT satisfy a required \
+specialization.
 - SENIORITY: state the years-of-experience delta explicitly as its own point. A 1-2 year \
 stretch below a "Senior/Staff" bar is a MINOR gap (still worth applying), not a \
 true_mismatch; only a large gap (e.g. 3 yrs vs "10+ / Principal") is disqualifying.
