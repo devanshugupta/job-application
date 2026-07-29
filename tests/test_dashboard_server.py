@@ -164,10 +164,10 @@ def test_recompile_rebuilds_pdf_from_tex_without_existing_pdf(server, job, monke
     (folder / "tailored_resume.tex").write_text("dummy tex source")
     (folder / "Devanshu_Gupta_Resume.pdf").unlink()          # user deleted the PDF
     def fake_compile(src, out):
-        pathlib.Path(out).write_bytes(b"%PDF-1.4 rebuilt"); return True, "ok"
+        out.write_bytes(b"%PDF-1.4 rebuilt"); return True, "ok"
     monkeypatch.setattr(latex, "compile_pdf", fake_compile)
     status, body = _post(server, "/api/recompile", job)
-    assert status == 200
+    assert status == 200, body
     assert (folder / "Devanshu_Gupta_Resume.pdf").read_bytes() == b"%PDF-1.4 rebuilt"
 
 
