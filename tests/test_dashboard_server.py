@@ -144,6 +144,18 @@ def test_reveal_failure_is_reported_json_not_swallowed(server, job, monkeypatch)
     assert status == 500 and "open -R failed" in body["error"]
 
 
+def test_run_pipeline_launches_and_status_is_json(server, monkeypatch):
+    # run-pipeline must not require a job url and must launch via start_pipeline (mocked
+    # so no real subprocess); the status endpoint always returns JSON with a progress tail.
+    calls = []
+    monkeypatch.setattr(dashboard_server, "start_pipeline",
+                        lambda: calls.append(1) or {"status": "running"})
+    status, body = _post(server, "/api/run-pipeline", "")
+    assert status == 200 and body["status"] == "running" and calls == [1]
+    st = json.loads(urllib.request.urlopen(server + "/api/pipeline-status").read())
+    assert "status" in st and "progress" in st and isinstance(st["progress"], list)
+
+
 def test_path_traversal_is_refused(server, job):
     with pytest.raises(urllib.error.HTTPError) as e:
         urllib.request.urlopen(server + "/../config/profile.json")

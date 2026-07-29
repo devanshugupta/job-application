@@ -78,21 +78,6 @@ def _breakdown_title(comp: dict) -> str:
     return f"{comp.get('meaning', '')} · " + " · ".join(parts) if parts else ""
 
 
-def _diff_html(diff) -> str:
-    if not diff:
-        return ""
-    if isinstance(diff, str):
-        return html.escape(diff)
-    parts = []
-    if diff.get("summary"):
-        parts.append(f"<b>Summary</b> {html.escape(str(diff['summary']))}")
-    if diff.get("technical_skills"):
-        parts.append(f"<b>Skills</b> {html.escape(str(diff['technical_skills']))}")
-    for i, b in enumerate(diff.get("top_bullets", []) or [], 1):
-        parts.append(f"<b>Bullet {i}</b> {html.escape(str(b))}")
-    return "<br>".join(parts)
-
-
 def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     apps = tracker.list_applications()
     today = date.today().isoformat()
@@ -137,9 +122,6 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         )
         url = a.get("url") or ""
         pdf = a.get("tailored_pdf") or ""
-        diff = _diff_html(a.get("resume_diff") or {})
-        diff_cell = (f"<details><summary>diff</summary><div class='diff'>{diff}</div>"
-                     f"</details>") if diff else "<span class='mut'>—</span>"
         # Actions. Under `dashboard --serve` these POST back (mark applied / file the
         # PDF into the save folder); opened as a plain file:// page they degrade to
         # ordinary links, so the static dashboard keeps working.
@@ -161,19 +143,16 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
                 links.append(
                     f"<button class='btn' data-url=\"{html.escape(url, quote=True)}\" "
                     f"onclick='findResume(this)'>find resume</button>")
-        # Remove / restore: a small icon, not a word. Removed rows offer restore (↺);
-        # live rows offer a select checkbox (for bulk remove) + a "−" that confirms first.
+        # Remove / restore lives in a leading column (before Date), not in Actions.
+        # A small icon: removed rows offer restore (↺); live rows offer "−" (confirms).
         if url:
             u = html.escape(url, quote=True)
-            if removed:
-                links.append(f"<button class='ic' title='restore' data-url=\"{u}\" "
-                             f"onclick='restoreJob(this)'>↺</button>")
-            else:
-                links.append(
-                    f"<input type='checkbox' class='sel' data-url=\"{u}\" "
-                    f"onchange='selChanged()' title='select'>"
-                    f"<button class='ic ic-rm' title='remove' data-url=\"{u}\" "
-                    f"onclick='removeJob(this)'>−</button>")
+            rm_btn = (f"<button class='ic' title='restore' data-url=\"{u}\" "
+                      f"onclick='restoreJob(this)'>↺</button>" if removed else
+                      f"<button class='ic ic-rm' title='remove' data-url=\"{u}\" "
+                      f"onclick='removeJob(this)'>−</button>")
+        else:
+            rm_btn = ""
 
         def cell(v, dash="—"):
             return html.escape(str(v)) if v not in (None, "") else f"<span class='mut'>{dash}</span>"
@@ -186,20 +165,18 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         rows.append(
             f"<tr data-status='{html.escape(str(a.get('status') or ''))}' "
             f"data-profile='{html.escape(prof)}' data-removed='{1 if removed else 0}'>"
+            f"<td class='rmcell'>{rm_btn}</td>"
             f"{date_cell(a.get('date'))}"
             f"<td class='co'>{cell(a.get('company'))}</td>"
             f"<td>{cell(a.get('role'))}</td>"
             f"<td class='mut'>{cell(_job_id(a.get('url') or ''))}</td>"
             f"<td>{cell(prof)}</td>"
-            f"<td><span class='tag tag-{html.escape(str(a.get('status') or ''))}'>"
-            f"{cell(a.get('status'))}</span></td>"
             f"<td data-v='{aqs if aqs is not None else -1}'>{aqs_cell}</td>"
             f"<td data-v='{a.get('resume_score') if a.get('resume_score') is not None else -1}'>"
             f"{cell(a.get('resume_score'))}</td>"
             f"<td data-v='{match_v if match_v is not None else -1}'>"
             f"{cell(match_v)}</td>"
             f"{date_cell(a.get('posted_date'))}"
-            f"<td>{diff_cell}</td>"
             f"<td>{' · '.join(links) or '—'}</td>"
             "</tr>"
         )
@@ -250,7 +227,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         applied=applied, avg_aqs=avg_aqs, a_grades=a_grades,
         funnel=funnel_html, hist=hist_html, chips=status_chips,
         profile_opts=profile_opts,
-        rows="\n".join(rows) or "<tr><td colspan='12' class='mut'>No applications yet — "
+        rows="\n".join(rows) or "<tr><td colspan='11' class='mut'>No applications yet — "
                                 "run <code>python -m src.cli pipeline</code>.</td></tr>",
     )
     dest = pathlib.Path(out_path)
@@ -325,17 +302,14 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
         cursor:pointer; padding:0; margin-left:4px; vertical-align:middle; }}
   .ic-rm:hover {{ color:#fff; background:var(--bad); border-color:var(--bad); }}
   .ic:hover {{ border-color:var(--acc); }}
-  .sel {{ width:auto; vertical-align:middle; cursor:pointer; accent-color:var(--acc); }}
+  .rmcell {{ width:28px; text-align:center; padding-left:6px; padding-right:2px; }}
   .chip-rm.on {{ color:#fff; border-color:var(--bad); background:#3a2330; }}
+  .runrow {{ display:flex; align-items:center; gap:10px; margin-top:12px;
+            padding-top:10px; border-top:1px solid var(--line); }}
+  #runstatus {{ font-size:11.5px; line-height:1.35; }}
+  #runbtn.busy {{ opacity:.6; cursor:default; }}
   tr[data-removed='1'] {{ display:none; }}
   body.show-removed tr[data-removed='1'] {{ display:table-row; opacity:.55; }}
-  #bulkbar {{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
-             background:var(--panel); border:1px solid var(--bad); border-radius:10px;
-             padding:10px 16px; font-size:13px; display:none; z-index:10;
-             align-items:center; gap:12px; }}
-  #bulkbar button {{ background:var(--bad); color:#fff; border:0; border-radius:7px;
-             padding:6px 12px; font-size:12.5px; cursor:pointer; }}
-  #bulkbar .cancel {{ background:transparent; color:var(--mut); border:1px solid var(--line); }}
   #toast {{ position:fixed; bottom:20px; right:20px; background:var(--panel);
            border:1px solid var(--acc); border-radius:8px; padding:10px 14px;
            font-size:12.5px; max-width:520px; display:none; z-index:9; }}
@@ -354,7 +328,12 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
 </div>
 
 <div class="panels">
-  <div class="panel"><h3>Pipeline funnel</h3>{funnel}</div>
+  <div class="panel"><h3>Pipeline funnel</h3>{funnel}
+    <div class="runrow">
+      <button class="btn" id="runbtn" onclick="runPipeline()">▶ Run pipeline</button>
+      <span id="runstatus" class="mut">last run: —</span>
+    </div>
+  </div>
   <div class="panel"><h3>AQS distribution (scored rows)</h3><div class="hist">{hist}</div></div>
 </div>
 
@@ -365,12 +344,12 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
 </div>
 
 <table id="t"><thead><tr>
-  <th onclick="sortBy(0)">Date</th><th onclick="sortBy(1)">Company</th>
-  <th onclick="sortBy(2)">Role</th><th onclick="sortBy(3)">Job ID</th>
-  <th onclick="sortBy(4)">Profile</th>
-  <th onclick="sortBy(5)">Status</th><th onclick="sortBy(6)">AQS</th>
+  <th></th><th onclick="sortBy(1)">Date</th><th onclick="sortBy(2)">Company</th>
+  <th onclick="sortBy(3)">Role</th><th onclick="sortBy(4)">Job ID</th>
+  <th onclick="sortBy(5)">Profile</th>
+  <th onclick="sortBy(6)">AQS</th>
   <th onclick="sortBy(7)">Reviewer /10</th><th onclick="sortBy(8)">Match %</th>
-  <th onclick="sortBy(9)">Posted</th><th>What changed</th><th>Actions</th>
+  <th onclick="sortBy(9)">Posted</th><th>Actions</th>
 </tr></thead><tbody>{rows}</tbody></table>
 
 <p class="legend">AQS color: <b style="color:var(--ok)">green</b> 80+ apply now ·
@@ -378,10 +357,6 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
 <b style="color:var(--bad)">red</b> below 50 weak/mismatch. Reviewer = senior hiring-manager score /10.
 Match % = JD↔resume fit: must-have coverage blended with concept-keyword ATS (the gate
 runs on the keyword part pre-LLM). Tailored files live in <code>data/applications/&lt;Company&gt;/&lt;role-id&gt;/</code>.</p>
-
-<div id="bulkbar"><span id="bulklabel"></span>
-  <button onclick="removeSelected()">Remove selected</button>
-  <button class="cancel" onclick="clearSel()">Cancel</button></div>
 
 <div id="toast"></div>
 <script>
@@ -440,16 +415,10 @@ function findResume(btn) {{
   }});
 }}
 // Remove/restore. Removed rows are hidden but NEVER deleted (removed=True in the tracker).
-function hideRow(url) {{
-  var tr = document.querySelector('.ic[data-url=\"' + CSS.escape(url) + '\"]');
-  tr = tr && tr.closest('tr'); if (tr) tr.dataset.removed = '1';
-}}
 function removeJob(btn) {{
   if (!confirm('Hide this job from the dashboard? It stays in the tracker (not deleted).')) return;
   post('/api/remove', btn.dataset.url).then(function() {{
-    var tr = btn.closest('tr'); tr.dataset.removed = '1';
-    var cb = tr.querySelector('.sel'); if (cb) cb.checked = false;
-    selChanged(); toast('Removed (still in the tracker).');
+    btn.closest('tr').dataset.removed = '1'; toast('Removed (still in the tracker).');
   }}).catch(function(e) {{ toast(e.noBackend ? 'Removing needs the backend. ' + HINT
                                              : 'Could not remove: ' + e.message, true); }});
 }}
@@ -459,29 +428,48 @@ function restoreJob(btn) {{
   }}).catch(function(e) {{ toast(e.noBackend ? 'Restoring needs the backend. ' + HINT
                                              : 'Could not restore: ' + e.message, true); }});
 }}
-function selChanged() {{
-  var n = document.querySelectorAll('.sel:checked').length;
-  var bar = document.getElementById('bulkbar');
-  document.getElementById('bulklabel').textContent = n + ' selected';
-  bar.style.display = n ? 'flex' : 'none';
-}}
-function clearSel() {{
-  document.querySelectorAll('.sel:checked').forEach(function(c) {{ c.checked = false; }});
-  selChanged();
-}}
-function removeSelected() {{
-  var urls = Array.prototype.map.call(document.querySelectorAll('.sel:checked'),
-                                      function(c) {{ return c.dataset.url; }});
-  if (!urls.length) return;
-  if (!confirm('Hide ' + urls.length + ' job(s) from the dashboard? They stay in the tracker.')) return;
-  Promise.all(urls.map(function(u) {{ return post('/api/remove', u).then(function() {{ hideRow(u); }}); }}))
-    .then(function() {{ clearSel(); toast('Removed ' + urls.length + ' job(s).'); }})
-    .catch(function(e) {{ toast(e.noBackend ? 'Removing needs the backend. ' + HINT
-                                            : 'Could not remove: ' + e.message, true); }});
-}}
 function toggleRemoved(el) {{
   document.body.classList.toggle('show-removed');
   el.classList.toggle('on');
+}}
+// Run the full pipeline (find -> score -> tailor >70) via the backend, and surface the
+// current/last run's progress in the funnel. State persists server-side, so the last
+// run shows even after a reload.
+function fmtRun(s) {{
+  var label = {{idle:'—', running:'running…', done:'done', failed:'failed'}}[s.status] || s.status;
+  var when = s.finished_at || s.started_at || '';
+  var last = (s.progress && s.progress.length) ? s.progress[s.progress.length - 1] : '';
+  return 'last run: ' + label + (when ? ' (' + when + ')' : '') + (last ? ' — ' + last : '');
+}}
+function refreshRun() {{
+  return fetch('/api/pipeline-status').then(function(r) {{ return r.json(); }})
+    .then(function(s) {{
+      document.getElementById('runstatus').textContent = fmtRun(s);
+      var busy = s.status === 'running', btn = document.getElementById('runbtn');
+      btn.classList.toggle('busy', busy); btn.disabled = busy;
+      return s;
+    }}).catch(function() {{}});
+}}
+var _runPoll = null;
+function pollRun() {{
+  clearInterval(_runPoll);
+  _runPoll = setInterval(function() {{
+    refreshRun().then(function(s) {{
+      if (s && s.status !== 'running') {{
+        clearInterval(_runPoll); setTimeout(function() {{ location.reload(); }}, 1500);
+      }}
+    }});
+  }}, 2500);
+}}
+function runPipeline() {{
+  if (!LIVE) return toast('Running the pipeline needs the backend. ' + HINT, true);
+  post('/api/run-pipeline', '').then(function() {{
+    refreshRun(); pollRun();
+    toast('Pipeline started — finding jobs, scoring, tailoring >70. Watch the funnel.');
+  }}).catch(function(e) {{ toast('Could not start pipeline: ' + e.message, true); }});
+}}
+if (location.protocol.indexOf('http') === 0) {{
+  refreshRun().then(function(s) {{ if (s && s.status === 'running') pollRun(); }});
 }}
 var activeStatus = null;
 function chip(el) {{

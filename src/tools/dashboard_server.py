@@ -8,6 +8,9 @@ anywhere, so the two buttons in the table need a tiny local backend:
   POST /api/remove   {"url": …}  hide a job you don't want (removed=True; never deletes)
   POST /api/restore  {"url": …}  un-hide it (removed=False)
   POST /api/reveal   {"url": …}  open the folder holding its tailored PDF in Finder
+  POST /api/run-pipeline         launch the full pipeline (find → score → tailor >70) in
+                                 the background
+  GET  /api/pipeline-status      state + progress of the current/last pipeline run
   GET  /<rel>        any file under data/ (serves the PDF itself)
 
 Run with `python -m src.cli dashboard --serve`. Stdlib only, localhost only.
@@ -21,7 +24,7 @@ import pathlib
 import subprocess
 import sys
 import webbrowser
-from datetime import date
+from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import unquote
 
@@ -56,6 +59,65 @@ def mark_applied(url: str) -> dict | None:
         url, status="applied", applied_date=date.today().isoformat())
 
 
+# --- full-pipeline runner ---------------------------------------------------------
+# The funnel's "Run pipeline" button launches `src.cli pipeline` (discover → score →
+# tailor >70) as ONE background subprocess, streaming its output to a log so the
+# dashboard can show live + last-run progress. State persists to a file so the progress
+# survives a page reload. (No API key -> the pipeline runs its manual-brain path: it
+# discovers and scores what it can and stops at packets, which the progress line shows.)
+_RUN_LOG = config.DATA_DIR / "pipeline_run.log"
+_RUN_STATE = config.DATA_DIR / "pipeline_run.json"
+_proc: subprocess.Popen | None = None
+
+
+def _now() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _read_run_state() -> dict:
+    try:
+        return json.loads(_RUN_STATE.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {"status": "idle"}
+
+
+def _write_run_state(d: dict) -> None:
+    _RUN_STATE.parent.mkdir(parents=True, exist_ok=True)
+    _RUN_STATE.write_text(json.dumps(d, indent=2))
+
+
+def start_pipeline(hours: int = 24, top: int = 20) -> dict:
+    """Launch the pipeline in the background unless one is already running."""
+    global _proc
+    if _proc is not None and _proc.poll() is None:
+        return {"status": "running", "already": True}
+    cmd = [sys.executable, "-m", "src.cli", "pipeline",
+           "--hours", str(hours), "--top", str(top)]
+    _RUN_LOG.parent.mkdir(parents=True, exist_ok=True)
+    logf = _RUN_LOG.open("w")
+    _proc = subprocess.Popen(cmd, cwd=str(config.ROOT), stdout=logf,
+                             stderr=subprocess.STDOUT, text=True)
+    _write_run_state({"status": "running", "started_at": _now(),
+                      "cmd": " ".join(cmd[2:])})
+    return {"status": "running"}
+
+
+def pipeline_status(tail_lines: int = 4) -> dict:
+    """Current/last run: reconcile the tracked process, then attach a progress tail."""
+    st = _read_run_state()
+    if _proc is not None and _proc.poll() is not None and st.get("status") == "running":
+        st["status"] = "done" if _proc.returncode == 0 else "failed"
+        st["returncode"] = _proc.returncode
+        st["finished_at"] = _now()
+        _write_run_state(st)
+    try:
+        lines = [ln for ln in _RUN_LOG.read_text().splitlines() if ln.strip()]
+        st["progress"] = lines[-tail_lines:]
+    except OSError:
+        st["progress"] = []
+    return st
+
+
 class _Handler(BaseHTTPRequestHandler):
     def _send(self, code: int, body: bytes, ctype: str) -> None:
         self.send_response(code)
@@ -72,6 +134,8 @@ class _Handler(BaseHTTPRequestHandler):
         path = unquote(self.path.split("?")[0]).lstrip("/")
         if path == "api/ping":
             return self._json(200, {"ok": True})
+        if path == "api/pipeline-status":
+            return self._json(200, pipeline_status())
         if not path:
             dashboard.render(config.DASHBOARD_PATH)
             return self._send(200, config.DASHBOARD_PATH.read_bytes(), "text/html")
@@ -85,9 +149,13 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             n = int(self.headers.get("Content-Length") or 0)
             try:
-                url = (json.loads(self.rfile.read(n) or b"{}").get("url") or "").strip()
+                payload = json.loads(self.rfile.read(n) or b"{}")
             except json.JSONDecodeError:
                 return self._json(400, {"error": "bad JSON"})
+            # run-pipeline takes no job url — handle before the record lookup
+            if self.path.startswith("/api/run-pipeline"):
+                return self._json(200, start_pipeline())
+            url = (payload.get("url") or "").strip()
             key = tracker._norm_url(url)
             rec = next((r for r in tracker.list_applications()
                         if tracker._norm_url(r.get("url", "")) == key), None)
