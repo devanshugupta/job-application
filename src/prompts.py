@@ -88,7 +88,8 @@ else merge and spend the slot on breadth.
 {bullet_min}-{bullet_max} words (≤1.5 rendered lines), the impact METRIC AT THE END.
   - Strong ownership verbs (Designed, Built, Led, Owned); end-to-end framing. Don't \
 start two bullets with the same verb.
-  - NO em dashes anywhere; use commas, not chains of semicolons.
+  - NO em dashes and NO double/triple hyphens ("--", "---") ANYWHERE (summary, skills, \
+bullets); use commas, not dashes and not chains of semicolons.
   - De-jargon internal/company terms into industry-standard language (no internal \
 codenames a stranger wouldn't know).
   - Mirror keywords from the JD verbatim where honest (tools, metrics, techniques).
@@ -169,7 +170,8 @@ bullets, summary solid). Then leave all `new_*` fields empty ("" / [] / -1).
 - Any correction must obey the originals' constraints: summary 2 lines max, at most one \
 adjective; technical_skills one grouped line; 2-7 top bullets ordered most-relevant-first \
 (the first two anchored to the JD's #1/#2 priorities), each one full XYZ sentence ~14-30 \
-words with the impact metric at the end, no em dashes, no shared leading verb, no filler; \
+words with the impact metric at the end, no em dashes and no double hyphens ("--"/"---"), \
+no shared leading verb, no filler; \
 bullets must NOT duplicate any other bullet on the resume.
 - Only fill the `new_*` fields you actually want changed; leave the rest empty:
   new_summary "" = keep · new_technical_skills "" = keep · new_top_bullets [] = keep · \

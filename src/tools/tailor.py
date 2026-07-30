@@ -160,7 +160,7 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
             rec = tracker.save_application(
                 company=company or "Unknown", role=role or "Unknown", url=url,
                 status="skipped", source=source, posted_date=posted_date,
-                profile=profile, notes=reason)
+                profile=profile, notes=reason, jd_text=jd_text)
             if verbose:
                 print(f"    ⛔ {reason}")
             return rec
@@ -171,6 +171,22 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
     master = profiles.read_master_for(profile)
     if master.startswith("No master resume"):
         raise RuntimeError(master)
+
+    # 2b. Cheap keyword pre-gate — decide if this JD is worth spending LLM tokens on.
+    #     Score the JD's skills against the MASTER resume (no LLM). Below the bar we
+    #     skip the whole tailor/review/score path and record why, saving 3 brain calls.
+    min_kw = config.int_setting("min_keyword_match", 30)
+    kw_master = ats.ats_score(jd_text, master)["score"]
+    if kw_master is not None and kw_master < min_kw:
+        reason = (f"keyword pre-gate: master-vs-JD ATS {kw_master}% < {min_kw}% "
+                  f"threshold, skipped LLM tailoring to save cost")
+        rec = tracker.save_application(
+            company=company or "Unknown", role=role or "Unknown", url=url,
+            status="skipped", source=source, posted_date=posted_date,
+            profile=profile, match_score=kw_master, notes=reason, jd_text=jd_text)
+        if verbose:
+            print(f"    ⏭ {reason}")
+        return rec
 
     # 3. Brain call 1: the patch ---------------------------------------------------
     achievements = (config.ACHIEVEMENTS_PATH.read_text().strip()
@@ -276,6 +292,7 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
         source=source, posted_date=posted_date, profile=profile,
         tailored_pdf=pdf_path,
         notes=notes,
+        jd_text=jd_text,  # persist so a re-run (re-score, re-tailor) never re-fetches
     )
     if verbose:
         flag = "" if check["ok"] else f"  ⚠ final_check: {len(check['problems'])} problem(s)"

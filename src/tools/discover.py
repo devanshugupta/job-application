@@ -212,6 +212,7 @@ def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
                 company=j["company"], role=j["role"], url=j["url"], status="found",
                 match_score=j["match"], source=j.get("source", "feed"),
                 posted_date=j["posted_date"], profile=j["profile"],
+                jd_text=j.get("jd_text"),
             )
     if verbose:
         print(f"\nDiscovered {len(jobs)} fresh roles (past {hours}h); "
@@ -252,16 +253,28 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
         # Day-cache the JD text per URL: portals aren't byte-stable between fetches,
         # and in manual-brain mode the packet id hashes the JD — an unstable JD would
         # orphan an already-answered packet on every re-run.
-        cached = finder.get_cached(f"jd:{j['url']}", None, today)
-        if cached is not None:
-            jd = cached[0] if cached else ""
+        # Prefer the JD captured at discovery (Greenhouse/Ashby/Lever hand it to us
+        # in the board call) — no second HTTP round-trip, and it works even when the
+        # posting URL points at a portal jd_fetch can't read.
+        if j.get("jd_text"):
+            jd = j["jd_text"]
+            finder.put_cache(f"jd:{j['url']}", None, today, [jd])
         else:
-            try:
-                fetched = jd_fetch.fetch_jd(j["url"], allow_browser=False)
-                jd = fetched["text"] if fetched["looks_complete"] else ""
-            except Exception:
-                jd = ""
-            finder.put_cache(f"jd:{j['url']}", None, today, [jd] if jd else [])
+            cached = finder.get_cached(f"jd:{j['url']}", None, today)
+            if cached is not None:
+                jd = cached[0] if cached else ""
+            else:
+                # Simplify/LinkedIn/careers rows carry a real posting link but not a
+                # clean ATS API — let jd_fetch render the page (HTML) to grab the JD,
+                # rather than leaving it blank. ATS-API rows already had their JD.
+                src = (j.get("source") or "").lower()
+                render = any(k in src for k in ("simplify", "linkedin", "careers", "github"))
+                try:
+                    fetched = jd_fetch.fetch_jd(j["url"], allow_browser=render)
+                    jd = fetched["text"] if fetched["looks_complete"] else ""
+                except Exception:
+                    jd = ""
+                finder.put_cache(f"jd:{j['url']}", None, today, [jd] if jd else [])
         if jd and needs_sponsor:
             m = _NO_SPONSOR.search(jd)
             if m:

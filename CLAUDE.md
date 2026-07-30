@@ -35,6 +35,17 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
   (Greenhouse/Lever/Ashby/SmartRecruiters/Workable) for every `config/watchlist.json`
   company carrying `"ats"`+`"token"`. Hour-granular freshness, URL+title dedupe, US filter,
   title/seniority gates, ATS-match ranking. Easily yields 50-100 fresh roles/day.
+  **JD captured once, at discovery, not re-fetched:** Greenhouse (`?content=true`), Ashby
+  (`descriptionPlain`), and Lever (`descriptionPlain`) already return the full JD in the
+  same list call `boards.py` makes to find the job — so it's stripped to clean text
+  (`_strip_html`) and carried on the job dict as `jd_text`, then persisted onto the
+  tracker row by `tracker.save_application`. `discover.rerank_by_jd` and `tailor.tailor_job`
+  both check `jd_text` first, then the day cache (`finder.get_cached`), and only fetch the
+  posting as a last resort — for Simplify/LinkedIn/careers/github links (real posting page,
+  no clean ATS API) that fetch renders the page (`jd_fetch.fetch_jd(..., allow_browser=True)`)
+  instead of a plain HTTP GET. `tailor_job` also writes `jd_text` back into every
+  `tracker.save_application` call it makes (scored, and both skip paths), so a JD fetched
+  at tailor time is never re-fetched on a later re-run either — one fetch per job, ever.
 - **Brain seam** (`src/brain.py`): ALL LLM judgment goes through `brain.structured(...)`.
   `ApiBrain` -> tools/llm.py (Anthropic/OpenAI per-task routing). `ManualBrain` -> file
   packets, zero API. This is the API-optional design point: everything else is plain Python.
@@ -66,14 +77,18 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
 - **Composite scoring** (`tools/scoring.py`): Application Quality Score 0-100 =
   0.40 reviewer + 0.35 JD-must-have % + 0.10 ATS keywords + 0.15 recency (renormalized
   when parts are missing) with letter grades. THE headline number; dashboard + status use it.
-- **Dashboard** (`tools/dashboard.py` + `tools/dashboard_server.py`): dark self-contained
-  HTML — KPI cards, funnel, AQS histogram, status chips/profile filter/search, sortable
-  table, AQS badges with hover breakdowns, per-row diff expanders. `dashboard --serve`
-  runs a stdlib localhost backend so the per-row buttons act: **apply ↗** opens the
-  posting AND marks the row applied in the tracker; **save pdf** files the tailored PDF
-  into its canonical folder and downloads it. Opened as a plain file it degrades to
-  links. Artifacts live in `data/applications/<Company>/<job-id>/`
-  (`dashboard --migrate` refiles folders written under the old flat scheme).
+- **Dashboard** (`tools/dashboard.py` + `tools/dashboard_server.py`): bright self-contained
+  HTML — KPI cards, funnel, AQS histogram (count labeled per bucket, plus a scored-row
+  total in the panel title, so it visibly reflects fresh data), status chips (multi-select:
+  click several to view their union), profile filter, a "tailored" chip that filters to
+  jobs with a resume already produced, text search, sortable table, paginated 30 rows/page
+  with prev/next (works together with every filter/sort). AQS badges with hover
+  breakdowns, per-row diff expanders. `dashboard --serve` runs a stdlib localhost backend
+  so the per-row buttons act: **apply ↗** opens the posting AND marks the row applied in
+  the tracker; **save pdf** files the tailored PDF into its canonical folder and downloads
+  it. Opened as a plain file it degrades to links. Artifacts live in
+  `data/applications/<Company>/<job-id>/` (`dashboard --migrate` refiles folders written
+  under the old flat scheme).
 - **Question bank** (`config/question_bank.json` + `tools/forms.py`): all form-question
   patterns/answers are DATA resolved against profile.json. greenhouse.py consumes it; no
   employer-specific logic is hardcoded anywhere. The resume PDF filename derives from the

@@ -66,9 +66,29 @@ def _iso(ts_or_str) -> tuple[str, int]:
         return s[:10], 0
 
 
-def _job(company: str, role: str, url: str, posted, locations: str, source: str) -> dict:
+def _strip_html(html: str) -> str:
+    """Cheap HTML→text for JDs the ATS APIs return as HTML (Greenhouse/Ashby).
+    Not a full parser — unescape entities, drop tags, collapse whitespace. Good
+    enough for keyword matching and the tailor prompt; no browser, no deps."""
+    import html as _html
+    if not html:
+        return ""
+    # Greenhouse returns `content` entity-encoded (&lt;div&gt;…), so unescape first,
+    # then strip the now-real tags.
+    t = _html.unescape(html)
+    t = re.sub(r"(?i)<\s*br\s*/?>", "\n", t)
+    t = re.sub(r"(?i)</\s*(p|div|li|h[1-6]|tr)\s*>", "\n", t)
+    t = re.sub(r"<[^>]+>", "", t)
+    t = _html.unescape(t)
+    t = re.sub(r"[ \t]+", " ", t)
+    t = re.sub(r"\n\s*\n\s*\n+", "\n\n", t)
+    return t.strip()
+
+
+def _job(company: str, role: str, url: str, posted, locations: str, source: str,
+         jd_text: str = "") -> dict:
     date, ts = _iso(posted)
-    return {
+    job = {
         "company": company,
         "role": (role or "").strip(),
         "url": url or "",
@@ -77,16 +97,26 @@ def _job(company: str, role: str, url: str, posted, locations: str, source: str)
         "locations": locations or "",
         "source": source,
     }
+    # Capture the JD at discovery when the board API already returned it, so the
+    # tailor step doesn't re-fetch (and can tailor even when the posting URL points
+    # at a portal jd_fetch can't read).
+    if jd_text and jd_text.strip():
+        job["jd_text"] = jd_text.strip()
+    return job
 
 
 # ----------------------------------------------------------------- per-ATS fetchers
 
 def fetch_greenhouse(company: str, token: str) -> list[dict]:
-    data = _get_json(f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs")
+    # content=true returns every posting's full JD (HTML) in this one call, so we
+    # capture the JD at discovery instead of re-fetching each URL later.
+    data = _get_json(
+        f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true")
     return [
         _job(company, j.get("title", ""), j.get("absolute_url", ""),
              j.get("first_published") or j.get("updated_at", ""),
-             (j.get("location") or {}).get("name", ""), "greenhouse-api")
+             (j.get("location") or {}).get("name", ""), "greenhouse-api",
+             _strip_html(j.get("content", "")))
         for j in data.get("jobs", [])
     ]
 
@@ -96,7 +126,8 @@ def fetch_lever(company: str, token: str) -> list[dict]:
     return [
         _job(company, j.get("text", ""), j.get("hostedUrl", ""),
              j.get("createdAt", 0),
-             (j.get("categories") or {}).get("location", ""), "lever-api")
+             (j.get("categories") or {}).get("location", ""), "lever-api",
+             j.get("descriptionPlain") or _strip_html(j.get("description", "")))
         for j in data
     ]
 
@@ -110,7 +141,9 @@ def fetch_ashby(company: str, token: str) -> list[dict]:
             continue
         out.append(_job(company, j.get("title", ""),
                         j.get("jobUrl") or j.get("applyUrl", ""),
-                        j.get("publishedAt", ""), j.get("location", ""), "ashby-api"))
+                        j.get("publishedAt", ""), j.get("location", ""), "ashby-api",
+                        j.get("descriptionPlain")
+                        or _strip_html(j.get("descriptionHtml", ""))))
     return out
 
 

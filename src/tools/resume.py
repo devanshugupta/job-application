@@ -226,6 +226,8 @@ def lint(markdown: str | None = None, focus_bullets: list[str] | None = None) ->
                           "— write 2 full lines: role + domain + scale + a credential.")
         if "—" in summary or "–" in summary:
             issues.append("Em/en dash in summary (use commas).")
+        if "--" in summary:
+            issues.append("Double hyphen '--' / '---' in summary (use a comma or a real word).")
 
     # Technical skills
     skills = body_of("technical skills").strip() or body_of("skills").strip()
@@ -234,6 +236,8 @@ def lint(markdown: str | None = None, focus_bullets: list[str] | None = None) ->
             f"Technical Skills is {len(skills.split())} words (max "
             f"{BUDGETS['technical_skills_max_words']}); trim to the most relevant."
         )
+    if skills and ("—" in skills or "–" in skills or "--" in skills):
+        issues.append("Em/en dash or double hyphen '--' in Technical Skills (use commas or pipes).")
 
     # Bullets: word count + repeated leading verb + filler words.
     # Route a finding to `issues` (blocking) if it's in a tailored bullet, else
@@ -252,6 +256,8 @@ def lint(markdown: str | None = None, focus_bullets: list[str] | None = None) ->
             bucket.append(f"Filler word in bullet: {b[:50]}...")
         if "—" in b or "–" in b:
             bucket.append(f"Em/en dash in bullet (use commas): {b[:50]}...")
+        if "--" in b:
+            bucket.append(f"Double hyphen '--' / '---' in bullet (use a comma or a real word): {b[:50]}...")
         verb = b.split()[0].lower() if b.split() else ""
         seen_verbs.setdefault(verb, []).append(b.strip())
     # A repeated leading verb blocks only if a TAILORED bullet is one of the repeats;

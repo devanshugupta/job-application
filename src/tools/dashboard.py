@@ -184,9 +184,14 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             return (f"<td data-v='{key or 0}'>{html.escape(disp)}</td>" if disp
                     else "<td class='mut'>—</td>")
 
+        # A row counts as "tailored" if a tailored PDF was produced, a resume diff was
+        # recorded, or it reached the tailored/applied stage — the "tailored only" filter
+        # keys on this so you can jump straight to jobs that have a resume ready.
+        is_tailored = bool(pdf or a.get("resume_diff") or a.get("status") == "tailored")
         rows.append(
             f"<tr data-status='{html.escape(str(a.get('status') or ''))}' "
-            f"data-profile='{html.escape(prof)}' data-removed='{1 if removed else 0}'>"
+            f"data-profile='{html.escape(prof)}' data-removed='{1 if removed else 0}' "
+            f"data-tailored='{1 if is_tailored else 0}'>"
             f"<td class='rmcell'>{rm_btn}</td>"
             f"{date_cell(a.get('date'))}"
             f"<td class='co'>{cell(a.get('company'))}</td>"
@@ -199,6 +204,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             f"<td data-v='{match_v if match_v is not None else -1}'>"
             f"{cell(match_v)}</td>"
             f"{date_cell(a.get('posted_date'))}"
+            f"<td class='mut'>{cell(a.get('source'))}</td>"
             f"<td>{' · '.join(links) or '—'}</td>"
             "</tr>"
         )
@@ -207,7 +213,8 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     total = len(live)
     found_today = sum(1 for a in live if a.get("status") == "found"
                       and (a.get("date") or "")[:10] == today)
-    tailored = sum(1 for a in live if a.get("resume_diff") or a.get("status") == "tailored")
+    tailored = sum(1 for a in live if a.get("tailored_pdf") or a.get("resume_diff")
+                   or a.get("status") == "tailored")
     applied = sum(1 for a in live if a.get("status") in _SUBMITTED)
     scored = sum(1 for a in live if a.get("resume_score") is not None)
     avg_aqs = round(sum(aqs_values) / len(aqs_values)) if aqs_values else "—"
@@ -228,10 +235,13 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     for v in aqs_values:
         buckets[min(9, v // 10)] += 1
     bmax = max(buckets) or 1
+    # Count label ABOVE each bar (0 shown muted) so the histogram reads as live data, not
+    # decoration — and a total so you can see it track the scored-row count as it grows.
     hist_html = "".join(
-        f"<div class='hcol' title='{i * 10}-{i * 10 + 9}: {n}'>"
+        f"<div class='hcol' title='AQS {i * 10}-{i * 10 + 9}: {n} role(s)'>"
+        f"<span class='hn{' z' if not n else ''}'>{n}</span>"
         f"<div class='hbar' style='height:{round(100 * n / bmax)}%'></div>"
-        f"<span>{i * 10}</span></div>"
+        f"<span class='hx'>{i * 10}</span></div>"
         for i, n in enumerate(buckets))
 
     # Role mix by profile, with the applied share highlighted (ML vs SDE vs Data + applied).
@@ -260,9 +270,10 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     page = _TEMPLATE.format(
         generated=today, total=total, found_today=found_today, tailored=tailored,
         applied=applied, avg_aqs=avg_aqs, a_grades=a_grades,
-        funnel=funnel_html, hist=hist_html, prof_chart=prof_chart_html,
+        funnel=funnel_html, hist=hist_html, aqs_n=len(aqs_values),
+        prof_chart=prof_chart_html,
         chips=status_chips, profile_opts=profile_opts,
-        rows="\n".join(rows) or "<tr><td colspan='11' class='mut'>No applications yet — "
+        rows="\n".join(rows) or "<tr><td colspan='12' class='mut'>No applications yet — "
                                 "run <code>python -m src.cli pipeline</code>.</td></tr>",
     )
     dest = pathlib.Path(out_path)
@@ -274,24 +285,25 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
 _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
 <title>Job Pipeline — Scores Dashboard</title>
 <style>
-  :root {{ --bg:#0f1117; --panel:#171a23; --line:#262b38; --txt:#e6e8ee; --mut:#7c8497;
-          --ok:#22c55e; --good:#84cc16; --warn:#f59e0b; --bad:#ef4444; --acc:#6366f1; }}
+  :root {{ --bg:#eef1f8; --panel:#ffffff; --line:#dde2ee; --txt:#1c2130; --mut:#6b7280;
+          --ok:#16a34a; --good:#65a30d; --warn:#d97706; --bad:#dc2626; --acc:#4f46e5;
+          --acc-soft:#e6e4fb; --hover:#f3f5fc; }}
   * {{ box-sizing:border-box; }}
   body {{ font:14px/1.45 -apple-system,'Segoe UI',Roboto,sans-serif; margin:0;
          background:var(--bg); color:var(--txt); padding:28px; }}
   h1 {{ font-size:19px; margin:0 0 2px; }} .sub {{ color:var(--mut); font-size:12px; }}
   .grid {{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin:18px 0; }}
   .card {{ background:var(--panel); border:1px solid var(--line); border-radius:10px;
-          padding:12px 16px; }}
+          padding:12px 16px; box-shadow:0 1px 2px rgba(20,25,50,.04); }}
   .card b {{ display:block; font-size:24px; margin-bottom:2px; }}
   .card span {{ color:var(--mut); font-size:11.5px; text-transform:uppercase;
                letter-spacing:.5px; }}
   .panels {{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:18px; }}
-  .pbar {{ flex:1; height:14px; background:#1c2030; border-radius:4px; overflow:hidden; }}
+  .pbar {{ flex:1; height:14px; background:var(--bg); border-radius:4px; overflow:hidden; }}
   .pbar-tot {{ height:100%; background:var(--acc); border-radius:4px; position:relative; }}
   .pbar-app {{ height:100%; background:var(--ok); border-radius:4px; }}
   .panel {{ background:var(--panel); border:1px solid var(--line); border-radius:10px;
-           padding:14px 16px; }}
+           padding:14px 16px; box-shadow:0 1px 2px rgba(20,25,50,.04); }}
   .panel h3 {{ margin:0 0 10px; font-size:12px; color:var(--mut);
               text-transform:uppercase; letter-spacing:.5px; }}
   .frow {{ display:flex; align-items:center; gap:10px; margin:7px 0; }}
@@ -303,20 +315,24 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .hcol {{ flex:1; display:flex; flex-direction:column; justify-content:flex-end;
           align-items:center; height:100%; font-size:9px; color:var(--mut); }}
   .hbar {{ width:100%; background:var(--acc); border-radius:3px 3px 0 0; min-height:1px; }}
+  .hn {{ font-size:10px; color:var(--txt); font-weight:600; margin-bottom:2px; }}
+  .hn.z {{ color:var(--mut); opacity:.4; font-weight:400; }}
+  .hx {{ margin-top:2px; }}
   .bar {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }}
   input,select {{ background:var(--panel); color:var(--txt); border:1px solid var(--line);
           border-radius:8px; padding:7px 10px; font-size:13px; }}
   input {{ width:260px; }}
   .chip {{ background:var(--panel); color:var(--mut); border:1px solid var(--line);
           border-radius:999px; padding:4px 12px; font-size:12px; cursor:pointer; }}
-  .chip.on {{ color:#fff; border-color:var(--acc); background:#23264a; }}
+  .chip.on {{ color:var(--acc); border-color:var(--acc); background:var(--acc-soft); font-weight:600; }}
+  .chip-tl.on {{ color:var(--ok); border-color:var(--ok); background:#dcfce7; font-weight:600; }}
   table {{ border-collapse:collapse; width:100%; font-size:13px; background:var(--panel);
           border:1px solid var(--line); border-radius:10px; overflow:hidden; }}
   th,td {{ border-bottom:1px solid var(--line); padding:8px 10px; text-align:left;
           vertical-align:top; }}
-  th {{ cursor:pointer; background:#1c2030; font-size:11px; text-transform:uppercase;
+  th {{ cursor:pointer; background:var(--bg); font-size:11px; text-transform:uppercase;
        letter-spacing:.4px; color:var(--mut); position:sticky; top:0; user-select:none; }}
-  tr:hover td {{ background:#1b1f2c; }}
+  tr:hover td {{ background:var(--hover); }}
   .co {{ font-weight:600; }}
   .aqs {{ color:#fff; padding:2px 9px; border-radius:10px; font-weight:700;
          font-size:12px; white-space:nowrap; cursor:help; }}
@@ -329,10 +345,10 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .diff {{ max-width:420px; font-size:12px; color:var(--mut); padding-top:6px; }}
   .diff b {{ color:var(--txt); }}
   a {{ color:var(--acc); text-decoration:none; }} a:hover {{ text-decoration:underline; }}
-  .btn {{ background:#23264a; color:var(--txt); border:1px solid var(--acc);
+  .btn {{ background:var(--acc-soft); color:var(--acc); border:1px solid var(--acc);
          border-radius:7px; padding:3px 10px; font-size:12px; cursor:pointer;
-         white-space:nowrap; margin-right:4px; }}
-  .btn:hover {{ background:var(--acc); }}
+         white-space:nowrap; margin-right:4px; font-weight:600; }}
+  .btn:hover {{ background:var(--acc); color:#fff; }}
   .btn.done {{ background:transparent; color:var(--ok); border-color:var(--ok);
               cursor:default; }}
   .ic {{ background:transparent; color:var(--mut); border:1px solid var(--line);
@@ -341,7 +357,7 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .ic-rm:hover {{ color:#fff; background:var(--bad); border-color:var(--bad); }}
   .ic:hover {{ border-color:var(--acc); }}
   .rmcell {{ width:28px; text-align:center; padding-left:6px; padding-right:2px; }}
-  .chip-rm.on {{ color:#fff; border-color:var(--bad); background:#3a2330; }}
+  .chip-rm.on {{ color:var(--bad); border-color:var(--bad); background:#fee2e2; font-weight:600; }}
   .runrow {{ display:flex; align-items:center; gap:10px; margin-top:12px;
             padding-top:10px; border-top:1px solid var(--line); }}
   #runstatus {{ font-size:11.5px; line-height:1.35; }}
@@ -352,6 +368,10 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
            border:1px solid var(--acc); border-radius:8px; padding:10px 14px;
            font-size:12.5px; max-width:520px; display:none; z-index:9; }}
   .legend {{ color:var(--mut); font-size:11.5px; margin:10px 0 24px; }}
+  .pager {{ display:flex; align-items:center; gap:12px; justify-content:center;
+           margin:14px 0; }}
+  .pager button:disabled {{ opacity:.4; cursor:default; }}
+  #pgLabel {{ font-size:12.5px; min-width:110px; text-align:center; }}
 </style></head><body>
 <h1>Job Pipeline — Scores Dashboard</h1>
 <div class="sub">generated {generated} · AQS = 0.40·reviewer + 0.45·match + 0.15·recency (match = must-haves blended with keyword ATS; missing reviewer caps un-reviewed rows) · hover a score for its breakdown</div>
@@ -372,7 +392,7 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
       <span id="runstatus" class="mut">last run: —</span>
     </div>
   </div>
-  <div class="panel"><h3>AQS distribution (scored rows)</h3><div class="hist">{hist}</div></div>
+  <div class="panel"><h3>AQS distribution — {aqs_n} scored rows</h3><div class="hist">{hist}</div></div>
   <div class="panel"><h3>Roles by profile (applied / total)</h3>{prof_chart}
     <div class="mut" style="font-size:10.5px;margin-top:8px">
       <span style="color:var(--ok)">green</span> = applied ·
@@ -383,7 +403,10 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
 <div class="bar">
   <input id="q" placeholder="Search company / role / verdict…" onkeyup="apply()">
   <select id="prof" onchange="apply()"><option value="">all profiles</option>{profile_opts}</select>
+  <button class="chip chip-tl" data-tailored="1" onclick="toggleTailored(this)"
+          title="Show only jobs that already have a tailored resume">✓ tailored ({tailored})</button>
   {chips}
+  <span class="mut" style="font-size:11px">status chips multi-select</span>
 </div>
 
 <table id="t"><thead><tr>
@@ -392,8 +415,14 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   <th onclick="sortBy(5)">Profile</th>
   <th onclick="sortBy(6)">AQS</th>
   <th onclick="sortBy(7)">Reviewer /10</th><th onclick="sortBy(8)">Match %</th>
-  <th onclick="sortBy(9)">Posted</th><th>Actions</th>
+  <th onclick="sortBy(9)">Posted</th><th onclick="sortBy(10)">Source</th><th>Actions</th>
 </tr></thead><tbody>{rows}</tbody></table>
+
+<div class="pager" id="pager">
+  <button class="btn" id="pgPrev" onclick="pgGo(-1)">‹ prev</button>
+  <span id="pgLabel" class="mut"></span>
+  <button class="btn" id="pgNext" onclick="pgGo(1)">next ›</button>
+</div>
 
 <p class="legend">AQS color: <b style="color:var(--ok)">green</b> 80+ apply now ·
 <b style="color:var(--good)">lime</b> 65+ strong · <b style="color:var(--warn)">amber</b> 50+ decent ·
@@ -470,19 +499,20 @@ function recompile(btn) {{
 function removeJob(btn) {{
   if (!confirm('Hide this job from the dashboard? It stays in the tracker (not deleted).')) return;
   post('/api/remove', btn.dataset.url).then(function() {{
-    btn.closest('tr').dataset.removed = '1'; toast('Removed (still in the tracker).');
+    btn.closest('tr').dataset.removed = '1'; toast('Removed (still in the tracker).'); apply();
   }}).catch(function(e) {{ toast(e.noBackend ? 'Removing needs the backend. ' + HINT
                                              : 'Could not remove: ' + e.message, true); }});
 }}
 function restoreJob(btn) {{
   post('/api/restore', btn.dataset.url).then(function() {{
-    btn.closest('tr').dataset.removed = '0'; toast('Restored.');
+    btn.closest('tr').dataset.removed = '0'; toast('Restored.'); apply();
   }}).catch(function(e) {{ toast(e.noBackend ? 'Restoring needs the backend. ' + HINT
                                              : 'Could not restore: ' + e.message, true); }});
 }}
 function toggleRemoved(el) {{
   document.body.classList.toggle('show-removed');
   el.classList.toggle('on');
+  apply();  // removed-state is now part of the filter below; re-derive the page
 }}
 // Run the full pipeline (find -> score -> tailor >70) via the backend, and surface the
 // current/last run's progress in the funnel. State persists server-side, so the last
@@ -523,24 +553,58 @@ function runPipeline() {{
 if (location.protocol.indexOf('http') === 0) {{
   refreshRun().then(function(s) {{ if (s && s.status === 'running') pollRun(); }});
 }}
-var activeStatus = null;
+// Status chips are MULTI-select: a Set of active statuses; empty = all. Clicking toggles
+// one on/off, so you can view e.g. scored + tailored together.
+var activeStatuses = new Set();
+var tailoredOnly = false;
 function chip(el) {{
-  var on = el.classList.contains('on');
-  document.querySelectorAll('.chip').forEach(function(c) {{ c.classList.remove('on'); }});
-  activeStatus = on ? null : el.dataset.status;
-  if (!on) el.classList.add('on');
+  var s = el.dataset.status;
+  if (activeStatuses.has(s)) {{ activeStatuses.delete(s); el.classList.remove('on'); }}
+  else {{ activeStatuses.add(s); el.classList.add('on'); }}
   apply();
 }}
+function toggleTailored(el) {{
+  tailoredOnly = !tailoredOnly;
+  el.classList.toggle('on', tailoredOnly);
+  apply();
+}}
+// Pagination: 30 rows/page over whatever currently matches the filters, in current DOM
+// (sort) order. apply() recomputes which rows match and always resets to page 1; sortBy()
+// re-derives the filtered set in the new order and keeps the user on page 1 too (a fresh
+// sort is a fresh view). Rows failing the filter get display:none permanently (not just
+// off-page) so search/status/profile/tailored all still work as before.
+var PAGE_SIZE = 30;
+var pgPage = 1;
+var filteredRows = [];
 function apply() {{
   var q = document.getElementById('q').value.toLowerCase();
   var p = document.getElementById('prof').value;
+  filteredRows = [];
   document.querySelectorAll('#t tbody tr').forEach(function(tr) {{
     var okQ = !q || tr.innerText.toLowerCase().indexOf(q) > -1;
-    var okS = !activeStatus || tr.dataset.status === activeStatus;
+    var okS = activeStatuses.size === 0 || activeStatuses.has(tr.dataset.status);
     var okP = !p || tr.dataset.profile === p;
-    tr.style.display = (okQ && okS && okP) ? '' : 'none';
+    var okT = !tailoredOnly || tr.dataset.tailored === '1';
+    // Pagination sets inline display, which would otherwise beat the CSS rule that
+    // hides removed rows by default — so "removed" has to be a filter condition too,
+    // not left to that stylesheet rule, once any row has been paginated.
+    var okR = document.body.classList.contains('show-removed') || tr.dataset.removed !== '1';
+    if (okQ && okS && okP && okT && okR) {{ filteredRows.push(tr); }} else {{ tr.style.display = 'none'; }}
   }});
+  pgPage = 1;
+  renderPage();
 }}
+function renderPage() {{
+  var pages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  pgPage = Math.min(Math.max(1, pgPage), pages);
+  var start = (pgPage - 1) * PAGE_SIZE, end = start + PAGE_SIZE;
+  filteredRows.forEach(function(tr, i) {{ tr.style.display = (i >= start && i < end) ? '' : 'none'; }});
+  document.getElementById('pgLabel').textContent =
+    filteredRows.length ? ('page ' + pgPage + ' of ' + pages + ' (' + filteredRows.length + ')') : 'no matches';
+  document.getElementById('pgPrev').disabled = pgPage <= 1;
+  document.getElementById('pgNext').disabled = pgPage >= pages;
+}}
+function pgGo(delta) {{ pgPage += delta; renderPage(); window.scrollTo({{top: document.getElementById('t').offsetTop - 20, behavior: 'smooth'}}); }}
 var dir = {{}};
 function sortBy(col) {{
   var tb = document.querySelector('#t tbody');
@@ -555,6 +619,8 @@ function sortBy(col) {{
     return dir[col] ? r : -r;
   }});
   rows.forEach(function(r) {{ tb.appendChild(r); }});
+  apply();  // re-derive filteredRows in the new DOM order and reset to page 1
 }}
+apply();  // initial pagination on load
 </script>
 </body></html>"""

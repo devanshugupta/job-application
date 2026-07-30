@@ -87,6 +87,7 @@ def save_application(
     profile: str | None = None,
     tailored_pdf: str | None = None,
     applied_date: str | None = None,
+    jd_text: str | None = None,     # JD captured at discovery (ATS API), if any
 ) -> dict:
     """Upsert one application record, keyed on ``url``.
 
@@ -114,7 +115,7 @@ def save_application(
         "scorer_gaps": scorer_gaps, "resume_diff": resume_diff,
         "source": source, "posted_date": posted_date, "profile": profile,
         "tailored_pdf": tailored_pdf, "notes": notes or None,
-        "applied_date": applied_date,
+        "applied_date": applied_date, "jd_text": jd_text or None,
     }
     incoming = {k: v for k, v in incoming.items() if v is not None}
 
