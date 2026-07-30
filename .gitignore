@@ -18,6 +18,8 @@ data/screenshots/
 .DS_Store
 resume/masters/*.tex
 !resume/masters/*.example.tex
+resume/masters/*.pdf
+!resume/masters/*.example.pdf
 data/brain/
 config/settings.json
 data/*.pdf
