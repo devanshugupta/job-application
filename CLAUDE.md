@@ -46,6 +46,14 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
   instead of a plain HTTP GET. `tailor_job` also writes `jd_text` back into every
   `tracker.save_application` call it makes (scored, and both skip paths), so a JD fetched
   at tailor time is never re-fetched on a later re-run either — one fetch per job, ever.
+  The Simplify/LinkedIn/careers/github fetches that DO need a live HTTP/browser call in
+  `rerank_by_jd` are independent per-job I/O, so they run concurrently (a small
+  `ThreadPoolExecutor`, capped at 4 workers) instead of one-at-a-time.
+- **Pipeline entrypoint** (`cli.py:cmd_pipeline`): auto-calls `tracker.dedupe_applications()`
+  at the start of every run (no manual dedupe step needed). In `--from-tracker` mode, the
+  ENTIRE `found`-status backlog is pre-gate scored with the cheap keyword scorer
+  (`ats.jd_match`) and sorted before picking the top N, so tailoring slots go to the
+  best-fit roles first rather than whatever's most recent in the tracker.
 - **Brain seam** (`src/brain.py`): ALL LLM judgment goes through `brain.structured(...)`.
   `ApiBrain` -> tools/llm.py (Anthropic/OpenAI per-task routing). `ManualBrain` -> file
   packets, zero API. This is the API-optional design point: everything else is plain Python.
@@ -74,6 +82,11 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
   different JDs yield two different top-bullet pairs), `SCORER_SYSTEM` (scoring; penalizes
   generic bullets + flags hard unmet JD requirements), `FINDER_SYSTEM` (browser finder).
   tailor/scorer/agent import from here. Edit prompts there; nothing else changes.
+  Technical Skills has a **fixed core** that must appear on every tailored resume
+  regardless of JD: Languages always Python/SQL/Kotlin; ML (when that group is present)
+  always PyTorch/TensorFlow/scikit-learn/Koog — all genuinely-used skills. The LLM may
+  still append additional relevant tools per JD (MLflow, LangGraph, XGBoost, …) on top of
+  that core, and everything else follows the usual "only what's true and relevant" rule.
 - **Composite scoring** (`tools/scoring.py`): Application Quality Score 0-100 =
   0.40 reviewer + 0.35 JD-must-have % + 0.10 ATS keywords + 0.15 recency (renormalized
   when parts are missing) with letter grades. THE headline number; dashboard + status use it.

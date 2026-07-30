@@ -242,14 +242,21 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
     job["jd_text"] so the tailor step doesn't fetch it again; jobs whose JD needs a
     browser keep their title-based match and rank by it (they're fetched with the
     browser fallback at tailor time)."""
+    from concurrent.futures import ThreadPoolExecutor
+
     from . import finder, jd_fetch
     from .tailor import _NO_SPONSOR, _requires_sponsorship
 
     needs_sponsor = _requires_sponsorship()
     today = date.today().isoformat()
-    ranked: list[dict] = []
-    for j in jobs:
-        prof = j.get("profile")
+
+    # Resolve JD text for every job first: captured-at-discovery and day-cache hits
+    # are free, so do those inline; only jobs with neither are actual I/O (HTTP or a
+    # browser render for Simplify/LinkedIn/careers/github) — fetch THOSE concurrently
+    # since they're independent, sequential network/browser round-trips today.
+    jd_of: dict[int, str] = {}
+    to_fetch: list[tuple[int, dict]] = []
+    for i, j in enumerate(jobs):
         # Day-cache the JD text per URL: portals aren't byte-stable between fetches,
         # and in manual-brain mode the packet id hashes the JD — an unstable JD would
         # orphan an already-answered packet on every re-run.
@@ -257,24 +264,39 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
         # in the board call) — no second HTTP round-trip, and it works even when the
         # posting URL points at a portal jd_fetch can't read.
         if j.get("jd_text"):
-            jd = j["jd_text"]
-            finder.put_cache(f"jd:{j['url']}", None, today, [jd])
+            jd_of[i] = j["jd_text"]
+            finder.put_cache(f"jd:{j['url']}", None, today, [j["jd_text"]])
+            continue
+        cached = finder.get_cached(f"jd:{j['url']}", None, today)
+        if cached is not None:
+            jd_of[i] = cached[0] if cached else ""
         else:
-            cached = finder.get_cached(f"jd:{j['url']}", None, today)
-            if cached is not None:
-                jd = cached[0] if cached else ""
-            else:
-                # Simplify/LinkedIn/careers rows carry a real posting link but not a
-                # clean ATS API — let jd_fetch render the page (HTML) to grab the JD,
-                # rather than leaving it blank. ATS-API rows already had their JD.
-                src = (j.get("source") or "").lower()
-                render = any(k in src for k in ("simplify", "linkedin", "careers", "github"))
-                try:
-                    fetched = jd_fetch.fetch_jd(j["url"], allow_browser=render)
-                    jd = fetched["text"] if fetched["looks_complete"] else ""
-                except Exception:
-                    jd = ""
-                finder.put_cache(f"jd:{j['url']}", None, today, [jd] if jd else [])
+            to_fetch.append((i, j))
+
+    def _fetch_one(item: tuple[int, dict]) -> tuple[int, str]:
+        i, j = item
+        # Simplify/LinkedIn/careers rows carry a real posting link but not a
+        # clean ATS API — let jd_fetch render the page (HTML) to grab the JD,
+        # rather than leaving it blank. ATS-API rows already had their JD.
+        src = (j.get("source") or "").lower()
+        render = any(k in src for k in ("simplify", "linkedin", "careers", "github"))
+        try:
+            fetched = jd_fetch.fetch_jd(j["url"], allow_browser=render)
+            jd = fetched["text"] if fetched["looks_complete"] else ""
+        except Exception:
+            jd = ""
+        return i, jd
+
+    if to_fetch:
+        with ThreadPoolExecutor(max_workers=min(4, len(to_fetch))) as pool:
+            for i, jd in pool.map(_fetch_one, to_fetch):
+                jd_of[i] = jd
+                finder.put_cache(f"jd:{jobs[i]['url']}", None, today, [jd] if jd else [])
+
+    ranked: list[dict] = []
+    for i, j in enumerate(jobs):
+        prof = j.get("profile")
+        jd = jd_of[i]
         if jd and needs_sponsor:
             m = _NO_SPONSOR.search(jd)
             if m:

@@ -56,8 +56,12 @@ read as written for this job, not a generic profile.
 
 TECHNICAL_SKILLS (one line, ≤ {skills_max} words, keep the master's grouping style \
 such as "Languages: … | ML: …"):
-  Only skills the candidate has actually used AND the role cares about, front-loading \
-the JD's named tools. Drop irrelevant groups. Never add tools they have not used.
+  Fixed core — ALWAYS include these regardless of JD, never drop them: \
+Languages must include Python, SQL, Kotlin. ML (when an ML/ML-adjacent group is present) \
+must include PyTorch, TensorFlow, scikit-learn, Koog. On top of that fixed core, add \
+whatever other skills the candidate has actually used AND the role cares about, \
+front-loading the JD's named tools (e.g. MLflow, LangGraph, XGBoost). Drop irrelevant \
+groups other than the fixed core above. Never add tools they have not used.
 
 TOP_BULLETS (2 to 7 — the rewritten/reordered bullets of the chosen experience block):
   Return the bullets the block should LEAD with (they replace its first N); max 7. The \

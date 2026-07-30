@@ -73,6 +73,12 @@ the candidate. Match the JD's exact phrasing for tools/skills (e.g. "Kubernetes"
 "k8s" if the JD says Kubernetes). Use `ats_score` to check coverage — but never stuff
 keywords or add untrue ones to raise the score.
 
+**Fixed-core Technical Skills.** Regardless of JD, never drop these genuinely-used
+skills from the Technical Skills line: Languages always includes Python, SQL, Kotlin;
+ML (when an ML/ML-adjacent group is present) always includes PyTorch, TensorFlow,
+scikit-learn, Koog. Append other true, JD-relevant tools (MLflow, LangGraph, XGBoost,
+…) on top of that core — never in place of it, and never anything untrue.
+
 ## 4. XYZ impact rule for every bullet
 Frame each bullet as **"Accomplished X, by doing Y, measured by Z."**
 - X = the result/impact, Y = the action/how, Z = the metric or scope.

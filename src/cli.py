@@ -95,10 +95,22 @@ def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str | No
         print("Brain: MANUAL (no API key needed — this LLM answers the prompt packets).")
     brain = get_brain(mode)
 
+    n_merged = tracker.dedupe_applications()
+    if n_merged:
+        print(f"Deduped {n_merged} duplicate tracker row(s) before running.")
+
     if from_tracker:
-        jobs = [a for a in tracker.list_applications() if a.get("status") == "found"]
-        jobs = jobs[-top:]
-        print(f"=== PIPELINE: {len(jobs)} previously found roles -> tailor+score ===")
+        backlog = [a for a in tracker.list_applications() if a.get("status") == "found"]
+        # Pre-gate the WHOLE backlog with the cheap keyword scorer before picking the
+        # top N, so tailoring slots go to the best-fit roles first instead of whatever
+        # happens to be most recent in the tracker.
+        for a in backlog:
+            jd = a.get("jd_text")
+            a["_pregate"] = ats.jd_match(jd)["score"] if jd else -1
+        backlog.sort(key=lambda a: a["_pregate"], reverse=True)
+        jobs = backlog[:top]
+        print(f"=== PIPELINE: {len(jobs)} previously found roles (pre-gate ranked) "
+              "-> tailor+score ===")
     else:
         print(f"=== PIPELINE: discover (past {hours}h) -> tailor+score top {top} "
               f"[brain={mode}] ===\n")
