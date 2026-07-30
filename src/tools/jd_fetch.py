@@ -9,6 +9,7 @@ is too short (`looks_complete` is False).
 
 from __future__ import annotations
 
+import functools
 import html as _html
 import json
 import re
@@ -165,29 +166,39 @@ def _browser_fetch(url: str) -> str:
         return ""
 
 
-def fetch_jd(url: str, max_chars: int = 12000, *, allow_browser: bool = True) -> dict:
-    """Return {text, source, looks_complete}. Never raises on fetch errors.
-
-    Order: cheap ATS JSON APIs (greenhouse/lever/ashby) → plain HTTP strip → if still
-    too thin and allowed, a headless-Chromium render (covers JS-only portals)."""
+@functools.lru_cache(maxsize=256)
+def _fetch_jd_cached(url: str, max_chars: int, allow_browser: bool) -> tuple[str, str, bool]:
+    """Cached core of fetch_jd, keyed on the exact call args. Ensures a given URL is
+    fetched over the network at most once per process/run — repeated calls (e.g. a
+    batch script re-fetching the same JD for logging and then again for tailoring)
+    hit this cache instead of re-hitting the network or the browser."""
     for api_fn, src in ((_greenhouse_api, "greenhouse-api"), (_lever_api, "lever-api"),
                         (_ashby_api, "ashby-api"), (_workday_api, "workday-api")):
         text = api_fn(url)
         if text and len(text) >= MIN_COMPLETE_CHARS:
-            return {"text": text[:max_chars], "source": src, "looks_complete": True}
+            return text[:max_chars], src, True
     try:
         http_text = _strip_html(_get(url))
     except Exception:
         http_text = ""
     if len(http_text) >= MIN_COMPLETE_CHARS:
-        return {"text": http_text[:max_chars], "source": "http", "looks_complete": True}
+        return http_text[:max_chars], "http", True
 
     if allow_browser:
         rendered = _browser_fetch(url)
         if len(rendered) >= MIN_COMPLETE_CHARS:
-            return {"text": rendered[:max_chars], "source": "browser",
-                    "looks_complete": True}
+            return rendered[:max_chars], "browser", True
         http_text = rendered or http_text  # keep whatever's longer/available
 
-    return {"text": http_text[:max_chars], "source": "http",
-            "looks_complete": len(http_text) >= MIN_COMPLETE_CHARS}
+    return http_text[:max_chars], "http", len(http_text) >= MIN_COMPLETE_CHARS
+
+
+def fetch_jd(url: str, max_chars: int = 12000, *, allow_browser: bool = True) -> dict:
+    """Return {text, source, looks_complete}. Never raises on fetch errors.
+
+    Order: cheap ATS JSON APIs (greenhouse/lever/ashby) → plain HTTP strip → if still
+    too thin and allowed, a headless-Chromium render (covers JS-only portals).
+    Memoized per (url, max_chars, allow_browser) for the life of the process, so the
+    same job is never fetched twice in one run."""
+    text, source, looks_complete = _fetch_jd_cached(url, max_chars, allow_browser)
+    return {"text": text, "source": source, "looks_complete": looks_complete}
