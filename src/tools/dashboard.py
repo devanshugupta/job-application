@@ -101,6 +101,8 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     aqs_values = []
     statuses: dict[str, int] = {}
     profiles_seen: set[str] = set()
+    prof_total: dict[str, int] = {}      # roles per profile (ml_ai / sde / data_engineer)
+    prof_applied: dict[str, int] = {}    # of those, how many applied
     removed_count = 0
     for a in ordered:
         # Rows you removed are kept in the tracker (never deleted) but hidden by default
@@ -123,6 +125,9 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         prof = a.get("profile") or ""
         if prof and not removed:
             profiles_seen.add(prof)
+            prof_total[prof] = prof_total.get(prof, 0) + 1
+            if a.get("status") in _SUBMITTED:
+                prof_applied[prof] = prof_applied.get(prof, 0) + 1
 
         # The color already conveys the grade, so the badge shows just the number.
         aqs_cell = (
@@ -229,6 +234,19 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         f"<span>{i * 10}</span></div>"
         for i, n in enumerate(buckets))
 
+    # Role mix by profile, with the applied share highlighted (ML vs SDE vs Data + applied).
+    _PROF_LABEL = {"ml_ai": "ML/AI", "sde": "SDE", "data_engineer": "Data Eng"}
+    pmax = max(prof_total.values(), default=0) or 1
+    prof_chart_html = "".join(
+        f"<div class='frow'><span class='flab'>{html.escape(_PROF_LABEL.get(p, p))}</span>"
+        f"<div class='pbar'>"
+        f"<div class='pbar-tot' style='width:{max(2, round(100 * prof_total[p] / pmax))}%'>"
+        f"<div class='pbar-app' style='width:{round(100 * prof_applied.get(p, 0) / prof_total[p])}%'></div>"
+        f"</div></div>"
+        f"<span class='fnum'>{prof_applied.get(p, 0)}/{prof_total[p]}</span></div>"
+        for p in sorted(prof_total, key=lambda p: -prof_total[p])
+    ) or "<div class='mut'>no scored roles yet</div>"
+
     status_chips = "".join(
         f"<button class='chip' data-status='{html.escape(s)}' onclick='chip(this)'>"
         f"{html.escape(s)} ({n})</button>"
@@ -242,8 +260,8 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     page = _TEMPLATE.format(
         generated=today, total=total, found_today=found_today, tailored=tailored,
         applied=applied, avg_aqs=avg_aqs, a_grades=a_grades,
-        funnel=funnel_html, hist=hist_html, chips=status_chips,
-        profile_opts=profile_opts,
+        funnel=funnel_html, hist=hist_html, prof_chart=prof_chart_html,
+        chips=status_chips, profile_opts=profile_opts,
         rows="\n".join(rows) or "<tr><td colspan='11' class='mut'>No applications yet — "
                                 "run <code>python -m src.cli pipeline</code>.</td></tr>",
     )
@@ -268,7 +286,10 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .card b {{ display:block; font-size:24px; margin-bottom:2px; }}
   .card span {{ color:var(--mut); font-size:11.5px; text-transform:uppercase;
                letter-spacing:.5px; }}
-  .panels {{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px; }}
+  .panels {{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:18px; }}
+  .pbar {{ flex:1; height:14px; background:#1c2030; border-radius:4px; overflow:hidden; }}
+  .pbar-tot {{ height:100%; background:var(--acc); border-radius:4px; position:relative; }}
+  .pbar-app {{ height:100%; background:var(--ok); border-radius:4px; }}
   .panel {{ background:var(--panel); border:1px solid var(--line); border-radius:10px;
            padding:14px 16px; }}
   .panel h3 {{ margin:0 0 10px; font-size:12px; color:var(--mut);
@@ -352,6 +373,11 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
     </div>
   </div>
   <div class="panel"><h3>AQS distribution (scored rows)</h3><div class="hist">{hist}</div></div>
+  <div class="panel"><h3>Roles by profile (applied / total)</h3>{prof_chart}
+    <div class="mut" style="font-size:10.5px;margin-top:8px">
+      <span style="color:var(--ok)">green</span> = applied ·
+      <span style="color:var(--acc)">blue</span> = total</div>
+  </div>
 </div>
 
 <div class="bar">
