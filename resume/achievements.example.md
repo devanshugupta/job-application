@@ -1,13 +1,13 @@
-# Achievements — raw work context (grounding doc for resume bullets)
+# Achievements  raw work context (grounding doc for resume bullets)
 
 Copy to `resume/achievements.md` (gitignored) and fill with YOUR real projects,
-scope, and metrics — the detail behind the resume. The tailor brain may source
+scope, and metrics  the detail behind the resume. The tailor brain may source
 bullets ONLY from the master resume and this doc; it is told to never invent and
 to phrase unshipped work honestly.
 
 Structure it however you like; grouped-by-theme works well:
 
-## Current Employer — Role (dates)
+## Current Employer  Role (dates)
 
 ### Theme (e.g. retrieval & ranking)
 - Project one-liner: what you did, how, the real measured impact
@@ -17,5 +17,5 @@ Structure it however you like; grouped-by-theme works well:
 ### Another theme (reliability, evaluation, infra …)
 - ...
 
-## Previous Employer — Role (dates)
+## Previous Employer  Role (dates)
 - ...

@@ -3,14 +3,14 @@
 A provider-agnostic **AI job-application system**: it discovers the freshest
 matching roles every day (curated GitHub feeds + the free public JSON APIs of
 Greenhouse/Lever/Ashby/SmartRecruiters/Workable), tailors your closest-matching
-master resume per job (Summary, Technical Skills, top-2 bullets — nothing else),
+master resume per job (Summary, Technical Skills, top-2 bullets  nothing else),
 scores every application with a composite **Application Quality Score**, renders a
 dashboard, and can fill + submit applications (Greenhouse deterministically; other
 portals via a Playwright browser agent with human confirmation).
 
 LLM judgment is isolated behind a single **Brain** seam, so the whole pipeline runs
 either on the Anthropic/OpenAI APIs (`--brain api`) or with **no API key at all**
-(`--brain manual` — prompt packets on disk that any LLM, including Claude Code
+(`--brain manual`  prompt packets on disk that any LLM, including Claude Code
 driving this repo, can answer).
 
 > ⚠️ **Read the [Responsible use](#responsible-use) section first.** Auto-submitting
@@ -31,7 +31,7 @@ driving this repo, can answer).
                                 │
                                 ▼
                 ┌─────────────────────────────────────────────┐
-                │  agent.py  — the agent loop                  │
+                │  agent.py   the agent loop                  │
                 │  • calls Claude (Opus 4.8) with a tool set   │
                 │  • Claude decides which tool to call next    │
                 │  • we execute the tool, feed the result back │
@@ -48,7 +48,7 @@ driving this repo, can answer).
 The **agent loop** is the heart of it. Claude is given a set of *tools* (functions
 it can ask to run). On each turn Claude either replies with text or asks to call a
 tool; we run the tool, return the result, and loop. This is the standard Anthropic
-"manual agentic loop" — see `src/agent.py`. Nothing is hidden in a framework.
+"manual agentic loop"  see `src/agent.py`. Nothing is hidden in a framework.
 
 ### The tools Claude can call
 
@@ -64,13 +64,13 @@ tool; we run the tool, return the result, and loop. This is the standard Anthrop
 | `ask_human` | `agent.py` | **Pause and ask you** before submitting / sending anything |
 
 You add new capabilities by writing a Python function and registering it in
-`TOOLS` — that's the "build your own tools/agents" part.
+`TOOLS`  that's the "build your own tools/agents" part.
 
 ---
 
 ## Setup
 
-### Fastest path — one command (any machine, nothing pre-installed)
+### Fastest path  one command (any machine, nothing pre-installed)
 
 ```bash
 cd job-applier-agent
@@ -102,7 +102,7 @@ PyCharm can do the venv + deps for you: open the folder → it detects `requirem
 and offers to create a virtualenv and install them. After that, run once in the built-in
 terminal: `python -m playwright install chromium`. Set `ANTHROPIC_API_KEY` in
 Run → Edit Configurations → Environment variables (or use the `.env`). Or just run
-`./setup.sh` from PyCharm's terminal — same result.
+`./setup.sh` from PyCharm's terminal  same result.
 
 ### 4. Run
 ```bash
@@ -133,11 +133,11 @@ See **RUNBOOK.md** for the full daily flow and **CLAUDE.md** for the architectur
 
 ### Add a LinkedIn integration
 The simplest path is an **MCP server**. Two popular ones:
-- `stickerdaniel/linkedin-mcp-server` — profiles, companies, **jobs**, messages
-- `Linked-API/linkedapi-mcp` — control a LinkedIn account + real-time data
+- `stickerdaniel/linkedin-mcp-server`  profiles, companies, **jobs**, messages
+- `Linked-API/linkedapi-mcp`  control a LinkedIn account + real-time data
 
 You can wire an MCP server into this agent with the Anthropic SDK's MCP helpers
-(`pip install "anthropic[mcp]"`) — see the commented `# MCP` block in `src/agent.py`.
+(`pip install "anthropic[mcp]"`)  see the commented `# MCP` block in `src/agent.py`.
 
 ### Swap the browser layer for Playwright MCP
 Instead of driving Playwright in-process (`tools/browser.py`), you can run
@@ -148,7 +148,7 @@ just come from MCP instead of local functions.
 ### Make the LLM provider swappable
 `agent.py` isolates every Claude call in one place. To support OpenAI/Gemini/local
 models, put an interface in front of `client.messages.create(...)`. (Kept as a
-single provider here for clarity — this repo targets Claude.)
+single provider here for clarity  this repo targets Claude.)
 
 ---
 
@@ -161,7 +161,7 @@ it at anything:
    Automating them risks account suspension. Prefer official APIs / job boards
    that allow it, or keep yourself in the loop on every action.
 2. **Never fabricate.** The prompts instruct Claude to only re-order and emphasize
-   real resume content — never invent skills, employers, or metrics. Keep it that way.
+   real resume content  never invent skills, employers, or metrics. Keep it that way.
 3. **Human-in-the-loop is the default.** The `ask_human` tool fires before any
    submit / send / connect. Don't remove it for unattended runs unless you fully
    own the consequences.
@@ -173,4 +173,4 @@ it at anything:
 You are responsible for how you use this.
 
 ## License
-MIT — do what you like, no warranty.
+MIT  do what you like, no warranty.

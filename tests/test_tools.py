@@ -193,7 +193,7 @@ def test_final_check_passes_clean_resume():
         "## Summary\nMachine learning engineer building production retrieval, ranking, and "
         "evaluation systems serving millions of users, with first-author published research "
         "in model evaluation methodology and search relevance.\n\n"
-        "## Experience\n### MLE — RealCo\n"
+        "## Experience\n### MLE  RealCo\n"
         "- Built an embedding retrieval and ranking pipeline serving one million users at "
         "sub-second latency, lifting click-through sixteen percent through online evaluation.\n"
         "- Designed an automated evaluation harness over fifty thousand daily conversations, "

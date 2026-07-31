@@ -1,5 +1,5 @@
 {
-  "_comment": "Skill ontology for concept-level ATS matching. Each entry maps a CANONICAL concept token to the surface forms that mean it in JDs and resumes. ats.py rewrites both the JD and the resume into concept space before matching, so 'model serving' in a JD matches 'SageMaker inference endpoint' on the resume. Keep forms lowercase; multi-word forms are matched as phrases. AWS/ML/SDE-centric, grounded in the master resume — extend freely (a new alias here is picked up with zero code changes).",
+  "_comment": "Skill ontology for concept-level ATS matching. Each entry maps a CANONICAL concept token to the surface forms that mean it in JDs and resumes. ats.py rewrites both the JD and the resume into concept space before matching, so 'model serving' in a JD matches 'SageMaker inference endpoint' on the resume. Keep forms lowercase; multi-word forms are matched as phrases. AWS/ML/SDE-centric, grounded in the master resume  extend freely (a new alias here is picked up with zero code changes).",
 
   "machine-learning": ["machine learning", "machine-learning", "ml", "deep learning", "dl", "supervised learning", "unsupervised learning", "neural network", "neural networks", "ml models", "ml pipeline", "ml pipelines", "ml systems", "applied ml", "applied machine learning"],
 

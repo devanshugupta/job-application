@@ -1,19 +1,19 @@
-"""Curated job feeds — the PRIMARY discovery source.
+"""Curated job feeds  the PRIMARY discovery source.
 
 Blind board-crawling is slow and the dates are unreliable (Amazon detail pages and
 Greenhouse hide the post date). Community-maintained GitHub lists solve both: they
 publish a structured, daily-updated JSON with trustworthy `date_posted` timestamps and
-the real application URL. We consume those directly — one HTTP fetch, no scraping, no
-rate-limiting — then apply the same freshness + relevance gating.
+the real application URL. We consume those directly  one HTTP fetch, no scraping, no
+rate-limiting  then apply the same freshness + relevance gating.
 
 Default feed: SimplifyJobs/New-Grad-Positions (`.github/scripts/listings.json`), ~17k
 entries, ~1.9k active, updated daily. Add siblings (internships, summer, experienced)
 by appending to FEEDS.
 
 Two layers of filtering, learned the hard way:
-  1. CATEGORY allowlist — trust the feed's own category; keep only Software / AI-ML-Data.
+  1. CATEGORY allowlist  trust the feed's own category; keep only Software / AI-ML-Data.
      This drops Hardware, Quant, Product, Product Management, etc. outright.
-  2. TITLE relevance — even within those buckets the lists include non-eng roles
+  2. TITLE relevance  even within those buckets the lists include non-eng roles
      (technician, operator, analyst, PM, postdoc). Gate on the title too.
 A role must pass BOTH to be kept.
 """
@@ -41,7 +41,7 @@ CATEGORY_TO_PROFILE = {
     "Data Science, AI & Machine Learning": "ml_ai",
 }
 
-# Non-US country names/patterns — drop a role if ALL its locations match one of these.
+# Non-US country names/patterns  drop a role if ALL its locations match one of these.
 _NON_US = re.compile(
     r"\b(canada|united kingdom|uk\b|england|scotland|australia|germany|india|ireland|"
     r"netherlands|france|singapore|poland|sweden|denmark|spain|italy|brazil|"
@@ -53,7 +53,7 @@ _NON_US = re.compile(
     re.I,
 )
 
-# US signals — explicit state/country mentions or plain Remote (US companies default)
+# US signals  explicit state/country mentions or plain Remote (US companies default)
 _US_OK = re.compile(
     r"\b(united states|usa|\bus\b|remote|"
     r"alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|"
@@ -78,7 +78,7 @@ def _is_usa(locations: list[str]) -> bool:
     for loc in locations:
         if _US_OK.search(loc):
             return True
-    # No explicit US signal — drop only if there's a clear non-US country name
+    # No explicit US signal  drop only if there's a clear non-US country name
     for loc in locations:
         if not _NON_US.search(loc):
             return True   # ambiguous location, give benefit of doubt
@@ -125,7 +125,7 @@ def _profile_for(entry: dict) -> str | None:
     title = entry.get("title", "")
     if _TITLE_NO.search(title) or not _TITLE_OK.search(title):
         return None
-    # The "AI/ML/Data" bucket mixes ML and data-engineering — split by title so each
+    # The "AI/ML/Data" bucket mixes ML and data-engineering  split by title so each
     # role is scored against the right master (data_engineer vs ml_ai).
     if prof == "ml_ai" and _DATA_ENG.search(title):
         return "data_engineer"

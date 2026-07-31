@@ -278,7 +278,7 @@ def test_lint_flags_em_dash_in_focus_bullet():
     from src.tools import resume as resume_mod
     md = ("## Summary\nA sentence long enough to pass the minimum summary word "
           "count check for linting right now today.\n\n## Work Experience\n### R (2024)\n"
-          "- Built a data pipeline processing millions of records daily — cutting "
+          "- Built a data pipeline processing millions of records daily " + chr(0x2014) + " cutting "
           "costs by forty percent overall\n")
     out = resume_mod.lint(markdown=md)
     assert any("dash" in i.lower() for i in out["issues"])

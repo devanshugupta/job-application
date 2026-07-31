@@ -1,20 +1,23 @@
-"""Deterministic tailoring pipeline — one job in, one scored tailored resume out.
+"""Deterministic tailoring pipeline  one job in, one scored tailored resume out.
 
 The old `run` command launched a full browser agent loop per job (40 turns of
-tool-calling). This replaces it with a fixed pipeline where the LLM is called
-exactly TWICE per job, via the Brain seam, with structured outputs:
+tool-calling). This replaces it with a fixed pipeline where the LLM is called up
+to THREE times per job, via the Brain seam, with structured outputs. Each call is
+its own callable helper (`_patch_and_lint`, `_review_and_revise`, `_score_tier`):
 
     fetch JD (HTTP)                       deterministic
     pick master profile                   deterministic (keyword overlap)
-    -> Brain call 1: tailoring patch      judgment
+    -> Brain call 1: tailoring patch      judgment   (_patch_and_lint)
     apply patch + lint                    deterministic
     (one corrective Brain pass if lint blocks)
+    -> Brain call 2: review + revise      judgment   (_review_and_revise)
     render PDF (LaTeX or Markdown)        deterministic
     final_check                           deterministic
-    -> Brain call 2: senior-reviewer score  judgment
+    -> Brain call 3: senior-reviewer score  judgment (_score_tier; gated, may reuse
+                                            the patch's self-score instead)
     save record + artifacts               deterministic
 
-Cheaper, faster, and far more predictable than the agent loop — and because the
+Cheaper, faster, and far more predictable than the agent loop  and because the
 Brain is pluggable, the same pipeline runs with no API key in manual mode.
 """
 
@@ -44,7 +47,7 @@ PATCH_SCHEMA = {
             "additionalProperties": False}},
         "reasoning": {"type": "string"},
         # Cheap self-assessment, same rubric as the strict senior-reviewer scorer
-        # (prompts.py STEP 3) — the default verdict for every job; a real separate
+        # (prompts.py STEP 3)  the default verdict for every job; a real separate
         # SCORE brain call only runs for jobs that clear the keyword pre-gate (see
         # tailor_job's two-tier scoring below).
         "self_score": {"type": "integer"},
@@ -129,7 +132,7 @@ def _merge_review(patch: dict, review: dict) -> tuple[dict, bool]:
 
 
 # JD phrases that hard-disqualify a sponsorship-needing candidate no matter how well
-# the resume matches. Deterministic and cheap — catches these BEFORE any tailoring work.
+# the resume matches. Deterministic and cheap  catches these BEFORE any tailoring work.
 _NO_SPONSOR = re.compile(
     r"without (?:the )?need (?:for|of) (?:employer |visa )?sponsorship|"
     r"(?:will not|won't|unable to|cannot|can't|do(?:es)? not) (?:provide |offer )?sponsor|"
@@ -147,63 +150,22 @@ def _requires_sponsorship() -> bool:
         return False
 
 
-def tailor_job(url: str, *, brain, profile: str | None = None,
-               company: str = "", role: str = "", posted_date: str | None = None,
-               source: str | None = None, jd_text: str | None = None,
-               verbose: bool = True) -> dict:
-    """Run the full pipeline for one job URL. Returns the saved record (or raises
-    BrainPending in manual mode when a packet awaits its response)."""
-    # 1. JD ---------------------------------------------------------------------
-    if not jd_text:
-        fetched = jd_fetch.fetch_jd(url)
-        jd_text = fetched["text"]
-        if not fetched["looks_complete"]:
-            raise RuntimeError(
-                f"Could not extract a usable JD from {url} (source={fetched['source']}, "
-                f"{len(jd_text)} chars). Use `apply`/`score` (browser agent) for this one.")
+def _read_tailored_md() -> str:
+    """The tailored resume Markdown as last written by resume.apply_patch/render_pdf."""
+    return (config.TAILORED_MD_PATH.read_text()
+            if config.TAILORED_MD_PATH.exists() else "")
 
-    # 1b. Hard gates — don't spend tailoring effort on a role we can't be hired for.
-    if _requires_sponsorship():
-        m = _NO_SPONSOR.search(jd_text)
-        if m:
-            reason = f"hard gate: JD states \"{m.group(0).strip()}\" and profile requires sponsorship"
-            rec = tracker.save_application(
-                company=company or "Unknown", role=role or "Unknown", url=url,
-                status="skipped", source=source, posted_date=posted_date,
-                profile=profile, notes=reason, jd_text=jd_text)
-            if verbose:
-                print(f"    ⛔ {reason}")
-            return rec
 
-    # 2. Profile + master --------------------------------------------------------
-    if not profile:
-        profile, _scores = profiles.auto_pick(jd_text)
-    master = profiles.read_master_for(profile)
-    if master.startswith("No master resume"):
-        raise RuntimeError(master)
+def _patch_and_lint(brain, *, master: str, jd_text: str, profile: str,
+                    company: str, role: str, url: str) -> dict:
+    """Brain call 1  the tailoring patch, applied to disk and lint-checked (one
+    corrective pass if lint blocks). Returns the accepted patch; raises if it can't be
+    made valid.
 
-    # 2b. Cheap keyword pre-gate — decide if this JD is worth spending LLM tokens on.
-    #     Score the JD's skills against the MASTER resume (no LLM). Below the bar we
-    #     skip the whole tailor/review/score path and record why, saving 3 brain calls.
-    min_kw = config.int_setting("min_keyword_match", 30)
-    kw_master = ats.ats_score(jd_text, master)["score"]
-    if kw_master is not None and kw_master < min_kw:
-        reason = (f"keyword pre-gate: master-vs-JD ATS {kw_master}% < {min_kw}% "
-                  f"threshold, skipped LLM tailoring to save cost")
-        rec = tracker.save_application(
-            company=company or "Unknown", role=role or "Unknown", url=url,
-            status="skipped", source=source, posted_date=posted_date,
-            profile=profile, match_score=kw_master, notes=reason, jd_text=jd_text)
-        if verbose:
-            print(f"    ⏭ {reason}")
-        return rec
-
-    # 3. Brain call 1: the patch ---------------------------------------------------
-    # The master resume is the SINGLE source — it now holds the full point pool (the
-    # achievements doc is kept in sync with it offline and used to edit the .tex, not
-    # fed here). Byte-identical for every job tailored against this profile in a run, so
-    # it's cached (prompt caching): only the first call per profile pays full price.
-    cache_blocks = [f"MASTER RESUME (the full pool of the candidate's real work — every "
+    The master resume is the SINGLE source and is byte-identical for every job tailored
+    against this profile in a run, so it's sent as a cache block (prompt caching): only
+    the first call per profile pays full price."""
+    cache_blocks = [f"MASTER RESUME (the full pool of the candidate's real work  every "
                     f"bullet you select or reframe MUST come from here):\n{master.strip()}"]
     user = f"JOB DESCRIPTION:\n{jd_text.strip()}"
     patch = brain.structured("tailor", system=_tailor_system(), user=user,
@@ -212,9 +174,8 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
     if problems:
         raise RuntimeError(f"Brain returned an invalid patch: {problems}")
 
-    # 4. Apply + lint (one corrective pass max) -----------------------------------
-    resume.apply_patch(dict(patch), profile=profile, company=company or "Unknown",
-                       role=role or "Unknown", url=url, jd_text=jd_text)
+    resume.apply_patch(dict(patch), profile=profile, company=company,
+                       role=role, url=url, jd_text=jd_text)
     lint = resume.lint(focus_bullets=patch["top_bullets"])
     if not lint["ok"]:
         fix_user = (user + "\n\nYOUR PREVIOUS PATCH:\n" + str({
@@ -225,18 +186,23 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
                                  schema=PATCH_SCHEMA, cache_blocks=cache_blocks)
         if _validate_patch(patch):
             raise RuntimeError("Corrective patch still invalid; aborting this job.")
-        resume.apply_patch(dict(patch), profile=profile, company=company or "Unknown",
-                           role=role or "Unknown", url=url, jd_text=jd_text)
-        lint = resume.lint(focus_bullets=patch["top_bullets"])
+        resume.apply_patch(dict(patch), profile=profile, company=company,
+                           role=role, url=url, jd_text=jd_text)
+    return patch
 
-    # 5. Brain call 2: REVIEW + revise — repeated bullets? does the tailored experience
-    #    actually fit the JD? does the summary make sense? Applies one correction pass.
-    tailored_md = (config.TAILORED_MD_PATH.read_text()
-                   if config.TAILORED_MD_PATH.exists() else "")
+
+def _review_and_revise(brain, *, patch: dict, jd_text: str, profile: str,
+                       company: str, role: str, url: str,
+                       verbose: bool) -> tuple[dict, list]:
+    """Brain call 2  REVIEW the tailored resume (repeated bullets? does the experience
+    actually fit the JD? does the summary cohere?) and apply at most one correction.
+    Returns (patch, review_issues); the patch is re-applied to disk when a revision is
+    adopted, so the caller can re-read the tailored Markdown afterwards."""
+    tailored_md = _read_tailored_md()
     numbered = "\n".join(f"{n}. {b}" for n, b in enumerate(patch["top_bullets"], 1))
     review_user = (
         f"JOB DESCRIPTION:\n{jd_text.strip()}\n\n"
-        f"TAILORED RESUME (Markdown — full document):\n{tailored_md.strip()}\n\n"
+        f"TAILORED RESUME (Markdown  full document):\n{tailored_md.strip()}\n\n"
         f"The tailored experience block is index {patch.get('experience_section_index', 0)} "
         f"(0 = most recent). Its rewritten bullets (most relevant first) are:\n{numbered}")
     review = brain.structured("review", system=prompts.REVIEW_SYSTEM, user=review_user,
@@ -245,34 +211,24 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
     merged, changed = _merge_review(patch, review)
     if changed and not _validate_patch(merged):  # only adopt a structurally valid revision
         patch = merged
-        resume.apply_patch(dict(patch), profile=profile, company=company or "Unknown",
-                           role=role or "Unknown", url=url, jd_text=jd_text)
-        lint = resume.lint(focus_bullets=patch["top_bullets"])
-        tailored_md = (config.TAILORED_MD_PATH.read_text()
-                       if config.TAILORED_MD_PATH.exists() else "")
+        resume.apply_patch(dict(patch), profile=profile, company=company,
+                           role=role, url=url, jd_text=jd_text)
+        resume.lint(focus_bullets=patch["top_bullets"])
     if verbose:
         print(f"    review: revised ({len(review_issues)} issue(s))" if changed
               else "    review: clean (no repeats, experience fits, summary ok)")
+    return patch, review_issues
 
-    # 6. Render + final check ------------------------------------------------------
-    resume.render_pdf(company=company or "Unknown", role=role or "Unknown",
-                      url=url, profile=profile, patch=patch, jd_text=jd_text)
-    # Both render paths copy the PDF into the per-application folder under this name.
-    pdf_file = artifacts.folder(company or "Unknown", role or "Unknown",
-                                url) / config.resume_pdf_name()
-    pdf_path = str(pdf_file) if pdf_file.exists() else None
-    tailored_md = (config.TAILORED_MD_PATH.read_text()
-                   if config.TAILORED_MD_PATH.exists() else "")
-    check = final_check.check_resume(tailored_md=tailored_md, pdf_path=pdf_path,
-                                     jd_text=jd_text, focus_bullets=patch["top_bullets"])
 
-    # 7. Two-tier scoring ------------------------------------------------------------
-    # ATS keyword score of what we'd actually SEND (the tailored resume), not the master.
+def _score_tier(brain, *, patch: dict, jd_text: str, tailored_md: str,
+                master: str) -> tuple[dict, int | None, bool]:
+    """Two-tier scoring of the TAILORED resume. Returns (verdict, tailored_ats, scored_fully).
+
+    Every job already carries a self-score from the patch call (STEP 3)  the default
+    verdict. A real senior-reviewer SCORE brain call runs only for jobs that clear the
+    keyword gate, so the extra rigor is spent where it can change a go/no-go call, not on
+    every job."""
     kw = ats.ats_score(jd_text, tailored_md or master)["score"]
-    # Every job already carries a self-score from the patch call (call 1, prompts.py
-    # STEP 3) — that's the default verdict. A real Brain call 3 (the strict
-    # senior-reviewer rubric) only runs for jobs that clear a higher bar: the extra
-    # rigor is spent where it can actually change a go/no-go call, not on every job.
     score_gate = config.int_setting("score_gate_keyword_pct", 80)
     scored_fully = kw is not None and kw >= score_gate
     if scored_fully:
@@ -288,16 +244,99 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
             "gaps": patch.get("self_gaps") or [],
             "missing_must_haves": [],
         }
+    return verdict, kw, scored_fully
 
-    # 8. Record ---------------------------------------------------------------------
+
+def tailor_job(url: str, *, brain, profile: str | None = None,
+               company: str = "", role: str = "", posted_date: str | None = None,
+               source: str | None = None, jd_text: str | None = None,
+               verbose: bool = True) -> dict:
+    """Run the full pipeline for one job URL. Returns the saved record (or raises
+    BrainPending in manual mode when a packet awaits its response).
+
+    Orchestration only  the three judgment steps live in independently-callable
+    helpers: `_patch_and_lint` (call 1), `_review_and_revise` (call 2), `_score_tier`
+    (call 3 + its two-tier gate). Everything between them is deterministic."""
+    comp = company or "Unknown"
+    rol = role or "Unknown"
+    # 1. JD ---------------------------------------------------------------------
+    if not jd_text:
+        fetched = jd_fetch.fetch_jd(url)
+        jd_text = fetched["text"]
+        if not fetched["looks_complete"]:
+            raise RuntimeError(
+                f"Could not extract a usable JD from {url} (source={fetched['source']}, "
+                f"{len(jd_text)} chars). Use `apply`/`score` (browser agent) for this one.")
+
+    # 1b. Hard gates  don't spend tailoring effort on a role we can't be hired for.
+    if _requires_sponsorship():
+        m = _NO_SPONSOR.search(jd_text)
+        if m:
+            reason = f"hard gate: JD states \"{m.group(0).strip()}\" and profile requires sponsorship"
+            rec = tracker.save_application(
+                company=comp, role=rol, url=url, status="skipped", source=source,
+                posted_date=posted_date, profile=profile, notes=reason, jd_text=jd_text)
+            if verbose:
+                print(f"    ⛔ {reason}")
+            return rec
+
+    # 2. Profile + master --------------------------------------------------------
+    if not profile:
+        profile, _scores = profiles.auto_pick(jd_text)
+    master = profiles.read_master_for(profile)
+    if master.startswith("No master resume"):
+        raise RuntimeError(master)
+
+    # 2b. Cheap keyword pre-gate  decide if this JD is worth spending LLM tokens on.
+    #     Score the JD's skills against the MASTER resume (no LLM). This master-vs-JD
+    #     number is also the pre-tailor BASELINE we persist on every scored row, so the
+    #     dashboard can show the lift tailoring adds (master_ats -> match_score). Below
+    #     the bar we skip the whole tailor/review/score path and record why.
+    min_kw = config.int_setting("min_keyword_match", 30)
+    master_ats = ats.ats_score(jd_text, master)["score"]
+    if master_ats is not None and master_ats < min_kw:
+        reason = (f"keyword pre-gate: master-vs-JD ATS {master_ats}% < {min_kw}% "
+                  f"threshold, skipped LLM tailoring to save cost")
+        rec = tracker.save_application(
+            company=comp, role=rol, url=url, status="skipped", source=source,
+            posted_date=posted_date, profile=profile, master_ats=master_ats,
+            notes=reason, jd_text=jd_text)
+        if verbose:
+            print(f"    ⏭ {reason}")
+        return rec
+
+    # 3. Brain call 1: patch + apply + lint (one corrective pass) ------------------
+    patch = _patch_and_lint(brain, master=master, jd_text=jd_text, profile=profile,
+                            company=comp, role=rol, url=url)
+
+    # 4. Brain call 2: REVIEW + one revision pass ---------------------------------
+    patch, review_issues = _review_and_revise(brain, patch=patch, jd_text=jd_text,
+                                              profile=profile, company=comp, role=rol,
+                                              url=url, verbose=verbose)
+
+    # 5. Render + final check ------------------------------------------------------
+    resume.render_pdf(company=comp, role=rol, url=url, profile=profile,
+                      patch=patch, jd_text=jd_text)
+    # Both render paths copy the PDF into the per-application folder under this name.
+    pdf_file = artifacts.folder(comp, rol, url) / config.resume_pdf_name()
+    pdf_path = str(pdf_file) if pdf_file.exists() else None
+    tailored_md = _read_tailored_md()
+    check = final_check.check_resume(tailored_md=tailored_md, pdf_path=pdf_path,
+                                     jd_text=jd_text, focus_bullets=patch["top_bullets"])
+
+    # 6. Brain call 3: two-tier scoring of the TAILORED resume --------------------
+    verdict, kw, scored_fully = _score_tier(brain, patch=patch, jd_text=jd_text,
+                                            tailored_md=tailored_md, master=master)
+
+    # 7. Record ---------------------------------------------------------------------
     # The honest path to a higher match: JD asks the resume couldn't claim. The
     # masters are themselves tailored subsets, so an unclaimed ask may be something
-    # the candidate HAS done but never documented — surfacing it lets them confirm
+    # the candidate HAS done but never documented  surfacing it lets them confirm
     # true items into resume/achievements.md (the grounding corpus) and re-run.
     # What it is NOT: permission to claim JD items nobody verified.
     unclaimed = [u for u in (verdict.get("missing_must_haves") or []) if u][:6]
     if unclaimed and verbose:
-        print("    unclaimed JD asks — if any are TRUE for you, add them to "
+        print("    unclaimed JD asks  if any are TRUE for you, add them to "
               "resume/achievements.md and re-run:")
         for u in unclaimed:
             print(f"      · {u}")
@@ -306,11 +345,12 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
         extra = "unclaimed asks (add to achievements.md if true): " + "; ".join(unclaimed)
         notes = f"{notes}; {extra}" if notes else extra
     if not scored_fully:
-        extra = f"self-scored (tailored-resume keyword match {kw}% < {score_gate}% gate)"
+        gate = config.int_setting("score_gate_keyword_pct", 80)
+        extra = f"self-scored (tailored-resume keyword match {kw}% < {gate}% gate)"
         notes = f"{notes}; {extra}" if notes else extra
     rec = tracker.save_application(
-        company=company or "Unknown", role=role or "Unknown", url=url, status="scored",
-        match_score=kw, resume_score=verdict.get("overall_score"),
+        company=comp, role=rol, url=url, status="scored",
+        match_score=kw, master_ats=master_ats, resume_score=verdict.get("overall_score"),
         match_pct=verdict.get("match_pct"), scorer_verdict=verdict.get("verdict"),
         scorer_gaps=verdict.get("gaps"), resume_diff={
             "summary": patch.get("summary"),
@@ -331,7 +371,7 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
 
 
 def _is_auth_error(e: Exception) -> bool:
-    """Provider failures that hit EVERY job identically (bad key, exhausted quota) —
+    """Provider failures that hit EVERY job identically (bad key, exhausted quota)
     retrying the rest of the shortlist would just repeat the failure N times.
     Transient rate limits are not matched (plain 429 without insufficient_quota)."""
     if type(e).__name__ in ("AuthenticationError", "PermissionDeniedError"):
@@ -344,10 +384,10 @@ def _is_auth_error(e: Exception) -> bool:
 def tailor_many(jobs: list[dict], *, brain, verbose: bool = True) -> dict:
     """Tailor+score a discovery shortlist. In manual mode, jobs whose Brain packets
     lack responses are collected as 'pending' instead of failing the run. Auth
-    errors abort the whole run immediately — they can never succeed job-by-job."""
+    errors abort the whole run immediately  they can never succeed job-by-job."""
     done, pending, failed = [], [], []
     for i, j in enumerate(jobs, 1):
-        label = f"{j.get('company', '?')} — {j.get('role', '?')}"
+        label = f"{j.get('company', '?')}  {j.get('role', '?')}"
         if verbose:
             print(f"\n[{i}/{len(jobs)}] {label}")
         try:
@@ -364,7 +404,7 @@ def tailor_many(jobs: list[dict], *, brain, verbose: bool = True) -> dict:
             if _is_auth_error(e):
                 raise SystemExit(
                     f"\n✗ API authentication failed: {e}\n\n"
-                    "Aborting the run — every remaining job would hit the same error.\n"
+                    "Aborting the run  every remaining job would hit the same error.\n"
                     "Check which key/provider is in use:\n"
                     "  - .env: ANTHROPIC_API_KEY / OPENAI_API_KEY and JOB_AGENT_PROVIDER\n"
                     "  - a stale exported key in your shell overrides .env "

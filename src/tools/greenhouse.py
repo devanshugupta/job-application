@@ -1,4 +1,4 @@
-"""Deterministic Greenhouse form filler — no LLM required.
+"""Deterministic Greenhouse form filler  no LLM required.
 
 Greenhouse has a consistent form structure across all companies that use it.
 This module fills the form directly from profile.json + a tailored PDF.
@@ -41,7 +41,7 @@ def _fill(page, selector: str, value: str, skip_if_filled: bool = True) -> bool:
             if skip_if_filled:
                 existing = (el.get_attribute("value") or "").strip()
                 if existing:
-                    return True   # already filled — don't overwrite
+                    return True   # already filled  don't overwrite
             el.fill(value)
             time.sleep(0.25)
             return True
@@ -77,59 +77,70 @@ def _select_option(page, selector: str, keywords: list[str]) -> bool:
     return False
 
 
-def _select_react_dropdown(page, input_id: str, keywords: list[str]) -> bool:
-    """Handle react-select dropdowns: click → poll until options appear → click match.
-
-    Uses [role='option'] (ARIA, always present in react-select) rather than a class
-    substring so it works across Greenhouse, Ashby, and custom themes. Polls up to
-    3 s instead of a fixed sleep so slow pages don't cause silent failures.
-    Retries the click once if the first attempt yields no options.
-    """
+def _open_and_pick(page, clickable, keywords: list[str]) -> bool:
+    """Click one candidate control, poll for [role=option]s, click the first keyword match.
+    Returns True only if an option was actually selected. Never raises."""
     try:
-        sel = f"[id='{input_id}']"
-        el = page.query_selector(sel)
-        if not el:
+        clickable.scroll_into_view_if_needed(timeout=1000)
+    except Exception:
+        pass
+    for _ in range(2):
+        try:
+            clickable.click(timeout=2000)
+        except Exception:
             return False
-
         opts: list = []
-        for attempt in range(2):
-            el.click()
-            # Poll every 300 ms, up to 3 s total
-            for _ in range(10):
-                opts = page.query_selector_all('[role="option"]')
-                if not opts:
-                    # Fallback: react-select BEM class and generic class substring
-                    opts = page.query_selector_all('[class*="__option"], [class*=" option"]')
-                if opts:
-                    break
-                time.sleep(0.3)
+        for _ in range(10):                      # poll up to ~3 s for the menu to open
+            opts = page.query_selector_all('[role="option"]') or page.query_selector_all(
+                '[class*="__option"], [class*="-option"], li[role="option"], [role="menuitem"]')
             if opts:
                 break
-            time.sleep(0.4)  # brief pause before retry click
-
-        if not opts:
-            try:
-                el.press("Escape")
+            time.sleep(0.3)
+        if opts:
+            for kw in keywords:
+                for opt in opts:
+                    try:
+                        text = opt.inner_text().strip()
+                        if text and kw.lower() in text.lower():
+                            opt.click()
+                            time.sleep(0.8)
+                            return True
+                    except Exception:
+                        continue
+            try:                                  # options opened but none matched  close
+                page.keyboard.press("Escape")
             except Exception:
                 pass
             return False
+        time.sleep(0.4)                           # nothing opened  retry the click once
+    return False
 
-        for kw in keywords:
-            for opt in opts:
-                try:
-                    text = opt.inner_text().strip()
-                    if text and kw.lower() in text.lower():
-                        opt.click()
-                        time.sleep(1.0)  # wait for menu to close
-                        return True
-                except Exception:
-                    continue
 
+def _select_react_dropdown(page, input_id: str, keywords: list[str]) -> bool:
+    """Pick an option from a react-select / Ashby / custom combobox by keyword.
+
+    The clickable that OPENS the menu isn't always the labeled input  for Ashby it's a
+    wrapper div/button. So we try several candidates (the element, then its combobox /
+    select-control / dropdown ancestor) until one actually opens a [role=option] list.
+    Works across Greenhouse, Ashby, and custom themes via ARIA roles. Never raises."""
+    try:
+        el = page.query_selector(f"[id='{input_id}']")
+        if not el:
+            return False
+        candidates = [el]
         try:
-            el.press("Escape")
-            time.sleep(0.4)
+            wrap = el.evaluate_handle(
+                "e => e.closest('[role=combobox],[class*=select__control],[class*=Select],"
+                "[class*=dropdown],[class*=combobox],[data-ashby-field-container]') "
+                "|| e.parentElement")
+            node = wrap.as_element() if wrap else None
+            if node:
+                candidates.append(node)
         except Exception:
             pass
+        for c in candidates:
+            if _open_and_pick(page, c, keywords):
+                return True
     except Exception:
         pass
     return False
@@ -143,7 +154,7 @@ def _fill_education(target, profile: dict) -> bool:
         The <input> inside has a generated ID unrelated to 'school', so we find the
         container and type into whichever <input> lives inside it.
       - Degree / Discipline: native <select> elements (id=education_degree_0 / _discipline_0).
-      - End year: plain text <input> (NOT a <select> — _select_option would miss it).
+      - End year: plain text <input> (NOT a <select>  _select_option would miss it).
       - End month: native <select>.
     """
     edu         = profile.get("education", {})
@@ -250,7 +261,7 @@ def _fill_labeled_questions(target, profile: dict) -> None:
     """Fill labeled inputs/dropdowns by matching label text against the question bank.
 
     All question patterns + answers live in config/question_bank.json (resolved
-    against the profile by forms.py) — nothing employer-specific is hardcoded here.
+    against the profile by forms.py)  nothing employer-specific is hardcoded here.
     Unmatched and "skip" questions are left for the human to review.
     """
     from . import forms
@@ -274,17 +285,30 @@ def _fill_labeled_questions(target, profile: dict) -> None:
             if not el:
                 continue
             tag = el.evaluate("e => e.tagName.toLowerCase()")
-            is_react = "select__input" in (el.get_attribute("class") or "")
-
-            if is_react and opts:
-                _select_react_dropdown(target, for_id, opts)
+            cls = el.get_attribute("class") or ""
+            role = el.get_attribute("role") or ""
+            haspopup = el.get_attribute("aria-haspopup") or ""
+            # A field is a DROPDOWN if it's a native <select>, a react-select/combobox, or
+            # simply if the answer is a set of choice-options (opts). In ALL those cases we
+            # must click-and-pick  NEVER el.fill(), which throws/garbles on a combobox
+            # (the bug that "breaks on dropdowns"). Text fill is only for real text inputs.
+            is_dropdown = (
+                tag == "select" or role in ("combobox", "listbox") or haspopup
+                or "select__input" in cls or "select__control" in cls
+                or ("select" in cls.lower() and tag != "input") or bool(opts))
+            if is_dropdown:
+                if tag == "select":
+                    _select_option(target, f"[id='{for_id}']", opts or ([text_val] if text_val else []))
+                else:
+                    _select_react_dropdown(target, for_id, opts or ([text_val] if text_val else []))
             elif tag in ("input", "textarea") and text_val:
                 existing = (el.get_attribute("value") or "").strip()
                 if not existing:
-                    el.fill(text_val)
-                    time.sleep(0.2)
-            elif tag == "select" and (text_val or opts):
-                _select_option(target, f"[id='{for_id}']", opts or [text_val])
+                    try:
+                        el.fill(text_val)
+                        time.sleep(0.2)
+                    except Exception:
+                        pass  # not a fillable field after all  leave for the human
     except Exception as e:
         print(f"  Warning: labeled question fill error: {e}")
 
@@ -316,7 +340,7 @@ def fill_greenhouse_form(browser: Browser, url: str, pdf_path: str,
     page = browser.page
 
     # Verify we landed on a Greenhouse form.
-    # Greenhouse can be embedded on company domains — detect by URL param or page signals.
+    # Greenhouse can be embedded on company domains  detect by URL param or page signals.
     raw_url  = page.url.lower()
     content  = page.content().lower()
     is_gh = (
@@ -372,7 +396,7 @@ def fill_greenhouse_form(browser: Browser, url: str, pdf_path: str,
         if _select_option(target, sel, ["United States", "us", "+1"]):
             break
 
-    # Location (City) — Greenhouse uses an autocomplete text field
+    # Location (City)  Greenhouse uses an autocomplete text field
     city = personal.get("location", "New York").split(",")[0].strip()
     loc_filled = _fill_any(target, [
         "input[name='job_application[location]']",

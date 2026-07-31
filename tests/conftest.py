@@ -1,4 +1,4 @@
-"""Test config — make `src` importable and isolate file writes to a tmp dir.
+"""Test config  make `src` importable and isolate file writes to a tmp dir.
 
 These tests exercise the pure-Python logic only (no Anthropic API, no browser). Modules
 that write to data/ are redirected to a per-test temp dir via monkeypatch fixtures so the

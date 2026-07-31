@@ -1,4 +1,4 @@
-"""Central configuration — single source of truth for paths, models, and knobs.
+"""Central configuration  single source of truth for paths, models, and knobs.
 
 Everything that used to be a scattered `pathlib.Path("data/...")` literal or a
 module-level `os.environ.get(...)` lives here. Three layers, later wins:
@@ -45,11 +45,11 @@ RESUME_RULES_PATH = RESUME_DIR / "formatting_rules.md"
 MASTERS_INDEX_PATH = MASTERS_DIR / "index.json"
 LEGACY_MASTER_PATH = RESUME_DIR / "master_resume.md"
 # Raw work context (projects/metrics beyond what fits on the resume) that grounds
-# tailored bullets — bullets may be sourced ONLY from the master + this doc.
+# tailored bullets  bullets may be sourced ONLY from the master + this doc.
 ACHIEVEMENTS_PATH = RESUME_DIR / "achievements.md"
 
 # --------------------------------------------------------------------------- models
-# Exact current model IDs — never append date suffixes.
+# Exact current model IDs  never append date suffixes.
 DEFAULT_MODELS = {
     "anthropic": "claude-opus-4-8",
     "openai": "gpt-4o",
@@ -57,7 +57,7 @@ DEFAULT_MODELS = {
 FAST_MODEL_DEFAULT = "claude-sonnet-4-6"   # find / cheap triage
 SMART_MODEL_DEFAULT = "claude-opus-4-8"    # tailor / score / apply
 
-# Approx USD per 1M tokens (input, output) — used for cost estimates only.
+# Approx USD per 1M tokens (input, output)  used for cost estimates only.
 PRICING = {
     "claude-opus-4-8": (5.0, 25.0),
     "claude-opus-4-7": (5.0, 25.0),
@@ -129,7 +129,7 @@ def brain_mode() -> str:
     'manual' -> no API: write prompt packets to data/brain/ for an LLM (e.g. the
                 Claude Code session driving this repo) to answer.
 
-    Resolution: explicit JOB_AGENT_BRAIN / settings.json wins; otherwise auto —
+    Resolution: explicit JOB_AGENT_BRAIN / settings.json wins; otherwise auto
     'api' only when a key is actually present, else 'manual'. So a machine with no
     key transparently uses the LLM-as-brain path instead of erroring.
     """

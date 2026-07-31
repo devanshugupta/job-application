@@ -1,12 +1,12 @@
 r"""LaTeX resume rendering via pdfLaTeX (marker-free, code-side editing).
 
 The candidate's real LaTeX template (e.g. `resume/masters/ml_sde.tex`, a Jake's-Resume
-style doc) is rendered with **pdflatex** — it uses pdfTeX-only features (`\pdfgentounicode`
+style doc) is rendered with **pdflatex**  it uses pdfTeX-only features (`\pdfgentounicode`
 for ATS-parseable output, `fontawesome5`, `helvet`) that the lighter tectonic engine can't
 build, so we use a real pdfLaTeX install (BasicTeX/TeX Live).
 
 Tailoring is **marker-free and code-side**: the AGENT only produces the small content
-patch (summary / skills / two bullets) — the same JSON it already makes. Python regex
+patch (summary / skills / two bullets)  the same JSON it already makes. Python regex
 locates the `\section{Summary}` body, the Technical Skills block, and the first two
 `\resumeItem{...}` under the first job, and swaps their inner text (LaTeX-escaped). The
 agent never reads or writes raw LaTeX, so token cost stays tiny and it can't emit invalid
@@ -61,7 +61,7 @@ def have_pdflatex() -> bool:
 def _latex_engine() -> tuple[str, str] | None:
     """Return (engine, binary_path) for the best available LaTeX toolchain, or None.
 
-    engine ∈ {'tectonic', 'pdflatex'} — the compile step adapts the source per engine
+    engine ∈ {'tectonic', 'pdflatex'}  the compile step adapts the source per engine
     (tectonic is XeTeX-based and rejects pdfTeX-only primitives; see _adapt_for_engine).
     """
     tec = shutil.which("tectonic") or next(
@@ -140,7 +140,7 @@ def tex_to_text(tex: str) -> str:
                   r"\n### \1 (\2)\n", body, flags=re.S)
     body = re.sub(
         r"\\resumeSubheading\s*\{([^}]*)\}\s*\{([^}]*)\}\s*\{([^}]*)\}\s*\{([^}]*)\}",
-        r"\n### \1 — \3\n\2 · \4", body)
+        r"\n### \1  \3\n\2 · \4", body)
     body = re.sub(r"\\resumeProjectHeading\s*\{(.*?)\}\s*\{([^}]*)\}",
                   r"\n### \1 (\2)", body, flags=re.S)
     body = re.sub(r"\\resumeItem\s*\{", r"\n- \\relax{", body)  # mark bullets
@@ -189,7 +189,7 @@ def _on_comment_line(tex: str, idx: int) -> bool:
 def _replace_first_resume_items(tex: str, bullets: list[str],
                                 start: int | None = None, end: int | None = None) -> str:
     r"""Replace the inner text of the first len(bullets) ACTIVE ``\resumeItem{...}`` macros
-    in the document body — or only within the [start, end) slice when given (used to
+    in the document body  or only within the [start, end) slice when given (used to
     target one experience block). Skips the preamble (so the ``\newcommand{\resumeItem}``
     definition is never touched) and skips commented-out lines. Matches balanced braces.
     Bullets beyond the items present in range are ignored."""
@@ -232,7 +232,7 @@ def _replace_first_resume_items(tex: str, bullets: list[str],
 
 def _experience_block_span(tex: str, role_idx: int) -> tuple[int, int] | None:
     r"""[start, end) span of the role_idx-th job (0 = most recent) inside the
-    Experience \section — delimited by \resumeSubheading/\resumeSubheadingg macros.
+    Experience \section  delimited by \resumeSubheading/\resumeSubheadingg macros.
     Scoped to the Experience section so Education's subheadings don't shift the index.
     None when the section or that many jobs can't be found (caller falls back)."""
     sec = re.search(r"\\section\{[^}]*Experience[^}]*\}", tex, re.IGNORECASE)
@@ -329,7 +329,7 @@ def _render_experience_selected(tex: str, chosen_idx: int, top_bullets: list[str
             break
         spans.append(sp)
         i += 1
-    if not spans:  # no locatable blocks — best-effort old first-N replace + dedup
+    if not spans:  # no locatable blocks  best-effort old first-N replace + dedup
         tex = _replace_first_resume_items(tex, top_bullets)
         return _dedupe_resume_items(tex, keep=top_bullets) if top_bullets else tex
 
@@ -456,7 +456,7 @@ def _replace_skills_block(tex: str, skills: str) -> str:
 
     Template shape: ``\section{Technical Skills} ... \small{\item{ <lines> }}``. We find
     the ``\item{`` after the section heading and balance-scan to ITS matching ``}`` (so
-    we never miscount the trailing ``}}`` — the bug that produced "Extra }"). The patch
+    we never miscount the trailing ``}}``  the bug that produced "Extra }"). The patch
     value may be grouped ("Languages: ... | ML: ..." or one group per line) or a flat
     list; grouped input becomes one ``\textbf{Group}{: ...}`` row, matching the template.
     No section / no ``\item{`` -> tex unchanged (safe no-op).
@@ -478,7 +478,7 @@ def _replace_skills_block(tex: str, skills: str) -> str:
                 break
         k += 1
     if depth != 0:
-        return tex  # unbalanced source — don't touch it
+        return tex  # unbalanced source  don't touch it
 
     parts = [p.strip() for p in re.split(r"\n|(?<!\w)\|(?!\w)", skills) if p.strip()]
     rows = []
@@ -496,7 +496,7 @@ def _replace_skills_block(tex: str, skills: str) -> str:
 
 
 def edit_tex(tex_source: str, patch: dict, jd_text: str = "") -> str:
-    """Apply a tailoring patch to the LaTeX source, marker-free — select-and-prune.
+    """Apply a tailoring patch to the LaTeX source, marker-free  select-and-prune.
 
     The .tex master holds the FULL point pool; this renders a 1-page subset:
       - Summary body (patch['summary']) and Technical Skills block
@@ -535,7 +535,7 @@ def _word_overlap(a: str, b: str) -> float:
 
 def _dedupe_resume_items(tex: str, keep: list[str], threshold: float = 0.6) -> str:
     r"""Comment out any ACTIVE ``\resumeItem{...}`` in the body that is a near-duplicate
-    (>= threshold word overlap) of one of the freshly-tailored `keep` bullets — except the
+    (>= threshold word overlap) of one of the freshly-tailored `keep` bullets  except the
     first occurrence of each kept bullet itself. Commenting (not deleting) is reversible
     and keeps the source intact. Skips preamble + already-commented lines."""
     start = _body_start(tex)
@@ -564,7 +564,7 @@ def _dedupe_resume_items(tex: str, keep: list[str], threshold: float = 0.6) -> s
 def compile_pdf(tex_source: str, out_pdf: pathlib.Path) -> tuple[bool, str]:
     """Compile LaTeX source to PDF. Returns (ok, message). Never raises.
 
-    Uses tectonic if available (preferred — self-contained, auto-fetches packages),
+    Uses tectonic if available (preferred  self-contained, auto-fetches packages),
     else a system pdflatex. The source is adapted per engine (see _adapt_for_engine).
     """
     eng = _latex_engine()

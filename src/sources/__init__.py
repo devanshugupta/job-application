@@ -1,8 +1,8 @@
-"""Job sources — pluggable, independent discovery backends.
+"""Job sources  pluggable, independent discovery backends.
 
 Each source is a standalone module exposing one `Source` instance: given a freshness
 window it returns normalized job dicts. `discover.py` pulls from whichever sources are
-SELECTED (all available by default, or a subset by name) and merges the results — so
+SELECTED (all available by default, or a subset by name) and merges the results  so
 adding a new place to find jobs (LinkedIn, ScoutBetter, a new ATS, an RSS export) is a
 new file here plus one registry line, with zero changes to the rest of the pipeline.
 
@@ -13,7 +13,7 @@ A source returns dicts in this normalized shape (the only contract):
       "posted_ts": int,                       # unix seconds; 0 if unknown
       "locations": str,                       # comma-joined; "" if unknown
       "source": str,                          # this source's name (for the dashboard)
-      # optional hints — discover fills these in if absent:
+      # optional hints  discover fills these in if absent:
       "profile": str | None,                  # ml_ai|sde|data_engineer (else inferred)
       "seniority_checked": bool,              # True = skip discover's seniority gate
     }
@@ -44,7 +44,7 @@ class Source:
 
     def fetch(self, hours: int, *, profile: str | None = None,
               verbose: bool = True) -> tuple[list[dict], list[str]]:
-        """Return (jobs, errors). jobs use the normalized shape above. Must FAIL SOFT —
+        """Return (jobs, errors). jobs use the normalized shape above. Must FAIL SOFT
         return collected errors as strings, never raise, so one bad source can't kill a run."""
         raise NotImplementedError
 
@@ -61,7 +61,7 @@ def register(src: Source) -> Source:
 
 
 def _load_builtins() -> None:
-    # Guard on a dedicated flag, NOT on _REGISTRY being non-empty — importing one source
+    # Guard on a dedicated flag, NOT on _REGISTRY being non-empty  importing one source
     # module directly (e.g. in a test) would otherwise trip the guard and skip the rest.
     global _LOADED
     if _LOADED:

@@ -2,7 +2,7 @@
 
 Sweeps every config/watchlist.json company that has an `ats`+`token`, hitting its
 public JSON API once and returning its entire live job list. Thin wrapper over
-tools/boards.py (the per-ATS fetchers) — this module just adapts it to the Source
+tools/boards.py (the per-ATS fetchers)  this module just adapts it to the Source
 interface and registers it.
 """
 

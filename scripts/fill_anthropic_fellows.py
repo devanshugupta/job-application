@@ -2,7 +2,7 @@
 
 Airtable form inputs have opaque hashed ids and no labels, so every field is located by
 its visible QUESTION TEXT: find the label leaf, climb to the field container, fill the
-input/textarea inside. Opens a visible browser and fills only the objective fields —
+input/textarea inside. Opens a visible browser and fills only the objective fields 
 name, email, links, and the ML Systems stream. It deliberately leaves the resume upload,
 references, essays, and Submit to you (those are yours to write and click). Never submits.
 
@@ -79,7 +79,7 @@ with sync_playwright() as pw:
     log("\n(Window stays open ~40 min.)")
     try:
         page.wait_for_url("**submitted**", timeout=40 * 60 * 1000)
-        log("Submitted — confirmation reached.")
+        log("Submitted  confirmation reached.")
     except Exception:
         log("Window session ended.")
     browser.close()

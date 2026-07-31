@@ -75,7 +75,7 @@ def test_resume_patch_and_lint(tmp_data, monkeypatch):
     # use a minimal in-memory master via the legacy path
     master = (
         "# Me\nx@y.com\n\n## Summary\nold summary\n\n## Technical Skills\nold skills\n\n"
-        "## Experience\n\n### Engineer — Co\nCity · 2024\n"
+        "## Experience\n\n### Engineer  Co\nCity · 2024\n"
         "- old bullet one here that is reasonably long enough\n"
         "- old bullet two here that is reasonably long enough\n"
     )

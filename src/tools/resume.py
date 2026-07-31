@@ -1,10 +1,10 @@
-"""Resume tooling — load, patch, lint, and render the resume.
+"""Resume tooling  load, patch, lint, and render the resume.
 
 ## Format choices (the important part)
 
 INPUT to the LLM: **Markdown** (`resume/master_resume.md`). Why not PDF?
 - A PDF sent as a document block costs many more tokens and parses lossily.
-- Markdown is essentially plain text — cheapest to read — and already close to the
+- Markdown is essentially plain text  cheapest to read  and already close to the
   final layout (headings, bullets, sections), so the model reasons over real structure.
 - JSON is possible but heavier (keys/braces) and less natural for prose bullets.
 
@@ -17,7 +17,7 @@ the optimizable pieces:
       "top_bullets": ["bullet 1 (hits JD ask)", "bullet 2 (hits JD ask)"],
       "experience_section_index": 0   # which experience block the top_bullets belong to
     }
-`apply_patch` merges this into the master Markdown — replacing the summary, the
+`apply_patch` merges this into the master Markdown  replacing the summary, the
 technical-skills line, and the first two bullets of the chosen experience block. This
 saves tokens in BOTH directions and structurally enforces "minimal tweaks."
 
@@ -91,7 +91,7 @@ def apply_patch(patch: dict, profile: str | None = None,
     """Apply a tailoring patch to the master resume and write the tailored copy.
 
     When the profile has a ``.tex`` master (the real, rendered resume), the tailored
-    Markdown is DERIVED from the edited ``.tex`` (select-and-prune, ``jd_text``-ranked) —
+    Markdown is DERIVED from the edited ``.tex`` (select-and-prune, ``jd_text``-ranked)
     so the Markdown that lint/scoring read is byte-for-byte the same content the PDF
     renders, never a separately-built approximation. ``profile``/``company``/``role``/
     ``url`` unchanged; when ``company``+``role`` are given, also writes the per-application
@@ -135,7 +135,7 @@ def apply_patch(patch: dict, profile: str | None = None,
 
     # Technical Skills
     if patch.get("technical_skills") is not None:
-        # `or` would treat a legitimate index 0 as "not found" — check for None.
+        # `or` would treat a legitimate index 0 as "not found"  check for None.
         i = find("technical skills")
         if i is None:
             i = find("skills")
@@ -241,8 +241,8 @@ def lint(markdown: str | None = None, focus_bullets: list[str] | None = None) ->
             issues.append(f"Summary is {sw} words (max {BUDGETS['summary_max_words']}).")
         if sw < BUDGETS["summary_min_words"]:
             issues.append(f"Summary too short ({sw}w, min {BUDGETS['summary_min_words']}) "
-                          "— write 2 full lines: role + domain + scale + a credential.")
-        if "—" in summary or "–" in summary:
+                          " write 2 full lines: role + domain + scale + a credential.")
+        if chr(0x2014) in summary or chr(0x2013) in summary:  # em / en dash
             issues.append("Em/en dash in summary (use commas).")
         if "--" in summary:
             issues.append("Double hyphen '--' / '---' in summary (use a comma or a real word).")
@@ -254,7 +254,7 @@ def lint(markdown: str | None = None, focus_bullets: list[str] | None = None) ->
             f"Technical Skills is {len(skills.split())} words (max "
             f"{BUDGETS['technical_skills_max_words']}); trim to the most relevant."
         )
-    if skills and ("—" in skills or "–" in skills or "--" in skills):
+    if skills and (chr(0x2014) in skills or chr(0x2013) in skills or "--" in skills):
         issues.append("Em/en dash or double hyphen '--' in Technical Skills (use commas or pipes).")
 
     # Bullets: word count + repeated leading verb + filler words.
@@ -272,7 +272,7 @@ def lint(markdown: str | None = None, focus_bullets: list[str] | None = None) ->
             bucket.append(f"Bullet {wc}w (want {BUDGETS['bullet_min_words']}-{BUDGETS['bullet_max_words']}): {b[:50]}...")
         if filler.search(b):
             bucket.append(f"Filler word in bullet: {b[:50]}...")
-        if "—" in b or "–" in b:
+        if chr(0x2014) in b or chr(0x2013) in b:  # em / en dash
             bucket.append(f"Em/en dash in bullet (use commas): {b[:50]}...")
         if "--" in b:
             bucket.append(f"Double hyphen '--' / '---' in bullet (use a comma or a real word): {b[:50]}...")
@@ -303,12 +303,12 @@ def render_pdf(markdown: str | None = None, out_path: str | None = None,
     """Render a tailored resume PDF.
 
     The PDF filename comes from the profile's full name ("First_Last_Resume.pdf")
-    so recruiters see a proper name — never a hardcoded internal filename.
+    so recruiters see a proper name  never a hardcoded internal filename.
 
     Preferred path: if the profile has a `.tex` master AND pdflatex is installed, edit the
     LaTeX template with the patch (marker-free) and compile it (polished, real-resume
     look). Otherwise fall back to the Markdown->HTML->Chromium path (always available). On
-    any LaTeX error we fall back too — never hard-fail.
+    any LaTeX error we fall back too  never hard-fail.
     """
     pdf_name = config.resume_pdf_name()
     dest = pathlib.Path(out_path) if out_path else config.DATA_DIR / pdf_name

@@ -1,6 +1,6 @@
-"""Scores dashboard — one static HTML file that answers "how good are my applications?"
+"""Scores dashboard  one static HTML file that answers "how good are my applications?"
 
-Built around the **Application Quality Score** (AQS, 0-100 — see scoring.py): every
+Built around the **Application Quality Score** (AQS, 0-100  see scoring.py): every
 row gets one headline number with a grade and a hover breakdown of its components
 (reviewer /10, JD must-have %, ATS keywords, recency). Around the table:
 
@@ -24,14 +24,14 @@ from datetime import date, datetime
 from .. import config
 from . import artifacts, scoring, tracker
 
-# A row is "tailored" (has a real resume) if a recompilable artifact exists on disk — a
-# tailored .tex or a PDF — NOT the flaky tailored_pdf field, which past runs often left
+# A row is "tailored" (has a real resume) if a recompilable artifact exists on disk  a
+# tailored .tex or a PDF  NOT the flaky tailored_pdf field, which past runs often left
 # unset. A .tex counts because it recompiles to a PDF on demand.
 def _canon_source(s: str | None) -> str:
     """Collapse a source label to its FAMILY so the 'by source' list has one row per real
-    source. The tracker holds drift across code versions — 'greenhouse' vs 'greenhouse-api',
+    source. The tracker holds drift across code versions  'greenhouse' vs 'greenhouse-api',
     'github:simplify-newgrad' vs 'SimplifyJobs/New-Grad-Positions', 'careers:google' vs
-    'google-careers' — all the same source. Maps every variant to a single canonical name."""
+    'google-careers'  all the same source. Maps every variant to a single canonical name."""
     s = (s or "").strip().lower()
     if not s or s in ("?", "user", "pipeline", "manual", "feed"):
         return "manual"
@@ -87,7 +87,7 @@ def _job_id(url: str) -> str:
     return ""
 
 def _fmt_date(iso: str | None) -> tuple[str, str]:
-    """('29 Jul 26, 18:20', '202607291820') — human display + a numeric sort key. Shows
+    """('29 Jul 26, 18:20', '202607291820')  human display + a numeric sort key. Shows
     the time when the stored value carries one (rows are stamped 'YYYY-MM-DD HH:MM'), so
     you can see WHEN a job was found; falls back to date-only for legacy values."""
     if not iso:
@@ -158,6 +158,17 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
                                        a.get("match_score") if a.get("match_score")
                                        is not None else a.get("ats_score"))
         match_v = round(m) if m is not None else None
+        # Tailoring lift: master-vs-JD keyword ATS (pre-tailor baseline) -> tailored ATS.
+        # Shows how much rewriting for THIS JD actually moved the keyword match.
+        mstr, tld = a.get("master_ats"), a.get("match_score")
+        if mstr is not None and tld is not None:
+            d = tld - mstr
+            _lc = "var(--ok)" if d > 0 else ("var(--mut)" if d == 0 else "var(--bad)")
+            lift_cell = (f"<span class='lift' style='color:{_lc}' title='master baseline "
+                         f"{mstr} to tailored {tld} (keyword ATS)'>{'+' if d >= 0 else ''}{d}</span>")
+            lift_v = d
+        else:
+            lift_cell, lift_v = "<span class='mut'></span>", None
         if not removed:
             if aqs is not None and a.get("status") != "found":
                 aqs_values.append(aqs)
@@ -178,7 +189,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         aqs_cell = (
             f"<span class='aqs' style='background:{_grade_color(aqs)}' "
             f"title='{html.escape(_breakdown_title(comp))}'>{aqs}</span>"
-            if aqs is not None else "<span class='mut'>—</span>"
+            if aqs is not None else "<span class='mut'></span>"
         )
         url = a.get("url") or ""
         pdf = a.get("tailored_pdf") or ""
@@ -200,7 +211,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             if not pdf_abs.is_absolute():
                 pdf_abs = config.ROOT / pdf
             u = html.escape(url, quote=True)
-            # find-resume needs the PDF; recompile only needs the editable .tex — so it
+            # find-resume needs the PDF; recompile only needs the editable .tex  so it
             # stays available to REBUILD a PDF you've deleted or edited the source of.
             if pdf_abs.exists():
                 links.append(
@@ -221,16 +232,16 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         else:
             rm_btn = ""
 
-        def cell(v, dash="—"):
+        def cell(v, dash=""):
             return html.escape(str(v)) if v not in (None, "") else f"<span class='mut'>{dash}</span>"
 
         def date_cell(v):
             disp, key = _fmt_date(v)
             return (f"<td data-v='{key or 0}'>{html.escape(disp)}</td>" if disp
-                    else "<td class='mut'>—</td>")
+                    else "<td class='mut'></td>")
 
         # A row counts as "tailored" if a tailored PDF was produced, a resume diff was
-        # recorded, or it reached the tailored/applied stage — the "tailored only" filter
+        # recorded, or it reached the tailored/applied stage  the "tailored only" filter
         # keys on this so you can jump straight to jobs that have a resume ready.
         is_tailored = _has_resume(a)
         ready = is_tailored and a.get("status") not in _SUBMITTED
@@ -250,9 +261,10 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             f"{cell(a.get('resume_score'))}</td>"
             f"<td data-v='{match_v if match_v is not None else -1}'>"
             f"{cell(match_v)}</td>"
+            f"<td data-v='{lift_v if lift_v is not None else -999}'>{lift_cell}</td>"
             f"{date_cell(a.get('posted_date'))}"
             f"<td class='mut'>{cell(a.get('source'))}</td>"
-            f"<td>{' · '.join(links) or '—'}</td>"
+            f"<td>{' · '.join(links) or ''}</td>"
             "</tr>"
         )
 
@@ -264,7 +276,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     ready = sum(1 for a in live if _has_resume(a) and a.get("status") not in _SUBMITTED)
     applied = sum(1 for a in live if a.get("status") in _SUBMITTED)
     scored = sum(1 for a in live if a.get("resume_score") is not None)
-    avg_aqs = round(sum(aqs_values) / len(aqs_values)) if aqs_values else "—"
+    avg_aqs = round(sum(aqs_values) / len(aqs_values)) if aqs_values else ""
     a_grades = sum(1 for v in aqs_values if v >= 80)
 
     # funnel widths (relative to the largest stage)
@@ -283,7 +295,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         buckets[min(9, v // 10)] += 1
     bmax = max(buckets) or 1
     # Count label ABOVE each bar (0 shown muted) so the histogram reads as live data, not
-    # decoration — and a total so you can see it track the scored-row count as it grows.
+    # decoration  and a total so you can see it track the scored-row count as it grows.
     hist_html = "".join(
         f"<div class='hcol' title='AQS {i * 10}-{i * 10 + 9}: {n} role(s)'>"
         f"<span class='hn{' z' if not n else ''}'>{n}</span>"
@@ -304,11 +316,11 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         for p in sorted(prof_total, key=lambda p: -prof_total[p])
     ) or "<div class='mut'>no scored roles yet</div>"
 
-    # Jobs by source — one compact horizontal strip: "scoutbetter 74 · ashby 9 · …".
+    # Jobs by source  one compact horizontal strip: "scoutbetter 74 · ashby 9 · …".
     # data-tot/data-app let the "applied only" switch swap the number and re-sort in place.
     src_rows_html = "".join(
         f"<span class='schip' data-tot='{src_total[s]}' data-app='{src_applied.get(s, 0)}'>"
-        f"{html.escape(s)} <b>{src_total[s]}</b></span>"
+        f"<span class='sl'>{html.escape(s)}</span><b>{src_total[s]}</b></span>"
         for s in sorted(src_total, key=lambda s: -src_total[s])
     ) or "<span class='mut'>no roles yet</span>"
 
@@ -331,7 +343,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         funnel=funnel_html, hist=hist_html, aqs_n=len(aqs_values),
         prof_chart=prof_chart_html, src_rows=src_rows_html,
         chips=status_chips, profile_opts=profile_opts,
-        rows="\n".join(rows) or "<tr><td colspan='12' class='mut'>No applications yet — "
+        rows="\n".join(rows) or "<tr><td colspan='13' class='mut'>No applications yet  "
                                 "run <code>python -m src.cli pipeline</code>.</td></tr>",
     )
     dest = pathlib.Path(out_path)
@@ -341,7 +353,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
 
 
 _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
-<title>Job Pipeline — Scores Dashboard</title>
+<title>Job Pipeline Dashboard</title>
 <style>
   :root {{ --bg:#eef1f8; --panel:#ffffff; --line:#dde2ee; --txt:#1c2130; --mut:#6b7280;
           --ok:#16a34a; --good:#65a30d; --warn:#d97706; --bad:#dc2626; --acc:#4f46e5;
@@ -391,9 +403,12 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .sw {{ display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-weight:500;
          text-transform:none; letter-spacing:0; }}
   .srcstrip {{ display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; padding:6px 0 2px; }}
-  .schip {{ flex:0 0 auto; background:var(--bg); border:1px solid var(--line);
-            border-radius:20px; padding:2px 9px; font-size:12px; color:var(--mut); }}
-  .schip b {{ color:var(--acc); font-variant-numeric:tabular-nums; margin-left:2px; }}
+  .schip {{ display:flex; align-items:center; justify-content:space-between; gap:6px;
+            box-sizing:border-box; min-width:0; background:var(--bg);
+            border:1px solid var(--line); border-radius:20px; padding:3px 11px;
+            font-size:12px; color:var(--mut); }}
+  .schip .sl {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }}
+  .schip b {{ flex:0 0 auto; color:var(--acc); font-variant-numeric:tabular-nums; }}
   .schip.zero {{ opacity:.35; }}
   table {{ border-collapse:collapse; width:100%; font-size:13px; background:var(--panel);
           border:1px solid var(--line); border-radius:10px; overflow:hidden; }}
@@ -405,6 +420,7 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .co {{ font-weight:600; }}
   .aqs {{ color:#fff; padding:2px 9px; border-radius:10px; font-weight:700;
          font-size:12px; white-space:nowrap; cursor:help; }}
+  .lift {{ font-weight:700; font-size:12px; white-space:nowrap; cursor:help; }}
   .tag {{ padding:1px 8px; border-radius:8px; font-size:11.5px; border:1px solid var(--line);
          color:var(--mut); }}
   .tag-applied,.tag-submitted,.tag-ready_to_submit {{ color:var(--ok); border-color:var(--ok); }}
@@ -442,7 +458,7 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .pager button:disabled {{ opacity:.4; cursor:default; }}
   #pgLabel {{ font-size:12.5px; min-width:110px; text-align:center; }}
 </style></head><body>
-<h1>Job Pipeline — Scores Dashboard</h1>
+<h1>Job Pipeline Dashboard</h1>
 <div class="sub">generated {generated} · AQS = 0.40·reviewer + 0.45·match + 0.15·recency (match = must-haves blended with keyword ATS; missing reviewer caps un-reviewed rows) · hover a score for its breakdown</div>
 
 <div class="grid">
@@ -459,17 +475,16 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   <div class="panel"><h3>Pipeline funnel</h3>{funnel}
     <div class="runrow">
       <button class="btn" id="runbtn" onclick="runPipeline()">▶ Run pipeline</button>
-      <span id="runstatus" class="mut">last run: —</span>
+      <span id="runstatus" class="mut">last run: </span>
     </div>
   </div>
-  <div class="panel"><h3>AQS distribution — {aqs_n} scored rows</h3><div class="hist">{hist}</div></div>
+  <div class="panel"><h3>AQS distribution  {aqs_n} scored rows</h3><div class="hist">{hist}</div></div>
   <div class="panel"><h3>Roles by profile (applied / total)</h3>{prof_chart}
     <div class="mut" style="font-size:10.5px;margin:8px 0 10px">
       <span style="color:var(--ok)">green</span> = applied ·
       <span style="color:var(--acc)">blue</span> = total</div>
     <div class="srchdr">by source
-      <label class="sw"><input type="checkbox" id="srcAppliedTog" onchange="toggleSrcApplied()">
-        <span>applied only</span></label>
+      <button class="chip" id="srcAppliedTog" onclick="toggleSrcApplied()">applied</button>
     </div>
     <div id="srcList" class="srcstrip">{src_rows}</div>
   </div>
@@ -492,7 +507,8 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   <th onclick="sortBy(5)">Profile</th>
   <th onclick="sortBy(6)">AQS</th>
   <th onclick="sortBy(7)">Reviewer /10</th><th onclick="sortBy(8)">Match %</th>
-  <th onclick="sortBy(9)">Posted</th><th onclick="sortBy(10)">Source</th><th>Actions</th>
+  <th onclick="sortBy(9)" title="tailoring lift: master keyword ATS to tailored">Lift</th>
+  <th onclick="sortBy(10)">Posted</th><th onclick="sortBy(11)">Source</th><th>Actions</th>
 </tr></thead><tbody>{rows}</tbody></table>
 
 <div class="pager" id="pager">
@@ -510,7 +526,7 @@ runs on the keyword part pre-LLM). Tailored files live in <code>data/application
 <div id="toast"></div>
 <script>
 // The action buttons POST back to `dashboard --serve`. The page can also be opened as a
-// plain file or served by some OTHER web server (an IDE preview) with no such backend —
+// plain file or served by some OTHER web server (an IDE preview) with no such backend 
 // so we don't guess up front: each click just TRIES the POST and, only if it fails,
 // falls back to opening the link/file. That removes any load-time race.
 var HINT = 'Start the backend with <code>python -m src.cli dashboard --serve</code> ' +
@@ -573,7 +589,7 @@ function applyJob(btn) {{
   }});
 }}
 function findResume(btn) {{
-  // Only the backend can open Finder — a web page can't. So on no-backend we do NOT
+  // Only the backend can open Finder  a web page can't. So on no-backend we do NOT
   // open the PDF in a tab (that just dumps it in the browser); we point you at --serve.
   post('/api/reveal', btn.dataset.url).then(function(j) {{
     toast('Revealed <code>' + j.dir + '</code> in Finder.');
@@ -614,10 +630,10 @@ function toggleRemoved(el) {{
 // current/last run's progress in the funnel. State persists server-side, so the last
 // run shows even after a reload.
 function fmtRun(s) {{
-  var label = {{idle:'—', running:'running…', done:'done', failed:'failed'}}[s.status] || s.status;
+  var label = {{idle:'', running:'running…', done:'done', failed:'failed'}}[s.status] || s.status;
   var when = s.finished_at || s.started_at || '';
   var last = (s.progress && s.progress.length) ? s.progress[s.progress.length - 1] : '';
-  return 'last run: ' + label + (when ? ' (' + when + ')' : '') + (last ? ' — ' + last : '');
+  return 'last run: ' + label + (when ? ' (' + when + ')' : '') + (last ? '  ' + last : '');
 }}
 function refreshRun() {{
   return fetch('/api/pipeline-status').then(function(r) {{ return r.json(); }})
@@ -643,7 +659,7 @@ function runPipeline() {{
   if (!LIVE) return toast('Running the pipeline needs the backend. ' + HINT, true);
   post('/api/run-pipeline', '').then(function() {{
     refreshRun(); pollRun();
-    toast('Pipeline started — finding jobs, scoring, tailoring >70. Watch the funnel.');
+    toast('Pipeline started  finding jobs, scoring, tailoring >70. Watch the funnel.');
   }}).catch(function(e) {{ toast('Could not start pipeline: ' + e.message, true); }});
 }}
 if (location.protocol.indexOf('http') === 0) {{
@@ -673,7 +689,7 @@ function toggleReady(el) {{
 // "by source" list: the applied-only switch swaps each row's number (total <-> applied)
 // and re-sorts the list in place by that number, descending.
 function toggleSrcApplied() {{
-  var appliedOnly = document.getElementById('srcAppliedTog').checked;
+  var appliedOnly = document.getElementById('srcAppliedTog').classList.toggle('on');
   var box = document.getElementById('srcList');
   var chips = Array.prototype.slice.call(box.querySelectorAll('.schip'));
   chips.forEach(function(c) {{
@@ -707,7 +723,7 @@ function apply() {{
     var okT = !tailoredOnly || tr.dataset.tailored === '1';
     var okRd = !readyOnly || tr.dataset.ready === '1';
     // Pagination sets inline display, which would otherwise beat the CSS rule that
-    // hides removed rows by default — so "removed" has to be a filter condition too,
+    // hides removed rows by default  so "removed" has to be a filter condition too,
     // not left to that stylesheet rule, once any row has been paginated.
     var okR = document.body.classList.contains('show-removed') || tr.dataset.removed !== '1';
     if (okQ && okS && okP && okT && okRd && okR) {{ filteredRows.push(tr); }} else {{ tr.style.display = 'none'; }}

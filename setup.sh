@@ -50,7 +50,7 @@ mkdir -p data
 echo "==> 5b/6  (Optional) pdfLaTeX for polished resume PDFs from your .tex master"
 PDFLATEX="$(command -v pdflatex || echo /Library/TeX/texbin/pdflatex)"
 if [ -x "$PDFLATEX" ]; then
-  echo "    pdflatex found — LaTeX rendering enabled."
+  echo "    pdflatex found  LaTeX rendering enabled."
 elif command -v brew >/dev/null 2>&1; then
   echo "    Installing BasicTeX via brew (optional; Markdown rendering works without it)..."
   brew install --cask basictex >/dev/null 2>&1 && {
@@ -60,9 +60,9 @@ elif command -v brew >/dev/null 2>&1; then
       tabularx multicol fancyhdr latexsym preprint psnfss helvetic >/dev/null 2>&1 \
       && echo "    LaTeX packages installed." \
       || echo "    (some tlmgr packages may need a manual retry; Markdown fallback remains.)"
-  } || echo "    (BasicTeX install skipped/failed — Markdown PDF fallback remains.)"
+  } || echo "    (BasicTeX install skipped/failed  Markdown PDF fallback remains.)"
 else
-  echo "    No pdflatex and no brew. LaTeX is OPTIONAL — Markdown PDF is the fallback."
+  echo "    No pdflatex and no brew. LaTeX is OPTIONAL  Markdown PDF is the fallback."
   echo "    To enable: install BasicTeX/TeX Live and put your resume at resume/masters/main.tex."
 fi
 

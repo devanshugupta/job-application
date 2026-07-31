@@ -81,10 +81,10 @@ def _parse_date(text: str, now: int) -> tuple[str, int]:
 
 def _title_and_location(link_text: str, ctx: str) -> tuple[str, str]:
     """Pull a clean title + location out of an anchor's text and its container text."""
-    # An anchor may wrap the whole card (title\nlocation\nPosted …) — title is line 1.
+    # An anchor may wrap the whole card (title\nlocation\nPosted …)  title is line 1.
     lines = [l.strip() for l in (link_text or "").splitlines() if l.strip()]
     title = lines[0] if lines else ""
-    if len(title) < 6:  # icon-only link (Google etc.) — title is in the container text
+    if len(title) < 6:  # icon-only link (Google etc.)  title is in the container text
         title = _NOISE.split(ctx, 1)[0].strip() if _NOISE.search(ctx) else ctx[:80].strip()
     loc = ""
     m = re.search(r"\bplace\s+(.+?)(?:\s+bar_chart|\s+Minimum|\s*;|\s*$)", ctx)

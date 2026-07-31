@@ -1,4 +1,4 @@
-"""Brain — pluggable judgment layer, so the pipeline runs with or without an API key.
+"""Brain  pluggable judgment layer, so the pipeline runs with or without an API key.
 
 Every step that needs *judgment* (writing a tailoring patch, scoring a resume) goes
 through a Brain with one method:
@@ -12,13 +12,13 @@ ApiBrain     calls Anthropic/OpenAI via tools/llm.py (per-task provider routing,
 
 ManualBrain  needs NO key. It writes a self-contained prompt packet to
              data/brain/<id>.prompt.md and looks for data/brain/<id>.response.json.
-             Any LLM can be the operator — paste the packet into a chat UI, or let
+             Any LLM can be the operator  paste the packet into a chat UI, or let
              Claude Code (or another agent) read the packet and write the response
              file, then re-run the same command. Pending packets raise BrainPending,
              which the pipeline treats as "come back later", not an error.
 
 This is what makes the system API-optional: discovery, patch application, lint,
-rendering, final checks, tracking, and the dashboard are all deterministic Python —
+rendering, final checks, tracking, and the dashboard are all deterministic Python
 the Brain seam is the ONLY place intelligence enters the pipeline.
 """
 
@@ -58,7 +58,7 @@ class ApiBrain:
 
 
 class ManualBrain:
-    """File-based prompt/response exchange — zero API usage.
+    """File-based prompt/response exchange  zero API usage.
 
     Packet id is a hash of the call's content, so re-running the same pipeline
     finds the previously written response instead of asking again.
@@ -74,7 +74,7 @@ class ManualBrain:
 
     def structured(self, name: str, *, system: str, user: str, schema: dict,
                    max_tokens: int = 3000, cache_blocks: list[str] | None = None) -> dict:
-        # Manual mode has no caching concept — fold cache_blocks back into the packet text.
+        # Manual mode has no caching concept  fold cache_blocks back into the packet text.
         if cache_blocks:
             user = "\n\n".join([*cache_blocks, user])
         pid = self._id(name, system, user)

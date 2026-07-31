@@ -1,4 +1,4 @@
-"""Browser tool — a thin wrapper around Playwright.
+"""Browser tool  a thin wrapper around Playwright.
 
 This is the "hands" of the agent. Claude can't touch a webpage directly; it emits
 tool calls like ``click(ref="...")`` and this module performs them in a real
@@ -6,7 +6,7 @@ Chromium instance.
 
 Design choice: we expose the page to Claude as an **accessibility snapshot** (a
 text outline of the interactive elements, each tagged with a stable ``ref`` id),
-not as a screenshot. This is the same approach Microsoft's Playwright MCP uses —
+not as a screenshot. This is the same approach Microsoft's Playwright MCP uses
 it's cheaper (no vision tokens), more reliable for forms, and gives Claude stable
 handles to click/type into. See ``snapshot()`` below.
 """
@@ -135,12 +135,12 @@ class Browser:
         """Return the unique job-posting links on the CURRENT search-results page.
 
         Reads real <a href> elements (browser-resolved to absolute URLs) and keeps those
-        whose path looks like a job DETAIL page across common ATS shapes — Amazon
+        whose path looks like a job DETAIL page across common ATS shapes  Amazon
         (/jobs/<id>/...), Greenhouse (/jobs/<id>), Lever/Ashby (uuid), Apple
         (/details/<id>/...), Workday (/job/...). Reading anchors (not regex on raw HTML)
         avoids relative-vs-absolute bugs and generalizes across portals. Use it to walk a
         board's pages: load the search sorted-recent, call this, advance the page param,
-        repeat — stop once dates fall outside the freshness window."""
+        repeat  stop once dates fall outside the freshness window."""
         hrefs = self.page.eval_on_selector_all(
             "a[href]", "els => els.map(e => e.href)"  # .href is browser-resolved absolute
         )
@@ -171,9 +171,9 @@ class Browser:
         Strategy is ordered MOST-STANDARD → least, so it generalizes across ATS platforms
         (Greenhouse, Lever, Ashby, Workday, company sites) rather than hardcoding any one:
 
-          1. schema.org JobPosting `datePosted` — the WEB STANDARD for job pages; most
+          1. schema.org JobPosting `datePosted`  the WEB STANDARD for job pages; most
              ATS emit it in JSON-LD or as an itemprop/meta. This is the reliable signal.
-          2. <time datetime="..."> — the HTML standard for machine-readable dates.
+          2. <time datetime="...">  the HTML standard for machine-readable dates.
           3. A generic "posted/listed <date>" phrase near the TOP of the page (header
              region only, to avoid a "related jobs" sidebar contaminating the result),
              accepting absolute dates and relative ones ("5 days ago") resolved vs `today`.
@@ -181,7 +181,7 @@ class Browser:
         Returns ISO 'YYYY-MM-DD', or 'unverified' if nothing trustworthy is found. The
         agent must confirm this is the REAL company page, never an aggregator/LinkedIn.
         """
-        # 1) schema.org JobPosting datePosted (JSON-LD or microdata) — the standard.
+        # 1) schema.org JobPosting datePosted (JSON-LD or microdata)  the standard.
         html_txt = self.page.content()
         m = re.search(r'"datePosted"\s*:\s*"([^"]+)"', html_txt)
         if m:

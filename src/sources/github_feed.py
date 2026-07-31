@@ -1,6 +1,6 @@
 """Source: curated GitHub job feeds (SimplifyJobs New-Grad-Positions, etc.).
 
-One HTTP GET per feed of a community-maintained listings.json — thousands of postings
+One HTTP GET per feed of a community-maintained listings.json  thousands of postings
 with trustworthy dates and real URLs, already category/title/level filtered. Thin wrapper
 over tools/feeds.py.
 """
@@ -29,7 +29,7 @@ class GithubFeedSource(Source):
                 for r in fresh:
                     r["posted_ts"] = r.get("_ts", 0)        # normalize key name
                     r["source"] = f"github:{name}"
-                    # NB: do NOT set seniority_checked — the new-grad feed still carries
+                    # NB: do NOT set seniority_checked  the new-grad feed still carries
                     # some dual-level "Principal/Staff/Senior" postings, so let discover's
                     # seniority gate drop those.
                 jobs.extend(fresh)

@@ -1,4 +1,4 @@
-"""Component tests for the live dashboard backend — a real HTTP server on a real port.
+"""Component tests for the live dashboard backend  a real HTTP server on a real port.
 
 These drive the exact requests the dashboard's buttons make, so a broken endpoint fails
 here instead of in the browser. Every response must be JSON: the buttons parse with
@@ -52,7 +52,7 @@ def _post(base, path, url):
 
 @pytest.fixture
 def job(tmp_data):
-    """One tracked, tailored job — filed under a company name containing a space, the
+    """One tracked, tailored job  filed under a company name containing a space, the
     case that broke the un-encoded href."""
     url = "https://boards.greenhouse.io/acme/jobs/4951814008"
     pdf = artifacts.folder("Acme Inc", "ML Engineer", url) / "Devanshu_Gupta_Resume.pdf"
@@ -75,7 +75,7 @@ def test_applied_marks_the_tracker(server, job):
 
 
 def test_reveal_opens_only_the_clicked_jobs_folder(server, job, revealed):
-    """One click reveals exactly one resume — never the whole tracker."""
+    """One click reveals exactly one resume  never the whole tracker."""
     other = "https://boards.greenhouse.io/other/jobs/1111111"
     other_pdf = artifacts.folder("Other Co", "SDE", other) / "Devanshu_Gupta_Resume.pdf"
     other_pdf.write_bytes(b"%PDF")
@@ -90,7 +90,7 @@ def test_reveal_opens_only_the_clicked_jobs_folder(server, job, revealed):
 
 def test_resume_is_downloadable_from_the_dashboard_href(server, job):
     """The button only renders when the PDF exists, and its href (which contains a
-    space) must resolve — percent-encoded on the wire, decoded by the server."""
+    space) must resolve  percent-encoded on the wire, decoded by the server."""
     href = ("applications/Acme%20Inc/ml-engineer-4951814008/"
             "Devanshu_Gupta_Resume.pdf")
     r = urllib.request.urlopen(f"{server}/{href}")
@@ -157,7 +157,7 @@ def test_run_pipeline_launches_and_status_is_json(server, monkeypatch):
 
 
 def test_recompile_rebuilds_pdf_from_tex_without_existing_pdf(server, job, monkeypatch):
-    # Deleting the PDF must NOT block recompile — it rebuilds from tailored_resume.tex.
+    # Deleting the PDF must NOT block recompile  it rebuilds from tailored_resume.tex.
     from src.tools import artifacts, latex
     folder = artifacts.folder("Acme Inc", "ML Engineer",
                               "https://boards.greenhouse.io/acme/jobs/4951814008")

@@ -62,7 +62,7 @@ def combined_master_text() -> str:
     """ONE superset resume = all distinct masters concatenated (ML + SDE + DE points).
 
     A combined-background candidate should be scored against everything they can do, so a
-    JD's skills are matched if ANY of their resumes covers them — this is what stops both
+    JD's skills are matched if ANY of their resumes covers them  this is what stops both
     ML and SDE roles from scoring low for one narrow per-profile master. Out-of-domain
     roles (Rust, hardware) still score low because no master carries those concepts."""
     return "\n".join(all_master_texts().values())
@@ -88,7 +88,7 @@ def read_master_for(profile: str | None) -> str:
 
     Source-of-truth order:
       1. The profile's ``.tex`` master (the real, rendered resume) converted to
-         plain text — preferred whenever it exists, because the ``.md`` masters
+         plain text  preferred whenever it exists, because the ``.md`` masters
          historically drifted into placeholder templates.
       2. The profile's ``.md`` master, unless it still contains template
          placeholders ("Your Name", "Company Inc", ...).

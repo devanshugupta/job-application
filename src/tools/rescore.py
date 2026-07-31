@@ -1,7 +1,7 @@
 """Recompute stored deterministic keyword-ATS scores with the CURRENT ats logic.
 
 The tracker's ``match_score`` (keyword ATS) is written once, at discovery/tailor time.
-When the matcher changes — a bigger skill ontology, better JD cleaning — those stored
+When the matcher changes  a bigger skill ontology, better JD cleaning  those stored
 numbers go stale, and the unified Match on the dashboard blends a stale keyword score
 with a fresh must-have. This recomputes ``match_score`` in place so the whole tracker
 reflects today's ats:
@@ -11,7 +11,7 @@ reflects today's ats:
   - resume: the row's TAILORED resume when it has one (that's what a scored/applied row
     was actually measured against), otherwise the profile master.
 
-Deterministic and free — no LLM, no browser. The must-have side (``match_pct``) is an
+Deterministic and free  no LLM, no browser. The must-have side (``match_pct``) is an
 LLM judgment and is NOT recomputed here.
 """
 

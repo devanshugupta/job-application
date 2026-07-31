@@ -1,4 +1,4 @@
-"""Discovery orchestrator — find the top N fresh roles across every source, fast.
+"""Discovery orchestrator  find the top N fresh roles across every source, fast.
 
 One deterministic pass, no LLM, no browser:
 
@@ -46,7 +46,7 @@ def _profile_for_title(title: str) -> str | None:
 
 
 _LOC_SUFFIX = re.compile(
-    r"\s*[-–—,(|]\s*(remote|hybrid|onsite|on-site|us|usa|united states|"
+    r"\s*[-–,(|]\s*(remote|hybrid|onsite|on-site|us|usa|united states|"
     r"[a-z .]+,\s*[a-z]{2}\b|"                     # "Austin, TX"
     r"(new york|san francisco|seattle|austin|boston|chicago|denver|atlanta|"
     r"los angeles|san jose|palo alto|mountain view|bellevue|dallas|miami|"
@@ -93,11 +93,11 @@ def _is_fresh(job: dict, cutoff_ts: int, cutoff_date: str) -> bool:
 def gather(hours: int, *, profile: str | None = None, sources: list[str] | None = None,
            verbose: bool = True, now_ts: int | None = None) -> dict:
     """Collect from the SELECTED sources, then filter + rank uniformly. Returns
-    {"jobs": ranked, "stats": {...}, "errors": [...]}  — does NOT save.
+    {"jobs": ranked, "stats": {...}, "errors": [...]}   does NOT save.
 
     `sources` selects backends by name/keyword (None = all available / settings.json).
     Every source returns the normalized job shape; the freshness/US/title/seniority/
-    profile gates and ranking below apply identically to all of them — so a new source
+    profile gates and ranking below apply identically to all of them  so a new source
     (LinkedIn, ScoutBetter, a new ATS) needs no changes here.
     """
     from .. import sources as source_registry
@@ -148,19 +148,19 @@ def gather(hours: int, *, profile: str | None = None, sources: list[str] | None 
 
     # --- match + rank -----------------------------------------------------------
     # Title-level match against the ONE combined master (all ML+SDE+DE points), via the
-    # shared ats.jd_match — so discovery, rerank, and rescore all score identically.
+    # shared ats.jd_match  so discovery, rerank, and rescore all score identically.
     for j in jobs:
         j["match"] = ats.jd_match(f"{j['role']} {j.get('locations', '')}")["score"]
         comp = scoring.composite(ats_score=j["match"], posted_date=j["posted_date"],
                                  today=today)
         j["found_score"] = comp["score"]
     # Rank by the composite found_score (master-match + recency); everything here is
-    # already inside the freshness window, so fit — not minutes of recency — leads.
+    # already inside the freshness window, so fit  not minutes of recency  leads.
     jobs.sort(key=lambda j: (j["found_score"] or 0, j["match"] or 0,
                              j.get("posted_ts") or 0), reverse=True)
 
     # Per-company coverage: how many we PULLED from each portal vs how many survived the
-    # freshness/US/title/seniority filter — so you can verify nothing is silently dropped.
+    # freshness/US/title/seniority filter  so you can verify nothing is silently dropped.
     from collections import Counter
     pulled = Counter(j["company"] for j in raw)
     kept = Counter(j["company"] for j in jobs)
@@ -179,7 +179,7 @@ def coverage(hours: int = 24, *, profile: str | None = None,
 
 def _ensure_jd_text(jobs: list[dict], *, verbose: bool = True) -> None:
     """Populate jd_text (in place) for any job that lacks it, at discovery time. Sources
-    with an inline JD already have it; for the rest we fetch the posting now — cheap ATS
+    with an inline JD already have it; for the rest we fetch the posting now  cheap ATS
     API/HTTP paths, with a browser render only for Simplify/LinkedIn/careers/github links.
     Day-cached per URL and run concurrently. Never raises."""
     from concurrent.futures import ThreadPoolExecutor
@@ -222,7 +222,7 @@ def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
     """The `discover` command body: gather + take top `target` + record as found.
 
     Caches the gathered shortlist for the day (keyed by hours+profile+sources) so a
-    re-run — e.g. after a mid-pipeline failure — reuses it instead of re-sweeping every
+    re-run  e.g. after a mid-pipeline failure  reuses it instead of re-sweeping every
     source. Pass refresh=True to force a fresh sweep.
     """
     from . import finder
@@ -242,7 +242,7 @@ def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
         print(f"Using today's cached discovery: {len(jobs)} roles "
               "(--refresh to re-sweep).")
     shortlist = jobs[:target]
-    # Capture the JD NOW, when the job is found — not deferred to tailor time. Sources
+    # Capture the JD NOW, when the job is found  not deferred to tailor time. Sources
     # with an inline JD (ATS APIs, ScoutBetter) already carry it; for the rest we fetch
     # here so every saved row is self-sufficient and tailorable without a re-fetch.
     _ensure_jd_text(shortlist, verbose=verbose)
@@ -250,7 +250,7 @@ def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
         existing_urls = {a.get("url") for a in tracker.list_applications()}
         for j in shortlist:
             if j["url"] in existing_urls:
-                continue  # already tracked — don't duplicate rows
+                continue  # already tracked  don't duplicate rows
             tracker.save_application(
                 company=j["company"], role=j["role"], url=j["url"], status="found",
                 match_score=j["match"], source=j.get("source", "feed"),
@@ -276,7 +276,7 @@ def _passes_llm_gate(job: dict, min_match: int, recency_days: int, today: str) -
 
 def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[dict]:
     """Second-stage ranking: fetch each candidate's REAL job description (cheap ATS
-    API/HTTP paths only — no browser) and re-rank by full-JD keyword match against
+    API/HTTP paths only  no browser) and re-rank by full-JD keyword match against
     the right master resume. Title-vs-master ranking gets the pool roughly right;
     this stage gets the ORDER right, because the JD is what the resume must match.
 
@@ -295,16 +295,16 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
 
     # Resolve JD text for every job first: captured-at-discovery and day-cache hits
     # are free, so do those inline; only jobs with neither are actual I/O (HTTP or a
-    # browser render for Simplify/LinkedIn/careers/github) — fetch THOSE concurrently
+    # browser render for Simplify/LinkedIn/careers/github)  fetch THOSE concurrently
     # since they're independent, sequential network/browser round-trips today.
     jd_of: dict[int, str] = {}
     to_fetch: list[tuple[int, dict]] = []
     for i, j in enumerate(jobs):
         # Day-cache the JD text per URL: portals aren't byte-stable between fetches,
-        # and in manual-brain mode the packet id hashes the JD — an unstable JD would
+        # and in manual-brain mode the packet id hashes the JD  an unstable JD would
         # orphan an already-answered packet on every re-run.
         # Prefer the JD captured at discovery (Greenhouse/Ashby/Lever hand it to us
-        # in the board call) — no second HTTP round-trip, and it works even when the
+        # in the board call)  no second HTTP round-trip, and it works even when the
         # posting URL points at a portal jd_fetch can't read.
         if j.get("jd_text"):
             jd_of[i] = j["jd_text"]
@@ -319,7 +319,7 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
     def _fetch_one(item: tuple[int, dict]) -> tuple[int, str]:
         i, j = item
         # Simplify/LinkedIn/careers rows carry a real posting link but not a
-        # clean ATS API — let jd_fetch render the page (HTML) to grab the JD,
+        # clean ATS API  let jd_fetch render the page (HTML) to grab the JD,
         # rather than leaving it blank. ATS-API rows already had their JD.
         src = (j.get("source") or "").lower()
         render = any(k in src for k in ("simplify", "linkedin", "careers", "github"))
@@ -350,7 +350,7 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
                     status="skipped", source=j.get("source"),
                     posted_date=j.get("posted_date"), profile=prof, notes=reason)
                 if verbose:
-                    print(f"  ⛔ {j['company']} — {j['role']}: {reason}")
+                    print(f"  ⛔ {j['company']}  {j['role']}: {reason}")
                 continue
         j = dict(j)
         if jd:
@@ -361,7 +361,7 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
         ranked.append(j)
 
     # Corpus-aware ranking: BM25 over all fetched JDs, so a rare discriminating skill
-    # ("faiss", "bandits") outweighs a common one ("engineer") that every JD contains —
+    # ("faiss", "bandits") outweighs a common one ("engineer") that every JD contains 
     # which the flat per-pair coverage % can't do. IDF comes from THIS batch's JDs; the
     # query is the combined master (all the candidate's points). Jobs without a readable
     # JD keep no BM25 score and rank last (they can't be deterministically tailored).
@@ -376,7 +376,7 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
 
     # Gate the EXPENSIVE LLM review on the cheap deterministic signals: a role must clear
     # a minimum concept-level JD-match (ontology-aware ats) AND be recent enough. Roles
-    # whose JD we couldn't fetch (jd_match is None) are kept — we can't cheaply judge
+    # whose JD we couldn't fetch (jd_match is None) are kept  we can't cheaply judge
     # them and they already rank last. This is what stops us LLM-scoring 1000 weak jobs.
     min_match = config.int_setting("min_jd_match", 25)
     recency_days = config.int_setting("llm_gate_recency_days", 21)

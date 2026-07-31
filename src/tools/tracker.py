@@ -1,4 +1,4 @@
-"""Profile + application tracking — the agent's memory of who you are and what
+"""Profile + application tracking  the agent's memory of who you are and what
 you've applied to.
 
 ``read_profile`` loads your details so Claude can fill forms and tailor materials.
@@ -76,7 +76,8 @@ def save_application(
     ats_score: int | None = None,
     notes: str = "",
     *,
-    match_score: int | None = None,   # keyword/ATS overlap, 0-100 (from `find`)
+    match_score: int | None = None,   # keyword/ATS overlap of the TAILORED resume, 0-100
+    master_ats: int | None = None,    # keyword/ATS overlap of the MASTER (pre-tailor baseline)
     resume_score: int | None = None,  # senior-reviewer quality, 0-10 (from `score_resume`)
     match_pct: int | None = None,     # % of JD must-haves satisfied, 0-100 (scorer)
     scorer_verdict: str | None = None,
@@ -93,7 +94,7 @@ def save_application(
 
     A job moves through stages (found → scored → tailored → applied); each call
     UPDATES that job's single row rather than appending a duplicate. A record with the
-    same URL (query/​slash-insensitive) is merged in place — ``status`` always advances,
+    same URL (query/​slash-insensitive) is merged in place  ``status`` always advances,
     and any field passed non-empty overwrites while unspecified fields keep their
     existing value (so discovery's ``source``/``posted_date`` survive a later scoring
     call). An empty ``url`` has no stable key, so it is always appended.
@@ -110,7 +111,7 @@ def save_application(
     incoming = {
         "company": company, "role": role, "url": url, "status": status,
         "fit_score": fit_score, "ats_score": ats_score,
-        "match_score": match_score, "resume_score": resume_score,
+        "match_score": match_score, "master_ats": master_ats, "resume_score": resume_score,
         "match_pct": match_pct, "scorer_verdict": scorer_verdict,
         "scorer_gaps": scorer_gaps, "resume_diff": resume_diff,
         "source": source, "posted_date": posted_date, "profile": profile,
@@ -155,14 +156,14 @@ def update_application(url: str, **fields) -> dict | None:
     return record
 
 
-# Lifecycle order — a merged job takes the status of its most-advanced record.
+# Lifecycle order  a merged job takes the status of its most-advanced record.
 _STATUS_RANK = {"found": 0, "skipped": 1, "scored": 2, "tailored": 3, "applied": 4}
 
 
 def _job_key(rec: dict) -> tuple[str, str]:
     """Identity of a job across records: normalized (company, role). Company suffixes
     like 'Inc.'/'LLC' and role punctuation vary between discovery and tailoring, so
-    strip them — 'Cohort AI' and 'Cohort AI Inc.' are the same employer."""
+    strip them  'Cohort AI' and 'Cohort AI Inc.' are the same employer."""
     company = re.sub(r"[^a-z0-9 ]", "", (rec.get("company") or "").lower())
     company = re.sub(r"\b(inc|llc|corp|co|ltd|systems|labs|technologies)\b", "", company)
     role = re.sub(r"[^a-z0-9 ]", "", (rec.get("role") or "").lower())

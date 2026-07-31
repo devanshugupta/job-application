@@ -1,4 +1,4 @@
-"""Fetch a job description as plain text over HTTP — no browser, no LLM.
+"""Fetch a job description as plain text over HTTP  no browser, no LLM.
 
 ATS-hosted postings (Greenhouse, Lever, Ashby, SmartRecruiters, Workable) are
 server-rendered, so a single GET + tag-strip yields the JD. Where the URL maps to
@@ -51,7 +51,7 @@ def _greenhouse_fetch(token: str, jid: str) -> str | None:
 def _greenhouse_api(url: str) -> str | None:
     """Greenhouse JD via the boards API. Handles both the native board URL
     (boards.greenhouse.io/<token>/jobs/<id>) and a company page that embeds Greenhouse
-    via ?gh_jid=<id> — in the embed case the board token isn't in the URL, so we try
+    via ?gh_jid=<id>  in the embed case the board token isn't in the URL, so we try
     tokens derived from the hostname and the watchlist."""
     m = re.search(r"greenhouse\.io/(?:embed/job_app\?[^ ]*token=)?([A-Za-z0-9_-]+)/jobs/(\d+)",
                   url)
@@ -99,7 +99,7 @@ def _lever_api(url: str) -> str | None:
 
 
 def _workday_api(url: str) -> str | None:
-    """Workday (<tenant>.wdN.myworkdayjobs.com/<site>/job/<path>) — fetch the JD from
+    """Workday (<tenant>.wdN.myworkdayjobs.com/<site>/job/<path>)  fetch the JD from
     Workday's public CXS JSON API instead of the JS-rendered page. The API path mirrors
     the URL: /wday/cxs/<tenant>/<site>/job/<path>."""
     m = re.search(r"https?://([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com/([^/]+)/job/(.+)",
@@ -107,7 +107,7 @@ def _workday_api(url: str) -> str | None:
     if not m:
         return None
     tenant, wd, site, jobpath = m.group(1), m.group(2), m.group(3), m.group(4)
-    # the site segment sometimes carries a locale prefix (e.g. en-US/Site) — strip it
+    # the site segment sometimes carries a locale prefix (e.g. en-US/Site)  strip it
     site = site.split("/")[-1]
     api = f"https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/job/{jobpath}"
     try:
@@ -122,7 +122,7 @@ def _workday_api(url: str) -> str | None:
 
 
 def _ashby_api(url: str) -> str | None:
-    """jobs.ashbyhq.com/<org>/<uuid> — pull the JD from Ashby's public posting API."""
+    """jobs.ashbyhq.com/<org>/<uuid>  pull the JD from Ashby's public posting API."""
     m = re.search(r"ashbyhq\.com/([A-Za-z0-9_.-]+)/([0-9a-f-]{36})", url)
     if not m:
         return None
@@ -169,7 +169,7 @@ def _browser_fetch(url: str) -> str:
 @functools.lru_cache(maxsize=256)
 def _fetch_jd_cached(url: str, max_chars: int, allow_browser: bool) -> tuple[str, str, bool]:
     """Cached core of fetch_jd, keyed on the exact call args. Ensures a given URL is
-    fetched over the network at most once per process/run — repeated calls (e.g. a
+    fetched over the network at most once per process/run  repeated calls (e.g. a
     batch script re-fetching the same JD for logging and then again for tailoring)
     hit this cache instead of re-hitting the network or the browser."""
     for api_fn, src in ((_greenhouse_api, "greenhouse-api"), (_lever_api, "lever-api"),

@@ -1,7 +1,7 @@
-"""ATS skill-match scoring — how well a resume's SKILLS cover a JD's skills.
+"""ATS skill-match scoring  how well a resume's SKILLS cover a JD's skills.
 
 Modern matchers (Jobscan, Eightfold, LinkedIn) score against a SKILLS TAXONOMY, not raw
-word overlap — that's what makes the number track real fit. We do the same:
+word overlap  that's what makes the number track real fit. We do the same:
 
   1. a skill ontology (`config/skill_synonyms.json`) maps every surface form to a
      canonical concept, so "FAISS", "qdrant", "vector database" all read as
@@ -15,7 +15,7 @@ old "% of prominent words" approach, which penalized a resume for lacking a post
 company jargon ("fulfillment home", "phishing coach") and so disagreed sharply with the
 LLM reviewer. `missing_keywords` now lists real skill GAPS. A JD too skill-sparse for
 the ontology (`_MIN_JD_CONCEPTS`) falls back to the old prominent-term coverage so
-non-tech postings still get a number. The stopword list is anti-signal only — the
+non-tech postings still get a number. The stopword list is anti-signal only  the
 ontology is the skill vocabulary, extend it freely (a new alias needs no code change).
 """
 
@@ -31,7 +31,7 @@ from .. import config
 
 # Generic, domain-neutral stopwords + hiring/JD boilerplate that carries no matching
 # signal. This is the ONLY word list, and it's anti-signal (words to ignore), not a
-# domain skill list — so the matcher stays general across any field.
+# domain skill list  so the matcher stays general across any field.
 _STOPWORDS = {
     # function words
     "the", "and", "for", "with", "you", "your", "our", "are", "will", "have", "has",
@@ -59,7 +59,7 @@ _STOPWORDS = {
     "range", "compensation", "pay", "verification", "orientation", "gender", "race",
     "veteran", "disability", "religion", "national", "origin", "legally", "authorized",
     # benefits / comp / application-chrome boilerplate (pollutes keyword extraction on
-    # portal-scraped JDs — e.g. Apple's "employee stock", "submit resume", "learn about")
+    # portal-scraped JDs  e.g. Apple's "employee stock", "submit resume", "learn about")
     "stock", "equity", "employee", "employees", "benefits", "benefit", "submit",
     "resume", "apply", "application", "applications", "program", "programs", "learn",
     "results", "result", "subject", "area", "relevant", "industry", "contribute",
@@ -72,7 +72,7 @@ _STOPWORDS = {
     "people", "everything", "own", "owned", "beyond", "means", "come", "comes",
     "don", "doesn", "isn", "aren", "didn", "won", "small", "full", "fast", "key",
     "many", "much", "very", "still", "here",
-    # page chrome from scraped careers pages (nav / legal / cookie / EEO footers) — these
+    # page chrome from scraped careers pages (nav / legal / cookie / EEO footers)  these
     # dominate the "prominent terms" of a whole-page scrape and crush the real match, so
     # they must be treated as anti-signal (see the JD-cleaning diagnostic).
     "cookie", "cookies", "privacy", "policy", "policies", "terms", "agreement", "consent",
@@ -104,7 +104,7 @@ def _ontology() -> tuple[re.Pattern | None, dict[str, str]]:
     serving" and a resume's "SageMaker inference endpoint" both rewrite to the token
     `model-serving`, so they match with no shared literal word. ONE regex (alternatives
     ordered longest-first) rewrites all forms in a single left-to-right pass, so a
-    concept token is never re-scanned — e.g. `model-serving` can't re-trigger the bare
+    concept token is never re-scanned  e.g. `model-serving` can't re-trigger the bare
     `serving` rule. Missing/empty file -> (None, {}) = pure literal matching, unchanged."""
     path = config.CONFIG_DIR / "skill_synonyms.json"
     if not path.exists():
@@ -159,7 +159,7 @@ def _tokens(text: str) -> list[str]:
 def _concept_set(resume_text: str) -> frozenset[str]:
     """The resume's skill concepts. Discovery scores every job against the SAME resume
     (the combined master), so without this the identical token+ontology pass is redone
-    once per job — ~1/3 of jd_match's cost on a 100-job sweep. Cached on the resume text
+    once per job  ~1/3 of jd_match's cost on a 100-job sweep. Cached on the resume text
     itself, so a different (e.g. tailored) resume simply gets its own entry."""
     return frozenset(_tokens(resume_text)) & _concept_names()
 
@@ -175,7 +175,7 @@ def _weighted_terms(jd_text: str) -> Counter:
     weights = Counter()
     for t, c in Counter(_tokens(jd_text)).items():
         weights[t] = min(c, 3)
-    # phrases: adjacent meaningful tokens within a punctuation-delimited segment —
+    # phrases: adjacent meaningful tokens within a punctuation-delimited segment
     # commas/periods break phrases so "detection, segmentation" never fuses, and
     # dropping a stopword can't glue two distant words together.
     phrase_counts = Counter()
@@ -199,7 +199,7 @@ def bm25_scores(resume_text: str, jd_corpus: list[str],
     a generic JD matching "engineer/python" can tie a genuine match sharing "faiss".
     BM25 fixes that: it needs a CORPUS, and its IDF term down-weights words common
     across the JDs and rewards rare, discriminating skills. That is exactly the
-    discovery-ranking problem — score many JDs against the candidate — where per-pair
+    discovery-ranking problem  score many JDs against the candidate  where per-pair
     coverage is weakest. (For a single resume↔JD pair the corpus is size 1 and IDF is
     degenerate, which is why we keep ``ats_score`` as the Jobscan-style per-resume %.)
 
@@ -237,7 +237,7 @@ _MIN_JD_CONCEPTS = 4   # below this the JD is too skill-sparse for concept-mode 
 
 def rank_snippets(jd_text: str, snippets: list[str], k: int) -> list[str]:
     """Pick the `k` snippets (resume bullets) most relevant to the JD, most-relevant
-    first, dropping near-duplicates. Deterministic, no LLM — used to select which
+    first, dropping near-duplicates. Deterministic, no LLM  used to select which
     bullets a NON-tailored experience block (or the projects section) renders per JD,
     so every block shows JD-relevant work instead of fixed defaults. Empty/absent JD
     → keep the first k in original order."""
@@ -262,8 +262,8 @@ def rank_snippets(jd_text: str, snippets: list[str], k: int) -> list[str]:
 
 def jd_match(job_description: str) -> dict:
     """THE single JD↔candidate match: score the JD against the ONE combined master
-    (all of the candidate's ML+SDE+DE points). Every scorer — discovery, JD-rerank, the
-    tracker rescore — calls this so the same logic runs once, not three copies. Returns
+    (all of the candidate's ML+SDE+DE points). Every scorer  discovery, JD-rerank, the
+    tracker rescore  calls this so the same logic runs once, not three copies. Returns
     the usual ats_score dict; `missing_keywords` are the real skill gaps for this JD."""
     from . import profiles  # local import: avoid an import cycle at module load
     return ats_score(job_description, profiles.combined_master_text())
@@ -274,7 +274,7 @@ def ats_score(job_description: str, resume_text: str,
     """Score how well the resume's SKILLS cover the JD's skills. Domain-agnostic.
 
     A real recruiter (and the LLM reviewer) judges skill FIT, not how many of a posting's
-    prominent words happen to appear on the resume — a resume can't contain a JD's
+    prominent words happen to appear on the resume  a resume can't contain a JD's
     company jargon ("fulfillment home", "phishing coach"), and penalizing that made the
     old prominent-word score disagree sharply with the LLM. So we score on the ontology's
     concept space: the JD's recognized SKILL concepts (weighted by how much the JD
@@ -282,12 +282,12 @@ def ats_score(job_description: str, resume_text: str,
     skill GAPS, not noise.
 
     Falls back to the prominent-term coverage when the JD names too few recognized skills
-    (`_MIN_JD_CONCEPTS`) for concept-mode to be reliable — so niche/non-tech JDs still get
+    (`_MIN_JD_CONCEPTS`) for concept-mode to be reliable  so niche/non-tech JDs still get
     a number.
 
     Args:
         job_description: raw JD text.
-        resume_text: resume text (tailored Markdown or stripped LaTeX) — score the
+        resume_text: resume text (tailored Markdown or stripped LaTeX)  score the
             TAILORED resume when judging an application, the master when pre-filtering.
         top_n: cap on prominent terms in the FALLBACK path (concept-mode uses all skills).
     """
@@ -328,7 +328,7 @@ def ats_score(job_description: str, resume_text: str,
         "advice": (
             "Strong skill match."
             if score >= 75
-            else "Missing skills the JD emphasizes — surface them from your real "
+            else "Missing skills the JD emphasizes  surface them from your real "
             "experience if truthful; never fabricate."
         ),
     }

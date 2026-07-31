@@ -28,3 +28,5 @@ data/*.tex
 data/pipeline_run.log
 data/pipeline_run.json
 resume/references.md
+resume/_retired/
+.idea/

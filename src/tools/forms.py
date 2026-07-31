@@ -1,8 +1,8 @@
-"""Question bank — data-driven answers for application-form questions.
+"""Question bank  data-driven answers for application-form questions.
 
 The old form filler hardcoded employer-specific question patterns (Amazon, Twitch)
 and the answer logic in Python. All of that now lives in ``config/question_bank.json``
-— regex label patterns mapped to answer templates — so adding a new question type
+ regex label patterns mapped to answer templates  so adding a new question type
 is a config edit, not a code change. This module resolves an entry against the
 user's profile and hands (text_value, dropdown_keywords) to whichever portal
 filler matched a label (Greenhouse today; Lever/Ashby can reuse it).
@@ -93,7 +93,7 @@ def answer_for_label(label_text: str, ctx: dict,
                      bank: list[dict] | None = None) -> tuple[str, list[str]] | None:
     """Match a form label against the bank. Returns (text, options) or None.
 
-    None means either no entry matched OR the matched entry says 'skip' — in both
+    None means either no entry matched OR the matched entry says 'skip'  in both
     cases the filler must leave the field to the human.
     """
     label = label_text.strip().lower()

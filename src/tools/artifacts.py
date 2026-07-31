@@ -1,6 +1,6 @@
-"""Per-application artifacts — keep a traceable folder per job we tailor for.
+"""Per-application artifacts  keep a traceable folder per job we tailor for.
 
-When we tailor a resume for a specific role, we don't just overwrite one scratch file —
+When we tailor a resume for a specific role, we don't just overwrite one scratch file
 we write a dedicated folder so you can always see exactly what was sent where:
 
     data/applications/<Company>/<job-id>/
@@ -38,7 +38,7 @@ def job_id_from_url(url: str | None) -> str:
 
 
 def slug(company: str, role: str, url: str | None = None) -> str:
-    """LEGACY flat folder name — kept so `migrate_layout` can recognise old folders."""
+    """LEGACY flat folder name  kept so `migrate_layout` can recognise old folders."""
     raw = f"{company}-{role}".lower()
     s = re.sub(r"[^a-z0-9]+", "-", raw).strip("-")[:55] or "application"
     jid = job_id_from_url(url)
@@ -64,7 +64,7 @@ def folder(company: str, role: str, url: str | None = None) -> pathlib.Path:
     return d
 
 
-# Tokens that start the ROLE part of a legacy folder name — everything before the first
+# Tokens that start the ROLE part of a legacy folder name  everything before the first
 # one is the company (capped at 3 words). Only used for orphan folders whose tracker row
 # no longer exists; tracked rows always supply the real company name.
 _ROLE_TOKENS = {
@@ -97,7 +97,7 @@ def _trailing_id(name: str) -> str:
 
 
 def _leaf_dirs(base: pathlib.Path) -> list[pathlib.Path]:
-    """Every folder holding artifacts — both the legacy flat ones and the nested
+    """Every folder holding artifacts  both the legacy flat ones and the nested
     <Company>/<job>/ ones, so a re-run picks up either generation."""
     return [p for p in base.rglob("*")
             if p.is_dir() and not any(c.is_dir() for c in p.iterdir())
@@ -154,7 +154,7 @@ def migrate_layout(apply: bool = True) -> list[tuple[str, str]]:
             new = BASE / company_dir(rec["company"]) / job_dir(rec.get("role", ""),
                                                                rec.get("url"))
         elif old.parent != BASE:
-            continue          # already nested and untracked — leave the archive alone
+            continue          # already nested and untracked  leave the archive alone
         else:
             company = _company_from_dirname(old.name, known)
             if not company:

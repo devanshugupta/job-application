@@ -1,7 +1,7 @@
-"""Public ATS board APIs — deterministic discovery, no scraping, no LLM.
+"""Public ATS board APIs  deterministic discovery, no scraping, no LLM.
 
 Greenhouse, Lever, Ashby, SmartRecruiters, and Workable all expose free, public,
-unauthenticated JSON endpoints for a company's live postings — with real URLs and
+unauthenticated JSON endpoints for a company's live postings  with real URLs and
 trustworthy timestamps. Hitting these is faster, cheaper, and far more reliable
 than crawling career pages with a browser agent, and it's exactly what the boards
 publish them for. One GET per company.
@@ -14,7 +14,7 @@ Companies come from config/watchlist.json entries carrying "ats" + "token":
 Entries without ats/token are skipped here (they remain agent-crawl targets).
 
 All fetchers fail soft: a company whose endpoint errors is reported in the
-returned ``errors`` list, never raised — one bad token must not kill a run.
+returned ``errors`` list, never raised  one bad token must not kill a run.
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ def _iso(ts_or_str) -> tuple[str, int]:
 
 def _strip_html(html: str) -> str:
     """Cheap HTML→text for JDs the ATS APIs return as HTML (Greenhouse/Ashby).
-    Not a full parser — unescape entities, drop tags, collapse whitespace. Good
+    Not a full parser  unescape entities, drop tags, collapse whitespace. Good
     enough for keyword matching and the tailor prompt; no browser, no deps."""
     import html as _html
     if not html:
@@ -148,7 +148,7 @@ def fetch_ashby(company: str, token: str) -> list[dict]:
 
 
 def fetch_smartrecruiters(company: str, token: str) -> list[dict]:
-    """Paginated — SmartRecruiters caps each page at 100, so walk offset to totalFound."""
+    """Paginated  SmartRecruiters caps each page at 100, so walk offset to totalFound."""
     out, offset = [], 0
     while offset < MAX_PER_COMPANY:
         data = _get_json("https://api.smartrecruiters.com/v1/companies/"
@@ -168,7 +168,7 @@ def fetch_smartrecruiters(company: str, token: str) -> list[dict]:
 
 
 def fetch_workable(company: str, token: str) -> list[dict]:
-    """Paginated — Workable widget returns `total`; page via offset until covered."""
+    """Paginated  Workable widget returns `total`; page via offset until covered."""
     out, offset = [], 0
     while offset < MAX_PER_COMPANY:
         data = _get_json("https://apply.workable.com/api/v1/widget/accounts/"
@@ -208,7 +208,7 @@ def fetch_workday(company: str, host: str, site: str,
     host = '<tenant>.wdN.myworkdayjobs.com', site = the career-site path segment
     (e.g. 'NVIDIAExternalCareerSite'). One POST per page of 20 until `total` is covered
     or, when `within_hours` is set (a daily pull), until we've paged past the freshness
-    window — Workday returns newest-first, so once a couple of pages are entirely older
+    window  Workday returns newest-first, so once a couple of pages are entirely older
     than the window we stop early instead of dragging the whole 2000-job board.
     """
     from datetime import timedelta

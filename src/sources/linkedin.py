@@ -3,7 +3,7 @@
 ⚠️ Terms of Service: automated access to LinkedIn violates their User Agreement and can
 get an account or IP restricted. This source is therefore DISABLED by default and uses
 only LinkedIn's public, unauthenticated guest job-search endpoint (the same one that
-backs the logged-out jobs page) — no login, no credentials. Enable it deliberately and
+backs the logged-out jobs page)  no login, no credentials. Enable it deliberately and
 keep volume low. You own how you use it.
 
 This is the FIRST keyword-driven source: unlike the ATS/feed sources (which pull whole
@@ -21,7 +21,7 @@ job lists), LinkedIn needs search terms. Configure them in config/settings.json:
 
 Returns the normalized job dict. Dates are relative on LinkedIn ("3 days ago"); we map
 them to an approximate posted_ts so discover's freshness window still applies. Treat
-LinkedIn-sourced URLs as DISCOVERY pointers — the apply step opens the real company page.
+LinkedIn-sourced URLs as DISCOVERY pointers  the apply step opens the real company page.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from .. import config
 
 _GUEST = ("https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
           "?keywords={kw}&location={loc}&start={start}")
-# Public guest JD endpoint — returns the full description HTML with NO login, same ToS
+# Public guest JD endpoint  returns the full description HTML with NO login, same ToS
 # posture as the guest search above. Lets us capture jd_text at discovery.
 _GUEST_JD = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{jid}"
 _UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -150,7 +150,7 @@ class LinkedInSource(Source):
                     req = urllib.request.Request(url, headers=_UA)
                     with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310
                         html = r.read().decode("utf-8", errors="replace")
-                except Exception as e:  # 403/429 are common — fail soft
+                except Exception as e:  # 403/429 are common  fail soft
                     errors.append(f"linkedin '{s.get('keywords')}' p{p}: {e}")
                     break
                 cards = _parse_cards(html, now)
@@ -181,7 +181,7 @@ def _attach_jds(jobs: list[dict]) -> None:
 def search(keywords: str, *, location: str = "United States", hours: int = 168,
            pages: int = 2, limit: int = 25) -> list[dict]:
     """Reusable LinkedIn guest search: newest cards for `keywords`, with jd_text attached
-    from the guest JD endpoint. ToS-sensitive — keep volume low. Returns normalized jobs."""
+    from the guest JD endpoint. ToS-sensitive  keep volume low. Returns normalized jobs."""
     now = int(time.time())
     cutoff = now - hours * 3600
     kw, loc = urllib.parse.quote(keywords), urllib.parse.quote(location)

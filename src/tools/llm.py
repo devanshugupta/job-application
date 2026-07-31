@@ -1,7 +1,7 @@
-"""LLM provider shim — route each task to Claude (Anthropic) or OpenAI.
+"""LLM provider shim  route each task to Claude (Anthropic) or OpenAI.
 
 Lets the resume-tailoring/agent loop run on Claude while other LLM tasks (e.g. the resume
-scorer, the finder) run on OpenAI — or any mix — chosen per task via env vars. The
+scorer, the finder) run on OpenAI  or any mix  chosen per task via env vars. The
 deterministic tools (edit_tex, ats, final_check, dedupe, render) need NO LLM at all.
 
 Routing (env vars, default anthropic):
@@ -132,7 +132,7 @@ def structured(*, provider: str, model: str, system: str, user: str,
     `cache_blocks`: optional list of text blocks that are byte-identical across many
     calls in a run (e.g. the master resume + achievements doc, reused for every job).
     On Anthropic these are joined into one prefix block marked `cache_control`, placed
-    before the per-call `user` text — so only the first call in a run pays full price
+    before the per-call `user` text  so only the first call in a run pays full price
     for that content; every later call in the same run (within the ~5min TTL) reads it
     from cache at a fraction of the input-token cost. The system prompt is always
     cache_control'd too, since it never changes within a run. OpenAI has no manual

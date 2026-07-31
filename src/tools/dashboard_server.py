@@ -1,4 +1,4 @@
-"""Live dashboard server — makes the dashboard *actionable* instead of read-only.
+"""Live dashboard server  makes the dashboard *actionable* instead of read-only.
 
 A static `file://` page can neither write `data/applications.json` nor copy a PDF
 anywhere, so the two buttons in the table need a tiny local backend:
@@ -71,7 +71,7 @@ def unmark_applied(url: str) -> str:
     returns the restored status so the UI can re-render the row's tag."""
     rec = tracker._find_by_url(tracker.list_applications(), url)
     prev = (rec or {}).get("prev_status")
-    if not prev:  # no stored prior status — infer from how far the row got
+    if not prev:  # no stored prior status  infer from how far the row got
         prev = ("tailored" if (rec or {}).get("tailored_pdf")
                 else "scored" if (rec or {}).get("resume_score") is not None
                 else "found")
@@ -80,11 +80,11 @@ def unmark_applied(url: str) -> str:
 
 
 def recompile_resume(rec: dict) -> pathlib.Path:
-    """Re-render this job's tailored_resume.tex into its PDF, overwriting it — so editing
+    """Re-render this job's tailored_resume.tex into its PDF, overwriting it  so editing
     the .tex and clicking 'recompile' picks up the changes. Returns the PDF path."""
     from . import latex
     # Derive the folder/PDF name from the stored path WITHOUT requiring the PDF to exist
-    # yet — recompiling is exactly how a missing/edited PDF gets (re)generated.
+    # yet  recompiling is exactly how a missing/edited PDF gets (re)generated.
     stored = pathlib.Path(rec["tailored_pdf"]) if rec.get("tailored_pdf") else None
     if stored is not None and not stored.is_absolute():
         stored = config.ROOT / stored
@@ -174,7 +174,7 @@ _DONE_MARKERS = ("PIPELINE DONE", "Submit a chosen role", "No fresh roles",
 def pipeline_status(tail_lines: int = 4) -> dict:
     """Current/last run + a progress tail. Completion is detected by PID liveness (works
     even if THIS server didn't launch the run, or was restarted), then confirmed by a
-    log marker — so the status never sticks on 'running' after the process is gone."""
+    log marker  so the status never sticks on 'running' after the process is gone."""
     st = _read_run_state()
     try:
         lines = [ln for ln in _RUN_LOG.read_text().splitlines() if ln.strip()]
@@ -225,7 +225,7 @@ class _Handler(BaseHTTPRequestHandler):
                 payload = json.loads(self.rfile.read(n) or b"{}")
             except json.JSONDecodeError:
                 return self._json(400, {"error": "bad JSON"})
-            # run-pipeline takes no job url — handle before the record lookup
+            # run-pipeline takes no job url  handle before the record lookup
             if self.path.startswith("/api/run-pipeline"):
                 return self._json(200, start_pipeline())
             url = (payload.get("url") or "").strip()
@@ -261,12 +261,12 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def serve(port: int = 8765, open_browser: bool = True) -> None:
-    # No initial render needed — GET "/" renders on demand (see do_GET).
+    # No initial render needed  GET "/" renders on demand (see do_GET).
     url = f"http://localhost:{port}"
     print(f"Dashboard live at {url}  (Ctrl-C to stop)")
     print(f"Resumes filed under {config.APPLICATIONS_DIR}/<Company>/<job-id>/")
     server = HTTPServer(("127.0.0.1", port), _Handler)
-    # Open the RIGHT page automatically so the buttons reach this backend — landing on
+    # Open the RIGHT page automatically so the buttons reach this backend  landing on
     # the file:// page or an IDE preview instead is exactly what breaks apply/reveal.
     if open_browser:
         webbrowser.open(url)

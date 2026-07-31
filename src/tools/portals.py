@@ -1,7 +1,7 @@
 """Application-portal awareness.
 
 Job applications live on very different portals, and the right strategy differs:
-- Greenhouse / Lever / Ashby: usually a single public form, no login — easiest.
+- Greenhouse / Lever / Ashby: usually a single public form, no login  easiest.
 - Workday: almost always needs an account/login, multi-step, JS-heavy.
 - Generic company form: best-effort field mapping.
 - Unknown / CAPTCHA / SSO / login wall: stop and hand to the human.
@@ -12,7 +12,7 @@ always override based on what it actually sees.
 
 It also flags two things the user called out:
 - needs_login: portals that gate the form behind auth (don't try to fill; hand off).
-- prefilled: when a logged-in portal already populated fields from a PRIOR application —
+- prefilled: when a logged-in portal already populated fields from a PRIOR application
   in that case we should NOT rewrite them, only fill blanks / update the resume.
 
 Credentials are NEVER handled here. Login happens in a human-authenticated persistent
@@ -46,7 +46,7 @@ _LOGIN_WALL = re.compile(
     r"\b(sign in|log in|create account|create an account|password|forgot password)\b",
     re.I,
 )
-# Only treat as a CAPTCHA WALL on signals of a VISIBLE challenge — human-facing prompt
+# Only treat as a CAPTCHA WALL on signals of a VISIBLE challenge  human-facing prompt
 # text, or an actual widget container/iframe. NOT a hidden token field like
 # `h-captcha-response` / `g-recaptcha-response`, which ATS forms (Lever, Greenhouse)
 # embed in every page and only activate on suspicion. Matching the hidden field made the
@@ -110,9 +110,9 @@ def classify(url: str, page_text: str = "", snapshot: str = "") -> dict:
 STRATEGY_GUIDANCE = {
     "simple_form": "Public single-page form (Greenhouse/Lever/Ashby). Fill directly from "
     "the profile; upload the tailored resume PDF; confirm with the human before submit.",
-    "workday_login_required": "Workday — needs a logged-in account. If the persistent "
+    "workday_login_required": "Workday  needs a logged-in account. If the persistent "
     "browser profile is already logged in, proceed but CHECK for pre-filled fields from a "
-    "prior application and DO NOT overwrite them — only fill blanks/update. If not logged "
+    "prior application and DO NOT overwrite them  only fill blanks/update. If not logged "
     "in, open the page and hand to the human to log in, then resume.",
     "handoff_login": "A login wall is present. Hand to the human to authenticate in the "
     "persistent profile, then resume. Never enter credentials yourself.",

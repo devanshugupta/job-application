@@ -1,4 +1,4 @@
-# CLAUDE.md — build & extend guide for the Job Applier Agent
+# CLAUDE.md  build & extend guide for the Job Applier Agent
 
 This file orients an AI coding assistant (or a new human contributor) working in
 this repo. It explains the architecture, how to run it, the conventions to follow,
@@ -26,9 +26,9 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
 `*.response.json`, then the same command is re-run to finish. Run tests with
 `python -m pytest tests/ -q`.
 
-## v2 architecture (the overhaul — read this first)
+## v2 architecture (the overhaul  read this first)
 
-- **`src/config.py`** — single source of truth for paths (project-root-anchored, CWD-proof),
+- **`src/config.py`**  single source of truth for paths (project-root-anchored, CWD-proof),
   model ids, pricing, env knobs (`JOB_AGENT_*`), optional `config/settings.json` overrides.
 - **Discovery** (`tools/discover.py` + `tools/boards.py` + `tools/feeds.py`): deterministic,
   no LLM/browser. Merges curated GitHub feeds with FREE public ATS JSON APIs
@@ -37,15 +37,15 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
   title/seniority gates, ATS-match ranking. Easily yields 50-100 fresh roles/day.
   **JD captured once, at discovery, not re-fetched:** Greenhouse (`?content=true`), Ashby
   (`descriptionPlain`), and Lever (`descriptionPlain`) already return the full JD in the
-  same list call `boards.py` makes to find the job — so it's stripped to clean text
+  same list call `boards.py` makes to find the job  so it's stripped to clean text
   (`_strip_html`) and carried on the job dict as `jd_text`, then persisted onto the
   tracker row by `tracker.save_application`. `discover.rerank_by_jd` and `tailor.tailor_job`
   both check `jd_text` first, then the day cache (`finder.get_cached`), and only fetch the
-  posting as a last resort — for Simplify/LinkedIn/careers/github links (real posting page,
+  posting as a last resort  for Simplify/LinkedIn/careers/github links (real posting page,
   no clean ATS API) that fetch renders the page (`jd_fetch.fetch_jd(..., allow_browser=True)`)
   instead of a plain HTTP GET. `tailor_job` also writes `jd_text` back into every
   `tracker.save_application` call it makes (scored, and both skip paths), so a JD fetched
-  at tailor time is never re-fetched on a later re-run either — one fetch per job, ever.
+  at tailor time is never re-fetched on a later re-run either  one fetch per job, ever.
   The Simplify/LinkedIn/careers/github fetches that DO need a live HTTP/browser call in
   `rerank_by_jd` are independent per-job I/O, so they run concurrently (a small
   `ThreadPoolExecutor`, capped at 4 workers) instead of one-at-a-time.
@@ -57,41 +57,41 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
 - **Brain seam** (`src/brain.py`): ALL LLM judgment goes through `brain.structured(...)`.
   `ApiBrain` -> tools/llm.py (Anthropic/OpenAI per-task routing). `ManualBrain` -> file
   packets, zero API. This is the API-optional design point: everything else is plain Python.
-- **Tailoring pipeline** (`tools/tailor.py`): per job, 3 structured brain calls —
+- **Tailoring pipeline** (`tools/tailor.py`): per job, 3 structured brain calls 
   (1) PATCH (TAILOR_SYSTEM), (2) REVIEW+revise (REVIEW_SYSTEM: catches repeated bullets,
-  whether the tailored experience actually fits the JD, and summary coherence — applies
-  one correction; `_merge_review`), (3) senior-reviewer SCORE — around deterministic
+  whether the tailored experience actually fits the JD, and summary coherence  applies
+  one correction; `_merge_review`), (3) senior-reviewer SCORE  around deterministic
   JD fetch (`tools/jd_fetch.py`: greenhouse/lever/ashby/Workday-CXS JSON APIs +
   embedded-gh_jid + headless-Chromium fallback), patch-apply, lint (1 corrective pass),
   LaTeX render, final_check. In manual brain mode each call is a data/brain packet.
 - **Master resume source of truth is the `.tex`** (`resume/masters/ml_sde.tex` etc.,
-  gitignored — copy yours in; see `*.example.tex`): `profiles.read_master_for()` converts
+  gitignored  copy yours in; see `*.example.tex`): `profiles.read_master_for()` converts
   it via `latex.tex_to_text()` whenever the `.md` master is missing or still a
   placeholder. `latex.edit_tex()` patches Summary, the Technical Skills block, AND the
   leading 2-7 bullets of the chosen experience block (section-index-aware; near-duplicate
   bullets elsewhere are auto-commented). Bullets are grounded in the master PLUS
-  `resume/achievements.md` (gitignored raw work context; see the example) — the tailor
+  `resume/achievements.md` (gitignored raw work context; see the example)  the tailor
   prompt forbids sourcing claims from anywhere else.
 - **LaTeX→PDF via tectonic** (`tools/latex.py`): `_latex_engine()` prefers tectonic
   (`brew install tectonic`, no sudo, one-time, on PATH) over system pdflatex; the source
   is adapted per engine (`_adapt_for_engine` strips `\pdfgentounicode`, `glyphtounicode`,
   and the unused `fontawesome5` that SIGABRTs tectonic). NOTE: the PyPI `pdflatex` package
-  is only a wrapper around a system binary — it does NOT provide an engine. Falls back to
+  is only a wrapper around a system binary  it does NOT provide an engine. Falls back to
   Markdown→Chromium only if no engine is present.
-- **All prompts live in `src/prompts.py`** — `TAILOR_SYSTEM` (creation; enforces that two
+- **All prompts live in `src/prompts.py`**  `TAILOR_SYSTEM` (creation; enforces that two
   different JDs yield two different top-bullet pairs), `SCORER_SYSTEM` (scoring; penalizes
   generic bullets + flags hard unmet JD requirements), `FINDER_SYSTEM` (browser finder).
   tailor/scorer/agent import from here. Edit prompts there; nothing else changes.
   Technical Skills has a **fixed core** that must appear on every tailored resume
   regardless of JD: Languages always Python/SQL/Kotlin; ML (when that group is present)
-  always PyTorch/TensorFlow/scikit-learn/Koog — all genuinely-used skills. The LLM may
+  always PyTorch/TensorFlow/scikit-learn/Koog  all genuinely-used skills. The LLM may
   still append additional relevant tools per JD (MLflow, LangGraph, XGBoost, …) on top of
   that core, and everything else follows the usual "only what's true and relevant" rule.
 - **Composite scoring** (`tools/scoring.py`): Application Quality Score 0-100 =
   0.40 reviewer + 0.35 JD-must-have % + 0.10 ATS keywords + 0.15 recency (renormalized
   when parts are missing) with letter grades. THE headline number; dashboard + status use it.
 - **Dashboard** (`tools/dashboard.py` + `tools/dashboard_server.py`): bright self-contained
-  HTML — KPI cards, funnel, AQS histogram (count labeled per bucket, plus a scored-row
+  HTML  KPI cards, funnel, AQS histogram (count labeled per bucket, plus a scored-row
   total in the panel title, so it visibly reflects fresh data), status chips (multi-select:
   click several to view their union), profile filter, a "tailored" chip that filters to
   jobs with a resume already produced, text search, sortable table, paginated 30 rows/page
@@ -106,7 +106,7 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
   patterns/answers are DATA resolved against profile.json. greenhouse.py consumes it; no
   employer-specific logic is hardcoded anywhere. The resume PDF filename derives from the
   profile name (`config.resume_pdf_name()`), never a literal.
-- The agentic loop (`src/agent.py` + browser tools) remains for `apply`/`find`/`score` —
+- The agentic loop (`src/agent.py` + browser tools) remains for `apply`/`find`/`score` 
   portals that need a real browser (Workday, custom forms) and the human-confirmed submit.
 
 ## Capabilities added beyond the core loop
@@ -116,15 +116,15 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
   `apply_patch` take a `profile`. Backward compatible with the single `master_resume.md`.
 - **Strict scorer** (`src/tools/scorer.py`, tool `score_resume`): a senior hiring-manager /
   Sr-SDE reviewer (NOT an ATS) returns `overall_score` (/10), `verdict`, per-dimension
-  scores, `gaps`, `top_fixes` via structured output. Loop is ≤2 passes — *improve the
+  scores, `gaps`, `top_fixes` via structured output. Loop is ≤2 passes  *improve the
   rules, not the loop count* (see `resume/formatting_rules.md` §0a/§0b).
 - **Match scoring (two tiers):** the LLM scorer also extracts the JD's role-defining
   `must_haves` and returns `matched_must_haves`/`missing_must_haves`/`match_pct` (0-100),
-  counting EXACT and SIMILAR/synonym evidence (k8s≈Kubernetes, FAISS≈vector search) — so
+  counting EXACT and SIMILAR/synonym evidence (k8s≈Kubernetes, FAISS≈vector search)  so
   an ML resume scores low against an SDE JD (no generic-overlap inflation). This is the
   trusted match number for scored/applied roles, folded into the existing score_resume
   call (no extra LLM cost). The cheap keyword `ats.py` (fully dynamic, no hardcoded skill
-  vocab — derives important terms from the JD) is ONLY the free find-time pre-filter.
+  vocab  derives important terms from the JD) is ONLY the free find-time pre-filter.
 - **Job finder** (`src/tools/finder.py` + `_FINDER_SYSTEM` in agent.py): ATS boards +
   GitHub fresh-job repos; freshness verified on the REAL company page (`find_posted_date`);
   daily cache `data/job_cache.json`; ranked by recency AND original-resume match. Never
@@ -135,7 +135,7 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
   application so we don't overwrite saved data. Credentials are NEVER handled by the agent.
 - **Curated feeds** (`src/tools/feeds.py`, `feed` command): pulls SimplifyJobs
   New-Grad-Positions `listings.json` (reliable `date_posted`, real URLs). Two-layer filter
-  — category allowlist (Software/AI-ML-Data; drops Hardware/Quant/Product) + title gating
+   category allowlist (Software/AI-ML-Data; drops Hardware/Quant/Product) + title gating
   (drops technician/operator/analyst/PM); AI-ML-Data bucket split into ml_ai vs
   data_engineer by title. The PRIMARY discovery source (board-crawling is the fallback).
 - **Watchlist** (`config/watchlist.json`, `watchlist` command): 20 curated H1B/OPT-friendly
@@ -151,7 +151,7 @@ key: judgment calls are written as prompt packets to `data/brain/*.prompt.md`; a
 - **QA self-check** (`src/tools/qa.py` + `runlog.py`, `report` command): deterministic
   per-step pass/fail + issues log. OFF by default (`JOB_AGENT_QA=1` to enable); temporary
   debugging aid, zero token cost itself.
-- **BI dashboard** (`src/tools/dashboard.py`): static `data/dashboard.html` — date,
+- **BI dashboard** (`src/tools/dashboard.py`): static `data/dashboard.html`  date,
   company, role, profile, status, **ATS /100** + **Score /10** (separate columns, not
   mixed), verdict, posted date, *what changed*, links to source + tailored PDF (PDF link
   only shown for genuinely tailored rows).
@@ -192,16 +192,16 @@ isolated in one place (`src/agent.py::run_agent`).
 
 ## Can this run anywhere? (portability)
 
-Yes — it's a plain Python package with two external dependencies. It runs on macOS,
+Yes  it's a plain Python package with two external dependencies. It runs on macOS,
 Linux, or Windows (incl. WSL) given:
 
 1. **Python 3.11+**
 2. **`pip install -r requirements.txt`** (`anthropic`, `playwright`, `python-dotenv`)
-3. **`playwright install chromium`** — downloads a self-contained browser; no system
+3. **`playwright install chromium`**  downloads a self-contained browser; no system
    Chrome needed. On headless Linux/CI also run `playwright install-deps`.
 4. **`ANTHROPIC_API_KEY`** in the environment (or `.env`).
 
-There is **no database, server, or cloud resource** — state is two local JSON files
+There is **no database, server, or cloud resource**  state is two local JSON files
 (`config/profile.json`, `data/applications.json`) plus screenshots on disk. So
 "clone, install, set key, run" works on any machine. For unattended/CI runs use
 `--headless` and a pre-authenticated `JOB_AGENT_USER_DATA_DIR` profile.
@@ -252,14 +252,14 @@ data/               # applications.json + screenshots/ (gitignored)
 **The agent loop (`run_agent`)** is the thing to understand first. Claude is given
 `TOOLS`; each turn it either returns text (done) or `tool_use` blocks. We run each
 tool via `_dispatch`, append the results as a `tool_result` user message, and loop
-until `stop_reason != "tool_use"`. It's the manual Anthropic agentic loop — kept
+until `stop_reason != "tool_use"`. It's the manual Anthropic agentic loop  kept
 manual on purpose so it's transparent.
 
 ### Adding a new tool (the main extension pattern)
 1. Write a Python function (in `tools/` or inline).
 2. Add a JSON schema entry to `TOOLS` in `agent.py`.
 3. Route it in `_dispatch`.
-That's it — Claude will start using it when the system prompt / task calls for it.
+That's it  Claude will start using it when the system prompt / task calls for it.
 
 ---
 
@@ -281,25 +281,25 @@ Good per-task split to grow into:
 
 Model IDs (current as of writing): `claude-opus-4-8` (most capable, 1M context),
 `claude-sonnet-4-6` (balanced), `claude-haiku-4-5` (fastest/cheapest). Use the exact
-strings — don't append date suffixes. To verify capabilities/pricing at runtime, call
+strings  don't append date suffixes. To verify capabilities/pricing at runtime, call
 `client.models.retrieve("<id>")` rather than hardcoding assumptions.
 
 Thinking/effort knobs (optional, Opus/Sonnet 4.6+): add
 `thinking={"type": "adaptive"}` and `output_config={"effort": "high"}` to the
 `messages.create` call in `agent.py` for harder reasoning steps. (`budget_tokens` is
-removed on Opus 4.8 — use adaptive thinking.)
+removed on Opus 4.8  use adaptive thinking.)
 
 ---
 
-## Can we create agents for this? (two senses — both yes)
+## Can we create agents for this? (two senses  both yes)
 
 **1. Custom sub-agents within this codebase.** The clean way to grow this is multiple
 specialized agent calls instead of one mega-loop. Pattern: give each its own task
 prompt, tool subset, and model. Candidates:
-- `ScoringAgent` — reads JD + profile, returns a structured fit verdict (Haiku/Sonnet).
-- `MaterialsAgent` — tailors resume bullets + writes the cover letter (Opus).
-- `FormFillingAgent` — drives the browser to submit (Opus, browser tools only).
-- `OutreachAgent` — drafts recruiter emails / LinkedIn notes (Sonnet).
+- `ScoringAgent`  reads JD + profile, returns a structured fit verdict (Haiku/Sonnet).
+- `MaterialsAgent`  tailors resume bullets + writes the cover letter (Opus).
+- `FormFillingAgent`  drives the browser to submit (Opus, browser tools only).
+- `OutreachAgent`  drafts recruiter emails / LinkedIn notes (Sonnet).
 An orchestrator in `cli.py` runs them in sequence and passes structured data between
 them. Use structured outputs (`output_config.format` with a JSON schema, or
 `client.messages.parse()` with a schema) so each agent returns clean data the next
@@ -309,7 +309,7 @@ one can consume.
 runtime: you create a persisted, versioned **Agent** (model + system prompt + tools),
 then start **Sessions** against it; Anthropic runs the loop and a sandbox container.
 Relevant here if you want the agent to run server-side, persist across runs, or use
-hosted tools — but the browser automation in this repo is **client-side** (Playwright
+hosted tools  but the browser automation in this repo is **client-side** (Playwright
 on your machine), so the natural fit is to expose browser actions as **custom tools**
 (the session emits `agent.custom_tool_use`; your local process executes the Playwright
 action and returns `user.custom_tool_result`). For a local CLI, the in-process loop in
@@ -338,7 +338,7 @@ caveats still apply.)
 ## Known rough edges / good first improvements
 
 - `ats.py` tokenizer keeps trailing punctuation (e.g. `systems.`) and lets a few noise
-  words through — tighten the regex / stopword list.
+  words through  tighten the regex / stopword list.
 - The accessibility snapshot is a flat list; for complex SPAs (Workday) consider
   scoping snapshots to the visible form region and adding `select`-option handling.
 - No dedupe/follow-up logic yet (the original skill had `dedup`, `followup`,

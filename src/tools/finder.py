@@ -1,11 +1,11 @@
-"""Job finder support — freshness gating + daily cache.
+"""Job finder support  freshness gating + daily cache.
 
 The finder AGENT does the crawling (via the browser tool) over ATS boards
 (Greenhouse/Lever/Ashby/Workday), company career pages, and curated GitHub "fresh jobs"
 repos. This module holds the deterministic pieces around it:
 
 - A **daily local cache** (`data/job_cache.json`) so we crawl a given query at most once
-  per day — saves tokens and avoids hammering sites (anti-flagging). `--refresh` bypasses.
+  per day  saves tokens and avoids hammering sites (anti-flagging). `--refresh` bypasses.
 - A **freshness gate**: keep only roles whose posted date (read on the REAL company page,
   never LinkedIn) is within N days. No trustworthy date → "unverified", excluded by default.
 

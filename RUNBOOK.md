@@ -1,4 +1,4 @@
-# Runbook — daily job-application flow
+# Runbook  daily job-application flow
 
 Copy-paste steps for using the system day to day. Assumes setup is done
 (`./setup.sh`, profiles filled in, real `.tex` resume in `resume/masters/`).
@@ -16,11 +16,11 @@ cd job-applier-agent && source .venv/bin/activate
  discover ───────► pipeline ───────────► review dashboard ───► apply / fill
  (top 50-100        (tailor + score        (AQS grades:          (one role each;
   fresh roles,       top N; 2 LLM calls     A = apply now)        human-confirmed
-  past 24h,          per role — or none                           submit)
+  past 24h,          per role  or none                           submit)
   no key)            with --brain manual)
 ```
 
-## Daily (with an API key) — one command
+## Daily (with an API key)  one command
 
 ```bash
 python -m src.cli pipeline --hours 24 --top 10
@@ -40,7 +40,7 @@ python -m src.cli pipeline --top 25                    # tailor more of them
 python -m src.cli pipeline --from-tracker --top 15     # tailor roles discover already found
 ```
 
-## Daily (NO API key) — manual brain
+## Daily (NO API key)  manual brain
 
 ```bash
 python -m src.cli pipeline --hours 24 --top 10 --brain manual
@@ -86,7 +86,7 @@ The pipeline is ~2 structured calls/job (vs ~40-turn agent loops before).
 
 ## Maintenance
 
-- `config/watchlist.json` — add companies; with `"ats"+"token"` they're swept by API.
-- `config/question_bank.json` — teach the form-filler new questions (regex -> answer).
-- `resume/masters/*.tex` — your real resumes; the pipeline reads/edits these directly.
+- `config/watchlist.json`  add companies; with `"ats"+"token"` they're swept by API.
+- `config/question_bank.json`  teach the form-filler new questions (regex -> answer).
+- `resume/masters/*.tex`  your real resumes; the pipeline reads/edits these directly.
 - `python -m pytest tests/ -q` after changes.

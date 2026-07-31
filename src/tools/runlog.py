@@ -1,10 +1,10 @@
-"""Run log — the self-check / QA audit trail.
+"""Run log  the self-check / QA audit trail.
 
 Every pipeline step (open page, classify portal, tailor, lint, score, fill, submit, find)
 records here whether it did a GOOD job, plus any issues it hit. This gives transparency
 ("did each step work, and what went wrong?") and a written record you can review later.
 
-It writes JSONL to `data/run_log.jsonl` (one event per line — append-only, easy to tail)
+It writes JSONL to `data/run_log.jsonl` (one event per line  append-only, easy to tail)
 and the dashboard / `report` command summarize it. The agent calls `qa_check` (in
 qa.py) which appends here; deterministic checks live in qa.py so they cost no tokens.
 """

@@ -1,11 +1,11 @@
 """Command-line entry point.
 
 Daily flow (deterministic pipeline; LLM used only through the Brain seam):
-    discover   — pull top-N fresh roles (past 24h) from feeds + ATS board APIs. No key.
-    pipeline   — discover -> tailor+score the top N -> dashboard. --brain manual = no key.
-    apply      — agentic browser flow for ONE job (confirms before submit). Needs a key.
-    fill       — deterministic Greenhouse form fill. No key.
-    dashboard / status / usage / report / brain — inspection. No key.
+    discover    pull top-N fresh roles (past 24h) from feeds + ATS board APIs. No key.
+    pipeline    discover -> tailor+score the top N -> dashboard. --brain manual = no key.
+    apply       agentic browser flow for ONE job (confirms before submit). Needs a key.
+    fill        deterministic Greenhouse form fill. No key.
+    dashboard / status / usage / report / brain  inspection. No key.
 
 Legacy commands kept: find (agent crawl), score (agent score), feed, run (alias of
 pipeline), watchlist.
@@ -33,7 +33,7 @@ FAST_MODEL = config.fast_model()
 
 def _require_key() -> None:
     if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")):
-        sys.exit("Set ANTHROPIC_API_KEY and/or OPENAI_API_KEY (in .env) — or use "
+        sys.exit("Set ANTHROPIC_API_KEY and/or OPENAI_API_KEY (in .env)  or use "
                  "`pipeline --brain manual`, which needs no key.")
 
 
@@ -56,7 +56,7 @@ def cmd_discover(hours: int, target: int, profile: str | None,
     if coverage:
         cov = discover.coverage(hours, profile=profile, sources=sources)
         rows = sorted(cov.items(), key=lambda kv: kv[1]["pulled"], reverse=True)
-        print(f"\n=== Per-company coverage (past {hours}h) — pulled vs kept after filter ===")
+        print(f"\n=== Per-company coverage (past {hours}h)  pulled vs kept after filter ===")
         print(f"{'COMPANY':<26}{'PULLED':>8}{'KEPT':>7}")
         for co, c in rows[:40]:
             print(f"{co[:26]:<26}{c['pulled']:>8}{c['kept']:>7}")
@@ -85,14 +85,14 @@ def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str | No
     --brain api to force the API path.
 
     Resumable: discovery results are cached for the day, and jobs already scored for
-    a URL are skipped — so re-running after a mid-run failure does NOT re-fetch or
+    a URL are skipped  so re-running after a mid-run failure does NOT re-fetch or
     redo finished work. --refresh forces a fresh discovery sweep.
     """
     mode = brain_mode or config.brain_mode()
     if mode == "api":
         _require_key()
     else:
-        print("Brain: MANUAL (no API key needed — this LLM answers the prompt packets).")
+        print("Brain: MANUAL (no API key needed  this LLM answers the prompt packets).")
     brain = get_brain(mode)
 
     n_merged = tracker.dedupe_applications()
@@ -127,7 +127,7 @@ def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str | No
 
     # Resumability: skip jobs already scored (so a re-run after a failure only
     # processes what's left). Manual mode still re-enters scored jobs only if their
-    # packets were never answered — tailor_job is cheap to re-reach for those.
+    # packets were never answered  tailor_job is cheap to re-reach for those.
     scored_urls = {a.get("url") for a in tracker.list_applications()
                    if a.get("status") == "scored" and a.get("resume_score") is not None}
     remaining = [j for j in jobs if j["url"] not in scored_urls]
@@ -177,7 +177,7 @@ def cmd_find(query: str, days: int, model: str, headless: bool, profile: str | N
             f"Find roles matching: '{query}'. Search several related keywords, pulling "
             "up to ~10 postings per keyword. FILTER ON RECENCY FIRST: keep only roles "
             f"whose posted date on the REAL company page is within {days} days of "
-            "today. USA ONLY — skip roles located outside the United States. "
+            "today. USA ONLY  skip roles located outside the United States. "
             "Then rank survivors by recency, then match to my resume. "
             "Save the shortlist with status='found'. Do NOT apply.",
             model=model, browser=browser, system=_FINDER_SYSTEM, profile=profile,
@@ -220,7 +220,7 @@ def cmd_apply(url: str, model: str, headless: bool, profile: str | None) -> None
         task = (
             f"Apply to this job, pausing for my confirmation before submitting. "
             f"Job URL: {url}\n"
-            f"A tailored resume PDF already exists at '{pdf}' — skip re-tailoring "
+            f"A tailored resume PDF already exists at '{pdf}'  skip re-tailoring "
             f"and resume scoring. Go straight to opening the application page, "
             f"classify_portal, fill the form using my profile + that PDF, then "
             f"ask_human before submitting. Save with status='applied' when done."
@@ -300,7 +300,7 @@ def cmd_watchlist() -> None:
     data = json.loads(config.WATCHLIST_PATH.read_text())
     companies = data.get("companies", [])
     api_n = sum(1 for c in companies if c.get("ats") and c.get("token"))
-    print(f"=== Watchlist — {len(companies)} companies ({api_n} with direct ATS APIs) ===")
+    print(f"=== Watchlist  {len(companies)} companies ({api_n} with direct ATS APIs) ===")
     print(data.get("_sponsorship_note", ""))
     print()
     for c in companies:
@@ -312,7 +312,7 @@ def cmd_watchlist() -> None:
 
 
 def cmd_scout(query: str, hours: int, h1b: bool, limit: int, save: bool) -> None:
-    """Browse the ScoutBetter API for fresh roles (reusable — no throwaway scripts).
+    """Browse the ScoutBetter API for fresh roles (reusable  no throwaway scripts).
 
     Prints newest-first matches with the real apply URL + JD already resolved; --h1b
     filters to sponsorship-friendly postings, --save records them as 'found' rows."""
@@ -320,7 +320,7 @@ def cmd_scout(query: str, hours: int, h1b: bool, limit: int, save: bool) -> None
     from .sources import scoutbetter
     jobs = scoutbetter.search(query, hours=hours, h1b=h1b, limit=limit)
     tag = " [H1B sponsorship only]" if h1b else ""
-    print(f"=== ScoutBetter: '{query}' — {len(jobs)} roles, past {hours}h{tag} ===\n")
+    print(f"=== ScoutBetter: '{query}'  {len(jobs)} roles, past {hours}h{tag} ===\n")
     now = datetime.now(timezone.utc)
     for j in jobs:
         try:
@@ -349,7 +349,7 @@ def cmd_status(verbose: bool = False) -> None:
             f"{'ATS':<6}{'VERDICT':<12}")
     if verbose:
         cols += f"{'POSTED':<12}{'PROFILE':<14}{'SOURCE':<18}"
-    print(cols + "COMPANY — ROLE")
+    print(cols + "COMPANY  ROLE")
     for a in apps:
         comp = scoring.score_record(a, today)
         aqs = f"{comp['score']}{comp['grade']}" if comp["score"] is not None else "-"
@@ -362,7 +362,7 @@ def cmd_status(verbose: bool = False) -> None:
             line += (f"{str(a.get('posted_date') or '-'):<12}"
                      f"{str(a.get('profile') or '-'):<14}"
                      f"{str(a.get('source') or '-')[:16]:<18}")
-        print(line + f"{a['company']} — {a['role']}")
+        print(line + f"{a['company']}  {a['role']}")
     print("\nAQS = composite Application Quality Score /100 (+grade). "
           "REV = reviewer /10 · MUST% = JD must-haves matched · ATS = keyword overlap.")
     print(f"{len(apps)} record(s). Full view: python -m src.cli dashboard")
@@ -377,7 +377,7 @@ def _print_results_hint() -> None:
 
 
 def cmd_fill(url: str, headless: bool) -> None:
-    """Deterministic Greenhouse form fill — no LLM needed."""
+    """Deterministic Greenhouse form fill  no LLM needed."""
     import json as _json
 
     apps = tracker.list_applications()
@@ -392,9 +392,9 @@ def cmd_fill(url: str, headless: bool) -> None:
     _per, _lnk, _wa = _p["personal"], _p["links"], _p["work_authorization"]
 
     print("\n" + "=" * 55)
-    print("ABOUT TO FILL — review before browser opens:")
+    print("ABOUT TO FILL  review before browser opens:")
     print("=" * 55)
-    print(f"  Company:     {(existing or {}).get('company', '?')} — "
+    print(f"  Company:     {(existing or {}).get('company', '?')}  "
           f"{(existing or {}).get('role', '?')}")
     print(f"  Name:        {_per['full_name']}")
     print(f"  Email:       {_per['email']}")
@@ -417,7 +417,11 @@ def cmd_fill(url: str, headless: bool) -> None:
 
     browser = _browser(headless)
     try:
-        result = gh.fill_greenhouse_form(browser, url, pdf_path)
+        if "ashbyhq.com" in url.lower() or "ashby" in url.lower():
+            from .tools import ashby
+            result = ashby.fill_ashby_form(browser, url, pdf_path)
+        else:
+            result = gh.fill_greenhouse_form(browser, url, pdf_path)
         print(f"\n  Filled:  {', '.join(result['filled']) or '(none)'}")
         print(f"  Skipped: {', '.join(result['skipped']) or '(none)'}")
         print("\n>> Form filled. Review every field in the browser, then submit manually.")
@@ -467,7 +471,7 @@ def cmd_report() -> None:
         for it in s["issues"]:
             print(f"  [{it['step']}] {it['target'][:50]} → {it['issue']}")
     else:
-        print("\nNo issues logged — all steps passed.")
+        print("\nNo issues logged  all steps passed.")
 
 
 def cmd_usage() -> None:
@@ -539,7 +543,7 @@ def main(argv: list[str] | None = None) -> None:
     p_apply.add_argument("--profile", default=None)
     p_apply.add_argument("--headless", action="store_true")
 
-    p_fill = sub.add_parser("fill", help="Deterministic Greenhouse form fill (no key)")
+    p_fill = sub.add_parser("fill", help="Deterministic Greenhouse/Ashby form fill (no key)")
     p_fill.add_argument("url")
     p_fill.add_argument("--headless", action="store_true")
 

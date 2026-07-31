@@ -2,7 +2,7 @@
 
 This is the core of the project and the part worth understanding. We give Claude a
 set of *tools* (functions it can ask to run). Each turn, Claude either replies with
-text or asks to call a tool. We execute the tool, hand the result back, and loop —
+text or asks to call a tool. We execute the tool, hand the result back, and loop
 until Claude stops asking for tools (``stop_reason == "end_turn"``).
 
 This is the standard Anthropic "manual agentic loop". We keep it manual (rather than
@@ -31,7 +31,7 @@ TOKEN_BUDGET = config.token_budget()
 QA_ENABLED = os.environ.get("JOB_AGENT_QA", "") == "1"
 
 # ---------------------------------------------------------------------------
-# Tool schemas — what Claude sees. Each maps to a Python function in _dispatch.
+# Tool schemas  what Claude sees. Each maps to a Python function in _dispatch.
 # ---------------------------------------------------------------------------
 TOOLS = [
     {
@@ -223,7 +223,7 @@ TOOLS = [
     {
         "name": "get_page_text",
         "description": "Return the visible text of the current page (e.g. to read a job "
-        "description or a posted date) — cheaper than a full snapshot for prose.",
+        "description or a posted date)  cheaper than a full snapshot for prose.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
@@ -237,7 +237,7 @@ TOOLS = [
         "name": "find_posted_date",
         "description": "Best-effort extract the posting date from the CURRENT (real "
         "company) page. Returns an ISO date or 'unverified'. Never trust LinkedIn/"
-        "aggregator dates — only the real company page counts.",
+        "aggregator dates  only the real company page counts.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
@@ -276,7 +276,7 @@ TOOLS = [
         "Runs the final pre-flight checker on the tailored resume + rendered PDF: catches "
         "leftover template placeholders, fragment/short bullets, thin summary, filler, and "
         "broken/empty PDFs. If it returns ok=false, FIX the listed problems and re-render "
-        "before continuing — never ship a resume with problems.",
+        "before continuing  never ship a resume with problems.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -315,7 +315,7 @@ TOOLS = [
     },
 ]
 
-# qa_check is a temporary, opt-in debugging aid — exclude it from the tool set (and the
+# qa_check is a temporary, opt-in debugging aid  exclude it from the tool set (and the
 # prompt's self-check step) unless JOB_AGENT_QA=1, to keep end-to-end cost minimal.
 if not QA_ENABLED:
     TOOLS = [t for t in TOOLS if t["name"] != "qa_check"]
@@ -401,7 +401,7 @@ def run_agent(
 
     Args:
         task: the instruction (built by the CLI per command).
-        model: which Claude model to use — lets callers pick cheap vs. capable.
+        model: which Claude model to use  lets callers pick cheap vs. capable.
         browser: a live Browser, or None for tasks that need no web access.
         max_turns: safety cap on the loop.
         profile: which master-resume profile the resume tools operate on.
@@ -409,19 +409,19 @@ def run_agent(
         token_budget: abort if cumulative OUTPUT tokens exceed this (0 = unlimited).
             Cost / anti-flagging guard.
         today: exact current date (ISO 'YYYY-MM-DD'), injected so freshness math is
-            correct — the model has no reliable clock.
+            correct  the model has no reliable clock.
     """
     # Route this run to a provider (Claude or OpenAI) based on the task kind. The caller's
     # `model` is used only when it matches the resolved provider; otherwise we use that
     # provider's configured model. This lets tailoring run on Claude while find/score can
-    # run on OpenAI (or any mix) — see tools/llm.py.
+    # run on OpenAI (or any mix)  see tools/llm.py.
     prov = llm.provider_for(task_kind)
     if model == DEFAULT_MODEL or (prov == "openai" and model.startswith("claude")):
         model = llm.model_for(prov)
     if today:
         task = f"TODAY'S DATE is {today}. Use it for all recency/freshness math.\n\n{task}"
     # Mark the big stable block with cache_control so repeat turns read it from cache
-    # (~0.1x) instead of full price — the single biggest token win in a multi-turn loop.
+    # (~0.1x) instead of full price  the single biggest token win in a multi-turn loop.
     sys_text = system or _SYSTEM_PROMPT
     if not QA_ENABLED:
         # Drop self-check instructions so the agent doesn't try to call a tool that
@@ -492,7 +492,7 @@ Principles you MUST follow:
   other irreversible action, call `ask_human` and wait for explicit approval.
 - TRANSPARENCY: Narrate what you're doing in short notes between tool calls.
 - POLITENESS / ANTI-FLAGGING: Act like a human, not a scraper. One action at a time;
-  don't bulk-fire. On a CAPTCHA, login wall, or SSO, STOP, screenshot, and ask_human —
+  don't bulk-fire. On a CAPTCHA, login wall, or SSO, STOP, screenshot, and ask_human 
   never try to defeat them and never enter credentials yourself.
 - SELF-CHECK (only if qa_check tool is present): after each meaningful step call qa_check(step, context); if it returns ok=false, FIX the issues before continuing.
 
@@ -502,13 +502,13 @@ Workflow for applying to a job:
 3. classify_portal to learn the portal + strategy. If it needs login or shows a
    CAPTCHA/SSO and you're not logged in, ask_human to log in (persistent profile), then
    resume. If fields are already PREFILLED from a prior application, do NOT overwrite
-   them — only fill blanks / update what changed.
+   them  only fill blanks / update what changed.
 4. ats_score the description against the resume for a quick keyword read.
 5. Judge fit. If clearly a poor fit / has dealbreakers, ask_human whether to continue.
 6. If tailoring: read_resume_rules first, then apply_resume_patch (summary, technical
    skills, top-2 bullets), lint_resume (pass your top_bullets as focus_bullets), fix any
    blocking issues, then score_resume. If verdict isn't 'strong', apply its top_fixes and
-   re-score ONCE (max 2 passes total — don't loop further). render_resume_pdf.
+   re-score ONCE (max 2 passes total  don't loop further). render_resume_pdf.
 6b. MANDATORY: final_check_resume(tailored_md, pdf_path, jd_text, focus_bullets) before
    using the resume. If it returns ok=false, FIX every problem (e.g. expand fragment
    bullets, remove placeholders, re-render) and re-check until ok=true. Never upload a
@@ -516,17 +516,17 @@ Workflow for applying to a job:
 7. Fill the form from the profile (fill_form / type_text / upload_file for the PDF).
    Handle multi-step forms by reading the page after each step.
 8. Before the final submit, ask_human to confirm. Only submit on approval.
-9. screenshot the confirmation, then save_application — include match_score,
+9. screenshot the confirmation, then save_application  include match_score,
    scorer_verdict, scorer_gaps, resume_diff (what you changed), source, posted_date,
    profile, and tailored_pdf so the dashboard is complete.
 
 Use refs (e.g. 'e7') from the most recent snapshot. If refs seem stale, call read_page.
 
-RESUME TAILORING RULES (full version via read_resume_rules — these always apply):
+RESUME TAILORING RULES (full version via read_resume_rules  these always apply):
 - First UNDERSTAND THE ROLE, don't pattern-match words. Ignore JD fluff (mission,
   benefits, "are you passionate about..."); it contributes nothing. Then build THREE
   lists: (1) explicit demands from responsibilities+qualifications; (2) the
-  practitioner's toolkit — adjacent tech a strong candidate would have touched even if
+  practitioner's toolkit  adjacent tech a strong candidate would have touched even if
   unlisted (e.g. "ETL" implies Kafka/S3/SQS/Airflow/Spark; "search relevance" implies
   two-tower/FAISS/ranking); (3) expected WORK-TYPES as activities the reviewer expects
   to see described (e.g. data eng → ran a data migration, built BI dashboards, designed
@@ -535,15 +535,15 @@ RESUME TAILORING RULES (full version via read_resume_rules — these always appl
   Technical Skills line and to reframe true bullets so they describe those work-types
   in the role's language. Never add a tool or activity the candidate hasn't done.
 - The TOP TWO bullets of the most relevant role must map directly to the JD's top
-  asks, in the JD's own wording. THIS HOLDS EVEN FOR WEAK-MATCH JOBS — always force
+  asks, in the JD's own wording. THIS HOLDS EVEN FOR WEAK-MATCH JOBS  always force
   the first two bullets to adhere to the job profile (using only true content).
 - Fold the JD's exact keywords in where truthful (don't keyword-stuff, don't lie).
-- Every bullet uses the XYZ rule: "Accomplished X by doing Y, measured by Z" — lead
+- Every bullet uses the XYZ rule: "Accomplished X by doing Y, measured by Z"  lead
   with impact, not the task.
 - Readable, plain language. No filler words ("responsible for", "helped"). Do NOT
   repeat the same adjective or strong verb twice across the bullet set.
 - Each bullet is a FULL one-line sentence of ~16-28 words (NOT a clipped fragment;
-  under ~14 words is too thin — expand with the missing X/Y/Z detail). Summary = 2 full
+  under ~14 words is too thin  expand with the missing X/Y/Z detail). Summary = 2 full
   lines (~30-45 words). Tailoring re-frames toward the JD; it never strips metrics/detail.
 - Skim test: someone reading only the top lines should feel "this is the right person."
 """

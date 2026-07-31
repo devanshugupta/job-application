@@ -1,13 +1,13 @@
-"""Resume scorer — a strict senior-reviewer agent.
+"""Resume scorer  a strict senior-reviewer agent.
 
 This is a single Claude call that role-plays an experienced hiring manager / Sr. SDE
-reviewing a tailored resume against a specific JD. It is NOT an ATS keyword counter —
+reviewing a tailored resume against a specific JD. It is NOT an ATS keyword counter 
 it judges what a *human* reviewer cares about: do the bullets make sense, show real
 impact, and read well in a 20-second skim? Keyword/ATS coverage is only one (smaller)
 input.
 
 It returns a structured verdict (via the Messages API structured-output format) so the
-caller gets machine-readable fields — no prose parsing. A genuinely low score is allowed
+caller gets machine-readable fields  no prose parsing. A genuinely low score is allowed
 but should be rare: reserved for a true role mismatch or fabricated content.
 
 Rubric is grounded in widely-repeated hiring-manager advice:
@@ -18,7 +18,7 @@ Rubric is grounded in widely-repeated hiring-manager advice:
 
 Design intent: the GOAL is that tailoring is good enough on the FIRST pass that we
 rarely iterate. When the score is low, fix the specific gaps once and re-score; do not
-loop endlessly — instead feed recurring gaps back into resume/formatting_rules.md so
+loop endlessly  instead feed recurring gaps back into resume/formatting_rules.md so
 first-pass quality keeps rising.
 """
 
@@ -65,7 +65,7 @@ SCORE_SCHEMA = {
         },
         # JD must-have analysis (replaces the old keyword-overlap ATS for scored roles).
         # The model extracts the role-DEFINING skills (not generic words), then checks the
-        # resume for each — counting EXACT and SIMILAR/synonym matches (k8s=Kubernetes,
+        # resume for each  counting EXACT and SIMILAR/synonym matches (k8s=Kubernetes,
         # FAISS=vector search, RAG=retrieval-augmented, etc.).
         "must_haves": {"type": "array", "items": {"type": "string"}},
         "matched_must_haves": {"type": "array", "items": {"type": "string"}},
@@ -100,7 +100,7 @@ def score_resume(
 ) -> dict:
     """Score a tailored resume against a JD. Returns the validated verdict dict.
 
-    Routed via the LLM shim — the scorer runs on whichever provider JOB_AGENT_SCORE_PROVIDER
+    Routed via the LLM shim  the scorer runs on whichever provider JOB_AGENT_SCORE_PROVIDER
     (or JOB_AGENT_PROVIDER) selects, so it can use OpenAI even when tailoring uses Claude.
     """
     from . import llm

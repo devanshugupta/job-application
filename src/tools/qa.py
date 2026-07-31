@@ -1,4 +1,4 @@
-"""QA self-check — verifies each pipeline step did a good job, and writes down issues.
+"""QA self-check  verifies each pipeline step did a good job, and writes down issues.
 
 The agent calls `qa_check(step, context)` after each meaningful step. We run cheap,
 deterministic checks per step type (no extra LLM call), decide pass/fail, list concrete
@@ -6,7 +6,7 @@ issues, and append the verdict to the run log (runlog.py). The agent should reac
 failed check (fix and retry) and the issues become a written record on the dashboard.
 
 This is intentionally rule-based so it's free and predictable. For judgment-heavy quality
-(does a bullet actually read well?) we already have the LLM `score_resume` tool — qa here
+(does a bullet actually read well?) we already have the LLM `score_resume` tool  qa here
 catches the mechanical "did this step even work" failures that should never slip through.
 """
 
@@ -35,24 +35,24 @@ def qa_check(step: str, context: dict) -> dict:
         final = context.get("final_url", "")
         txt = context.get("page_text", "") or ""
         if "login" in final.lower() or "sign-in" in final.lower():
-            issues.append("Redirected to a login page — content may be gated.")
+            issues.append("Redirected to a login page  content may be gated.")
         if len(txt) < 200:
-            issues.append("Very little page text extracted — page may not have loaded.")
+            issues.append("Very little page text extracted  page may not have loaded.")
 
     elif step == "classify_portal":
         if context.get("captcha"):
-            issues.append("CAPTCHA present — must hand off to human.")
+            issues.append("CAPTCHA present  must hand off to human.")
         if context.get("needs_login"):
-            issues.append("Portal needs login — ensure the persistent profile is signed in.")
+            issues.append("Portal needs login  ensure the persistent profile is signed in.")
         if context.get("portal") == "unknown":
-            issues.append("Portal type unknown — using generic form mapping (verify fields).")
+            issues.append("Portal type unknown  using generic form mapping (verify fields).")
 
     elif step == "tailor":
         patch = context.get("patch", {}) or {}
         if not patch.get("top_bullets"):
-            issues.append("No top_bullets in patch — the two key JD-aligned bullets are missing.")
+            issues.append("No top_bullets in patch  the two key JD-aligned bullets are missing.")
         elif len(patch.get("top_bullets", [])) < 2:
-            issues.append("Fewer than 2 top bullets — both first bullets must hit the JD.")
+            issues.append("Fewer than 2 top bullets  both first bullets must hit the JD.")
         if not patch.get("technical_skills"):
             issues.append("No technical_skills line tailored.")
 
@@ -67,24 +67,24 @@ def qa_check(step: str, context: dict) -> dict:
         verdict = sc.get("verdict")
         score = sc.get("overall_score")
         if verdict in ("weak", "true_mismatch"):
-            issues.append(f"Score verdict '{verdict}' (score {score}/10) — apply top_fixes.")
+            issues.append(f"Score verdict '{verdict}' (score {score}/10)  apply top_fixes.")
             for f in sc.get("top_fixes", [])[:3]:
                 issues.append(f"fix: {f}")
 
     elif step == "find":
         if not context.get("is_fresh", False):
-            issues.append(f"Role not fresh (posted {context.get('posted_date')}) — excluded.")
+            issues.append(f"Role not fresh (posted {context.get('posted_date')})  excluded.")
         if (context.get("match_score") or 0) < 3:
-            issues.append("Very low resume match — likely wrong role family.")
+            issues.append("Very low resume match  likely wrong role family.")
 
     elif step == "fill_form":
         filled, total = context.get("filled", 0), context.get("total", 0)
         if total and filled < total:
-            issues.append(f"Only filled {filled}/{total} fields — some may be blank/unmapped.")
+            issues.append(f"Only filled {filled}/{total} fields  some may be blank/unmapped.")
 
     elif step == "submit":
         if not context.get("confirmed"):
-            issues.append("Submission not confirmed by human — did NOT submit.")
+            issues.append("Submission not confirmed by human  did NOT submit.")
         if not context.get("screenshot"):
             issues.append("No confirmation screenshot captured.")
 

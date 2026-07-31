@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manual (no-API-key) pipeline driver — Claude acts as the tailoring "brain".
+"""Manual (no-API-key) pipeline driver  Claude acts as the tailoring "brain".
 
 The normal `python -m src.cli run` path routes every tailoring decision through
 `run_agent()` (a live LLM call) and hard-exits without an API key. This script drives
@@ -11,14 +11,14 @@ patches by hand, in stages:
     fetch      -> open each candidate posting (Playwright) and dump the real JD text +
                   posted date to data/_jd_batch.json
     select     -> score every fetched JD against the ORIGINAL master (ats.py) and keep the
-                  best-matching KEEP_PER_PROFILE SDE + ML — "recent AND actually a match".
+                  best-matching KEEP_PER_PROFILE SDE + ML  "recent AND actually a match".
                   Writes data/_selected.json. This is the JD-based filter.
     apply      -> read data/_patches.json (authored after select, keyed by url), edit the
                   LaTeX master (Summary + first 2 bullets + Technical Skills), compile the
                   PDF, lint the patch, ATS-score against the real JD, record status='scored',
                   and regenerate the dashboard.
 
-Nothing is ever submitted. Reuses src/tools/* — reimplements nothing except a
+Nothing is ever submitted. Reuses src/tools/*  reimplements nothing except a
 template-specific Technical Skills editor (edit_tex intentionally leaves skills alone).
 """
 from __future__ import annotations
@@ -48,12 +48,12 @@ KEEP_PER_PROFILE = 20   # how many best-matching to KEEP after the JD filter
 
 
 # --------------------------------------------------------------------------- #
-# Stage 0 — shortlist (build the candidate pool)
+# Stage 0  shortlist (build the candidate pool)
 # --------------------------------------------------------------------------- #
 def _dedupe(roles: list[dict]) -> list[dict]:
     """Drop near-duplicate postings (same company + normalized role title), keeping the
     most-recent. The feed lists the same req multiple times (e.g. Coca-Cola 'Software
-    Engineer 1' x5) — tailoring each is wasted effort and not 'jobs that make sense'."""
+    Engineer 1' x5)  tailoring each is wasted effort and not 'jobs that make sense'."""
     seen, out = set(), []
     for r in roles:  # already recency-sorted, so first seen = newest
         norm_role = re.sub(r"[^a-z0-9]+", " ", r["role"].lower()).strip()
@@ -111,13 +111,13 @@ def stage_shortlist(days: int, refresh: bool) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Stage 1 — fetch JD text for the whole pool
+# Stage 1  fetch JD text for the whole pool
 # --------------------------------------------------------------------------- #
 def stage_fetch(headless: bool, limit: int | None) -> None:
     from datetime import date
     from src.tools.browser import Browser
     if not SHORTLIST_PATH.exists():
-        sys.exit("No data/_shortlist.json — run `--stage shortlist` first.")
+        sys.exit("No data/_shortlist.json  run `--stage shortlist` first.")
     pool = json.loads(SHORTLIST_PATH.read_text())
     if limit:
         pool = pool[:limit]
@@ -131,7 +131,7 @@ def stage_fetch(headless: bool, limit: int | None) -> None:
             try:
                 browser.open_page(r["url"])
                 jd = browser.get_page_text(max_chars=8000)
-                # A login wall / bot page yields almost no JD text — flag, don't trust it.
+                # A login wall / bot page yields almost no JD text  flag, don't trust it.
                 if not jd or len(jd) < 400:
                     skipped.append({**r, "reason": f"thin page ({len(jd or '')} chars)"})
                     print(f"     ! skipped: thin page ({len(jd or '')} chars)")
@@ -141,7 +141,7 @@ def stage_fetch(headless: bool, limit: int | None) -> None:
                     "profile": r["profile"], "posted_date": r.get("posted_date", ""),
                     "locations": r.get("locations", ""), "jd_text": jd,
                 })
-            except Exception as e:  # noqa: BLE001 — log & continue per repo convention
+            except Exception as e:  # noqa: BLE001  log & continue per repo convention
                 skipped.append({**r, "reason": f"load error: {e}"})
                 print(f"     ! skipped: {e}")
     finally:
@@ -155,14 +155,14 @@ def stage_fetch(headless: bool, limit: int | None) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Stage 2 — select: filter by REAL JD match, keep best per profile
+# Stage 2  select: filter by REAL JD match, keep best per profile
 # --------------------------------------------------------------------------- #
 def stage_select() -> None:
     """Score every fetched JD against the ORIGINAL master and keep the best-matching
-    KEEP_PER_PROFILE per profile. This is the 'jobs that actually make sense' filter —
+    KEEP_PER_PROFILE per profile. This is the 'jobs that actually make sense' filter
     recency already bounded the pool; now we rank by genuine fit before tailoring."""
     if not JD_BATCH_PATH.exists():
-        sys.exit("No data/_jd_batch.json — run `--stage fetch` first.")
+        sys.exit("No data/_jd_batch.json  run `--stage fetch` first.")
     jds = json.loads(JD_BATCH_PATH.read_text())
     masters = {p: profiles.read_master_for(p) for p in {j["profile"] for j in jds}}
     for j in jds:
@@ -186,7 +186,7 @@ def stage_select() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Stage 3 — apply patches (edit .tex incl. skills, compile, lint, ATS, record)
+# Stage 3  apply patches (edit .tex incl. skills, compile, lint, ATS, record)
 # --------------------------------------------------------------------------- #
 def _edit_skills(tex: str, skills: str) -> str:
     r"""Replace the Technical Skills block body. edit_tex deliberately leaves skills
@@ -250,7 +250,7 @@ def _covers(must_have: str, resume_text: str) -> bool:
     Mirrors scorer.py's 'exact OR synonym' counting, deterministically: a must-have is
     covered if ALL its significant tokens (minus function words) appear in the resume.
     Synonyms are handled by writing them into the must-have string itself, e.g.
-    'kubernetes|k8s' or 'vector search faiss' — any one alternative (split on '|') that
+    'kubernetes|k8s' or 'vector search faiss'  any one alternative (split on '|') that
     is fully present counts as covered."""
     text = resume_text.lower()
     for alt in must_have.lower().split("|"):
@@ -308,9 +308,9 @@ def _lint_patch(patch: dict) -> list[str]:
 def stage_apply(strict: bool) -> None:
     src_path = SELECTED_PATH if SELECTED_PATH.exists() else JD_BATCH_PATH
     if not src_path.exists():
-        sys.exit("No data/_selected.json or _jd_batch.json — run fetch/select first.")
+        sys.exit("No data/_selected.json or _jd_batch.json  run fetch/select first.")
     if not PATCHES_PATH.exists():
-        sys.exit("No data/_patches.json — author the patches (keyed by url) first.")
+        sys.exit("No data/_patches.json  author the patches (keyed by url) first.")
     jds = {j["url"]: j for j in json.loads(src_path.read_text())}
     patches = json.loads(PATCHES_PATH.read_text())
 
@@ -318,9 +318,9 @@ def stage_apply(strict: bool) -> None:
     for url, patch in patches.items():
         j = jds.get(url)
         if not j:
-            print(f"! no JD for {url} — skipping"); continue
+            print(f"! no JD for {url}  skipping"); continue
         company, role, profile = j["company"], j["role"], j["profile"]
-        print(f"\n=== {company} — {role[:50]} [{profile}] ===")
+        print(f"\n=== {company}  {role[:50]} [{profile}] ===")
 
         lint_issues = _lint_patch(patch)
         if lint_issues:

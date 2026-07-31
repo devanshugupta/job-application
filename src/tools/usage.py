@@ -1,4 +1,4 @@
-"""Token + cost tracking — so one application can't quietly burn the API budget.
+"""Token + cost tracking  so one application can't quietly burn the API budget.
 
 `run_agent` accumulates per-turn token counts into a `UsageMeter`, which:
 - tracks input / output / cache-read / cache-write tokens across the whole run,

@@ -1,4 +1,4 @@
-"""Composite scoring — ONE number that says how good an application is.
+"""Composite scoring  ONE number that says how good an application is.
 
 The pipeline produces several signals on different scales, which made the old
 dashboard hard to read. This module folds them into a single **Application
@@ -10,7 +10,7 @@ Components (each normalized to 0-100 before weighting):
     reviewer   senior-reviewer overall_score (0-10 -> x10).  The deepest signal:
                does the tailored resume actually read well for THIS JD.
     match      ONE JD↔resume fit number blending two things ATS systems both use:
-               the scorer's must-have coverage (semantic — exact + synonym) and
+               the scorer's must-have coverage (semantic  exact + synonym) and
                the deterministic concept-keyword overlap (ats.py). Both present ->
                0.6·must-have + 0.4·keywords; only one -> that one. (See match_pct.)
     recency    freshness of the posting. Applying within hours of posting is a
@@ -36,7 +36,7 @@ WEIGHTS = {
 }
 
 # Within the unified match number, the semantic must-have coverage outweighs the
-# shallow keyword overlap — but both count, since real ATS pipelines use both.
+# shallow keyword overlap  but both count, since real ATS pipelines use both.
 _MUST_HAVE_W = 0.6
 _KEYWORD_W = 0.4
 
@@ -55,10 +55,10 @@ def match_pct_combined(match_pct: int | float | None,
 
 GRADES = [  # (min_score, grade, meaning)
     (80, "A", "apply now"),
-    (65, "B", "strong — apply"),
-    (50, "C", "decent — apply if volume allows"),
-    (35, "D", "weak — needs work or skip"),
-    (0, "F", "mismatch — skip"),
+    (65, "B", "strong  apply"),
+    (50, "C", "decent  apply if volume allows"),
+    (35, "D", "weak  needs work or skip"),
+    (0, "F", "mismatch  skip"),
 ]
 
 
@@ -77,7 +77,7 @@ def recency_score(posted_date: str | None, today: str, *, window_days: int = 7) 
         return None
     age_days = (ref - posted).days
     if age_days < 0:
-        return 100  # posted "tomorrow" per feed tz skew — treat as brand new
+        return 100  # posted "tomorrow" per feed tz skew  treat as brand new
     if age_days >= window_days:
         return 0
     return round(100 * (1 - age_days / window_days))
@@ -112,7 +112,7 @@ def composite(
         return {"score": None, "grade": None, "meaning": "no signals yet", "breakdown": {}}
 
     # The reviewer is the deepest fit signal. When it's absent (a discovered-but-
-    # un-reviewed role), we DON'T renormalize its weight away — we keep it in the
+    # un-reviewed role), we DON'T renormalize its weight away  we keep it in the
     # denominator as an unmet ceiling, so skill-coverage + recency alone can't push an
     # un-reviewed role to an "A" above roles the LLM actually vetted. Other missing
     # components (e.g. recency) renormalize normally.

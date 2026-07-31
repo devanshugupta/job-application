@@ -1,9 +1,9 @@
-"""Source: ScoutBetter — a public, paginated jobs API (no login required).
+"""Source: ScoutBetter  a public, paginated jobs API (no login required).
 
 ScoutBetter's web app is auth-gated, but its backend API is public and far richer than
 scraping the page: 318k+ US jobs, hourly-fresh, with a real `posted_at`, the full JD
-(`description`), location, years-of-experience, an h1b_sponsorship flag, and — via the
-per-job detail endpoint — the real apply URL on the company's ATS.
+(`description`), location, years-of-experience, an h1b_sponsorship flag, and  via the
+per-job detail endpoint  the real apply URL on the company's ATS.
 
     list:   GET .../api/v1/jobs/?market=US&ordering=-posted_at&search=<q>&limit=&offset=
     detail: GET .../api/v1/jobs/<id>/   -> adds `job_url` (real ATS link) + full description
@@ -110,7 +110,7 @@ def _collect(term: str, *, market: str, cutoff_ts: int, h1b: bool,
 
 def _resolve(items: list[dict], *, keep_all: bool = False) -> list[dict]:
     """Resolve each job's real apply URL AND full JD from the detail endpoint (threaded).
-    The JD is captured here, at discovery — never deferred to tailor time. By default
+    The JD is captured here, at discovery  never deferred to tailor time. By default
     keeps only jobs with a real apply link; keep_all=True keeps every job (for browsing)."""
     if not items:
         return []
@@ -132,7 +132,7 @@ def search(term: str, *, hours: int = 168, h1b: bool = False, limit: int = 25,
     """Reusable ScoutBetter query: newest-first jobs matching `term` within `hours`,
     optionally H1B-sponsorship only. Returns up to `limit` normalized job dicts with the
     real apply URL and full JD already attached. This is the single entry point for
-    browsing/pulling ScoutBetter — CLI and discovery both use it, so no throwaway scripts."""
+    browsing/pulling ScoutBetter  CLI and discovery both use it, so no throwaway scripts."""
     cutoff = int(datetime.now(timezone.utc).timestamp()) - hours * 3600
     kept: dict[int, dict] = {}
     errors: list[str] = []
@@ -151,7 +151,7 @@ class ScoutBetterSource(Source):
         return c if isinstance(c, dict) else {}
 
     def available(self) -> bool:
-        # public API — on by default; set settings.json scoutbetter.enabled=false to disable
+        # public API  on by default; set settings.json scoutbetter.enabled=false to disable
         return self._cfg().get("enabled", True)
 
     def fetch(self, hours, *, profile=None, verbose=True):
