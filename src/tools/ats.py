@@ -155,6 +155,15 @@ def _tokens(text: str) -> list[str]:
     return out
 
 
+@lru_cache(maxsize=8)
+def _concept_set(resume_text: str) -> frozenset[str]:
+    """The resume's skill concepts. Discovery scores every job against the SAME resume
+    (the combined master), so without this the identical token+ontology pass is redone
+    once per job — ~1/3 of jd_match's cost on a 100-job sweep. Cached on the resume text
+    itself, so a different (e.g. tailored) resume simply gets its own entry."""
+    return frozenset(_tokens(resume_text)) & _concept_names()
+
+
 def _keywords(text: str) -> Counter:
     """Meaningful unigrams (kept for compatibility with older callers/tests)."""
     return Counter(_tokens(text))
@@ -226,6 +235,31 @@ def bm25_scores(resume_text: str, jd_corpus: list[str],
 _MIN_JD_CONCEPTS = 4   # below this the JD is too skill-sparse for concept-mode to be stable
 
 
+def rank_snippets(jd_text: str, snippets: list[str], k: int) -> list[str]:
+    """Pick the `k` snippets (resume bullets) most relevant to the JD, most-relevant
+    first, dropping near-duplicates. Deterministic, no LLM — used to select which
+    bullets a NON-tailored experience block (or the projects section) renders per JD,
+    so every block shows JD-relevant work instead of fixed defaults. Empty/absent JD
+    → keep the first k in original order."""
+    snippets = [s for s in snippets if s and s.strip()]
+    if not snippets:
+        return []
+    if not (jd_text or "").strip():
+        return snippets[:k]
+    scored = sorted(snippets, key=lambda s: ats_score(jd_text, s)["score"], reverse=True)
+    out: list[str] = []
+    for s in scored:
+        ws = set(re.findall(r"[a-z0-9]+", s.lower()))
+        dup = any(ws and (len(ws & set(re.findall(r"[a-z0-9]+", o.lower())))
+                          / min(len(ws), len(set(re.findall(r"[a-z0-9]+", o.lower())))) >= 0.6)
+                  for o in out)
+        if not dup:
+            out.append(s)
+        if len(out) >= k:
+            break
+    return out
+
+
 def jd_match(job_description: str) -> dict:
     """THE single JD↔candidate match: score the JD against the ONE combined master
     (all of the candidate's ML+SDE+DE points). Every scorer — discovery, JD-rerank, the
@@ -259,7 +293,7 @@ def ats_score(job_description: str, resume_text: str,
     """
     weights = _weighted_terms(job_description)
     concepts = _concept_names()
-    resume_concepts = set(_tokens(resume_text)) & concepts
+    resume_concepts = _concept_set(resume_text)
     jd_concepts = {t: w for t, w in weights.items() if t in concepts}
 
     if len(jd_concepts) >= _MIN_JD_CONCEPTS:

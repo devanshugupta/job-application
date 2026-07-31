@@ -121,6 +121,13 @@ def save_application(
 
     existing = _find_by_url(apps, url)
     if existing is not None:
+        # Status only ever ADVANCES. A later call writing a less-advanced status (e.g.
+        # rerank_by_jd's sponsorship gate writing 'skipped' onto a row already tailored
+        # or applied) must not erase the fact that we built a resume / sent it. Unknown
+        # free-form statuses rank -1 and are always accepted.
+        old_rank = _STATUS_RANK.get(existing.get("status"), -1)
+        if _STATUS_RANK.get(status, -1) < old_rank:
+            incoming.pop("status", None)
         existing.update(incoming)
         existing["date"] = _stamp()
         record = existing

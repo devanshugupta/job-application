@@ -250,6 +250,150 @@ def _experience_block_span(tex: str, role_idx: int) -> tuple[int, int] | None:
     return start, end
 
 
+def _item_spans(block: str) -> list[tuple[int, int, str]]:
+    r"""Each ACTIVE ``\resumeItem{...}`` in a block as (start, end, inner_text), where
+    [start,end) covers the whole macro. Skips commented lines and the
+    ``\resumeItemListStart/End`` macros (which contain ``\resumeItem`` as a substring).
+    inner_text is left LaTeX-escaped (as it appears in source)."""
+    token = r"\resumeItem"
+    out: list[tuple[int, int, str]] = []
+    i = 0
+    while i < len(block):
+        j = block.find(token, i)
+        if j == -1:
+            break
+        after = block[j + len(token): j + len(token) + 1]
+        if after not in (" ", "\t", "\n", "{") or _on_comment_line(block, j):
+            i = j + len(token)
+            continue
+        k = j + len(token)
+        while k < len(block) and block[k] in " \t\n":
+            k += 1
+        if k >= len(block) or block[k] != "{":
+            i = j + len(token)
+            continue
+        depth, m = 0, k
+        while m < len(block):
+            if block[m] == "{":
+                depth += 1
+            elif block[m] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            m += 1
+        out.append((j, m + 1, block[k + 1:m]))
+        i = m + 1
+    return out
+
+
+def _extract_items(block: str) -> list[str]:
+    r"""Raw (still LaTeX-escaped) contents of the ACTIVE ``\resumeItem{...}`` macros."""
+    return [txt for _, _, txt in _item_spans(block)]
+
+
+def _set_block_items(block: str, raw_items: list[str]) -> str:
+    r"""Render exactly ``raw_items`` (already LaTeX-escaped) as the block's bullets,
+    replacing the contiguous run of existing ``\resumeItem`` macros in place. If the
+    block has no items yet but has a ``\resumeItemListStart``, insert after it. Marker
+    layout is preserved otherwise."""
+    body = "\n      ".join(f"\\resumeItem{{{it}}}" for it in raw_items)
+    spans = _item_spans(block)
+    if spans:
+        first_s, last_e = spans[0][0], spans[-1][1]
+        return block[:first_s] + body + block[last_e:]
+    s = block.find(r"\resumeItemListStart")
+    if s != -1:
+        s_end = s + len(r"\resumeItemListStart")
+        return block[:s_end] + "\n      " + body + "\n    " + block[s_end:]
+    return block
+
+
+def _render_experience_selected(tex: str, chosen_idx: int, top_bullets: list[str],
+                                jd_text: str, k: int) -> str:
+    r"""Select-and-prune the Experience section so every block renders a 1-page-worth,
+    JD-relevant subset of the full point pool now stored in the .tex:
+
+      - the CHOSEN block renders exactly ``top_bullets`` (the LLM's per-JD selection);
+      - every OTHER block renders its ``k`` most JD-relevant bullets (deterministic
+        ats ranking), so a non-tailored block still shows work that fits the JD instead
+        of fixed defaults.
+
+    This is what lets the master hold ALL points without every resume ballooning."""
+    from . import ats
+
+    spans: list[tuple[int, int]] = []
+    i = 0
+    while True:
+        sp = _experience_block_span(tex, i)
+        if sp is None:
+            break
+        spans.append(sp)
+        i += 1
+    if not spans:  # no locatable blocks — best-effort old first-N replace + dedup
+        tex = _replace_first_resume_items(tex, top_bullets)
+        return _dedupe_resume_items(tex, keep=top_bullets) if top_bullets else tex
+
+    result = tex[:spans[0][0]]
+    for idx, (s, e) in enumerate(spans):
+        block = tex[s:e]
+        if idx == chosen_idx and top_bullets:
+            raw = [latex_escape(b.strip()) for b in top_bullets]
+        else:
+            raw = ats.rank_snippets(jd_text or "", _extract_items(block), k)
+        result += _set_block_items(block, raw)
+    result += tex[spans[-1][1]:]
+    return result
+
+
+_UNESCAPE_PAIRS = (("\\%", "%"), ("\\&", "&"), ("\\$", "$"), ("\\#", "#"),
+                   ("\\_", "_"), ("\\{", "{"), ("\\}", "}"))
+
+
+def _latex_unescape(s: str) -> str:
+    for a, b in _UNESCAPE_PAIRS:
+        s = s.replace(a, b)
+    return s
+
+
+def _parse_projects(tex: str) -> list[dict]:
+    r"""Parse the .tex Projects section into [{name, url, bullet}] (plain text,
+    un-escaped) so they can be JD-ranked and re-emitted. The projects pool now lives in
+    the .tex, so this is how the tailor selects projects per JD when the patch doesn't."""
+    sec = re.search(r"\\section\{Projects\}", tex)
+    if not sec:
+        return []
+    nxt = re.search(r"\\section\{", tex[sec.end():])
+    body = tex[sec.end(): sec.end() + nxt.start()] if nxt else tex[sec.end():]
+    projs: list[dict] = []
+    heads = list(re.finditer(r"\\resumeProjectHeading", body))
+    for hi, h in enumerate(heads):
+        seg = body[h.start(): heads[hi + 1].start() if hi + 1 < len(heads) else len(body)]
+        nm = re.search(r"\\textbf\{([^}]*)\}", seg)
+        url = re.search(r"\\href\{([^}]*)\}", seg)
+        bl = re.search(r"\\resumeItem\{(.+?)\}", seg, re.S)
+        if nm and bl:
+            projs.append({"name": _latex_unescape(nm.group(1).strip()),
+                          "url": (url.group(1).strip() if url else ""),
+                          "bullet": _latex_unescape(bl.group(1).strip())})
+    return projs
+
+
+def _select_projects_in_tex(tex: str, jd_text: str, k: int) -> str:
+    r"""When the patch didn't re-select projects, keep the ``k`` most JD-relevant from the
+    .tex pool (deterministic) so the section stays 1-page without dropping to fixed
+    document order."""
+    from . import ats
+
+    pool = _parse_projects(tex)
+    if len(pool) <= k:
+        return tex
+    ranked_bullets = ats.rank_snippets(jd_text or "",
+                                       [f"{p['name']} {p['bullet']}" for p in pool], k)
+    chosen = [pool[[f"{p['name']} {p['bullet']}" for p in pool].index(b)]
+              for b in ranked_bullets]
+    return _replace_projects_section(tex, chosen)
+
+
 def _replace_projects_section(tex: str, projects: list[dict]) -> str:
     r"""Regenerate the whole ``\section{Projects}`` body from [{name, url, bullet}]
     (most relevant first) using the template's own macros, so the tailor can
@@ -351,32 +495,33 @@ def _replace_skills_block(tex: str, skills: str) -> str:
     return tex[:open_brace + 1] + body + tex[k:]  # keep the closing '}' at k
 
 
-def edit_tex(tex_source: str, patch: dict) -> str:
-    """Apply a tailoring patch to the LaTeX source, marker-free. Edits:
-      - the Summary section body (patch['summary'])
-      - the Technical Skills block (patch['technical_skills'])
-      - the leading \\resumeItem bullets (patch['top_bullets'], 2-7, most relevant
-        first) of the experience block at patch['experience_section_index']
-    Returns edited LaTeX; a compile-check downstream guards against bad edits.
+def edit_tex(tex_source: str, patch: dict, jd_text: str = "") -> str:
+    """Apply a tailoring patch to the LaTeX source, marker-free — select-and-prune.
+
+    The .tex master holds the FULL point pool; this renders a 1-page subset:
+      - Summary body (patch['summary']) and Technical Skills block
+        (patch['technical_skills']).
+      - Experience: the chosen block (patch['experience_section_index']) renders exactly
+        patch['top_bullets']; every other block renders its k most JD-relevant bullets.
+      - Projects: patch['projects'] if the tailor re-selected them, else the k most
+        JD-relevant projects from the .tex pool.
+    ``jd_text`` drives the deterministic relevance ranking of the non-chosen blocks and
+    the projects. Returns edited LaTeX; a compile-check downstream guards bad edits.
     """
+    k = config.int_setting("secondary_bullets", 3)
+    k_proj = config.int_setting("max_projects", 3)
     tex = tex_source
     if patch.get("summary"):
         tex = _replace_section_body(tex, "Summary", patch["summary"])
     if patch.get("technical_skills"):
         tex = _replace_skills_block(tex, patch["technical_skills"])
-    bullets = patch.get("top_bullets") or []
-    if bullets:
-        span = _experience_block_span(tex, int(patch.get("experience_section_index", 0) or 0))
-        if span:
-            tex = _replace_first_resume_items(tex, bullets, start=span[0], end=span[1])
-        else:  # block not locatable — old behavior: first items in the document body
-            tex = _replace_first_resume_items(tex, bullets)
-        # Tailoring a top bullet can echo a pre-existing bullet further down (e.g. two
-        # "Designed an LLM evaluation framework..." lines). Deterministically drop the
-        # later near-duplicate so the final resume has no repeated bullet — no LLM needed.
-        tex = _dedupe_resume_items(tex, keep=bullets)
+    tex = _render_experience_selected(
+        tex, int(patch.get("experience_section_index", 0) or 0),
+        patch.get("top_bullets") or [], jd_text, k)
     if patch.get("projects"):
         tex = _replace_projects_section(tex, patch["projects"])
+    else:
+        tex = _select_projects_in_tex(tex, jd_text, k_proj)
     return tex
 
 

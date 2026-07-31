@@ -47,12 +47,13 @@ class ApiBrain:
     """Routes structured calls through the multi-provider LLM shim."""
 
     def structured(self, name: str, *, system: str, user: str, schema: dict,
-                   max_tokens: int = 3000) -> dict:
+                   max_tokens: int = 3000, cache_blocks: list[str] | None = None) -> dict:
         from .tools import llm
         provider = llm.provider_for(name)
         model = llm.model_for(provider)
         parsed, _usage = llm.structured(provider=provider, model=model, system=system,
-                                        user=user, schema=schema, max_tokens=max_tokens)
+                                        user=user, schema=schema, max_tokens=max_tokens,
+                                        cache_blocks=cache_blocks)
         return parsed
 
 
@@ -72,7 +73,10 @@ class ManualBrain:
         return f"{name}-{h}"
 
     def structured(self, name: str, *, system: str, user: str, schema: dict,
-                   max_tokens: int = 3000) -> dict:
+                   max_tokens: int = 3000, cache_blocks: list[str] | None = None) -> dict:
+        # Manual mode has no caching concept — fold cache_blocks back into the packet text.
+        if cache_blocks:
+            user = "\n\n".join([*cache_blocks, user])
         pid = self._id(name, system, user)
         prompt_path = self.base / f"{pid}.prompt.md"
         response_path = self.base / f"{pid}.response.json"

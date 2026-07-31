@@ -192,16 +192,16 @@ TEX2 = r"""
 
 
 def test_edit_tex_targets_block_and_takes_n_bullets():
-    # 3 bullets, block 0: all three Amazon items replaced, TCS untouched
+    # select-and-prune: the chosen block renders EXACTLY top_bullets; other block kept.
     out = latex.edit_tex(TEX2, {"top_bullets": ["New A1", "New A2", "New A3"],
                                 "experience_section_index": 0})
     assert "New A1" in out and "New A3" in out
     assert "Amazon bullet one original" not in out
     assert "TCS bullet one original" in out
-    # block 1: only the TCS item replaced; extra bullets beyond the block are ignored
+    # chosen block renders exactly the given bullets (both T1 and T2), Amazon untouched
     out = latex.edit_tex(TEX2, {"top_bullets": ["New T1", "New T2"],
                                 "experience_section_index": 1})
-    assert "New T1" in out and "New T2" not in out
+    assert "New T1" in out and "New T2" in out
     assert "Amazon bullet one original" in out
 
 

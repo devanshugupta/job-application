@@ -43,9 +43,19 @@ PATCH_SCHEMA = {
             "required": ["name", "url", "bullet"],
             "additionalProperties": False}},
         "reasoning": {"type": "string"},
+        # Cheap self-assessment, same rubric as the strict senior-reviewer scorer
+        # (prompts.py STEP 3) — the default verdict for every job; a real separate
+        # SCORE brain call only runs for jobs that clear the keyword pre-gate (see
+        # tailor_job's two-tier scoring below).
+        "self_score": {"type": "integer"},
+        "self_verdict": {"type": "string",
+                         "enum": ["strong", "borderline", "weak", "true_mismatch"]},
+        "self_match_pct": {"type": "integer"},
+        "self_gaps": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["summary", "technical_skills", "top_bullets",
-                 "experience_section_index", "projects", "reasoning"],
+                 "experience_section_index", "projects", "reasoning",
+                 "self_score", "self_verdict", "self_match_pct", "self_gaps"],
     "additionalProperties": False,
 }
 
@@ -189,22 +199,22 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
         return rec
 
     # 3. Brain call 1: the patch ---------------------------------------------------
-    achievements = (config.ACHIEVEMENTS_PATH.read_text().strip()
-                    if config.ACHIEVEMENTS_PATH.exists() else "")
-    user = (f"JOB DESCRIPTION:\n{jd_text.strip()}\n\n"
-            f"MASTER RESUME:\n{master.strip()}")
-    if achievements:
-        user += ("\n\nACHIEVEMENTS DOC (raw work context — bullets may be sourced ONLY "
-                 f"from the resume above and this doc):\n{achievements}")
+    # The master resume is the SINGLE source — it now holds the full point pool (the
+    # achievements doc is kept in sync with it offline and used to edit the .tex, not
+    # fed here). Byte-identical for every job tailored against this profile in a run, so
+    # it's cached (prompt caching): only the first call per profile pays full price.
+    cache_blocks = [f"MASTER RESUME (the full pool of the candidate's real work — every "
+                    f"bullet you select or reframe MUST come from here):\n{master.strip()}"]
+    user = f"JOB DESCRIPTION:\n{jd_text.strip()}"
     patch = brain.structured("tailor", system=_tailor_system(), user=user,
-                             schema=PATCH_SCHEMA)
+                             schema=PATCH_SCHEMA, cache_blocks=cache_blocks)
     problems = _validate_patch(patch)
     if problems:
         raise RuntimeError(f"Brain returned an invalid patch: {problems}")
 
     # 4. Apply + lint (one corrective pass max) -----------------------------------
     resume.apply_patch(dict(patch), profile=profile, company=company or "Unknown",
-                       role=role or "Unknown", url=url)
+                       role=role or "Unknown", url=url, jd_text=jd_text)
     lint = resume.lint(focus_bullets=patch["top_bullets"])
     if not lint["ok"]:
         fix_user = (user + "\n\nYOUR PREVIOUS PATCH:\n" + str({
@@ -212,11 +222,11 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
             + "\n\nLINT REJECTED IT FOR:\n- " + "\n- ".join(lint["issues"])
             + "\n\nReturn a corrected patch that fixes every issue.")
         patch = brain.structured("tailor", system=_tailor_system(), user=fix_user,
-                                 schema=PATCH_SCHEMA)
+                                 schema=PATCH_SCHEMA, cache_blocks=cache_blocks)
         if _validate_patch(patch):
             raise RuntimeError("Corrective patch still invalid; aborting this job.")
         resume.apply_patch(dict(patch), profile=profile, company=company or "Unknown",
-                           role=role or "Unknown", url=url)
+                           role=role or "Unknown", url=url, jd_text=jd_text)
         lint = resume.lint(focus_bullets=patch["top_bullets"])
 
     # 5. Brain call 2: REVIEW + revise — repeated bullets? does the tailored experience
@@ -236,7 +246,7 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
     if changed and not _validate_patch(merged):  # only adopt a structurally valid revision
         patch = merged
         resume.apply_patch(dict(patch), profile=profile, company=company or "Unknown",
-                           role=role or "Unknown", url=url)
+                           role=role or "Unknown", url=url, jd_text=jd_text)
         lint = resume.lint(focus_bullets=patch["top_bullets"])
         tailored_md = (config.TAILORED_MD_PATH.read_text()
                        if config.TAILORED_MD_PATH.exists() else "")
@@ -246,7 +256,7 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
 
     # 6. Render + final check ------------------------------------------------------
     resume.render_pdf(company=company or "Unknown", role=role or "Unknown",
-                      url=url, profile=profile, patch=patch)
+                      url=url, profile=profile, patch=patch, jd_text=jd_text)
     # Both render paths copy the PDF into the per-application folder under this name.
     pdf_file = artifacts.folder(company or "Unknown", role or "Unknown",
                                 url) / config.resume_pdf_name()
@@ -256,15 +266,30 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
     check = final_check.check_resume(tailored_md=tailored_md, pdf_path=pdf_path,
                                      jd_text=jd_text, focus_bullets=patch["top_bullets"])
 
-    # 7. Brain call 3: senior-reviewer score ---------------------------------------
-    score_user = ("JOB DESCRIPTION:\n" + jd_text.strip()
-                  + "\n\nTAILORED RESUME (Markdown):\n" + tailored_md.strip())
-    verdict = brain.structured("score", system=scorer._SCORER_SYSTEM, user=score_user,
-                               schema=scorer.SCORE_SCHEMA, max_tokens=2000)
-
-    # 8. Record ---------------------------------------------------------------------
+    # 7. Two-tier scoring ------------------------------------------------------------
     # ATS keyword score of what we'd actually SEND (the tailored resume), not the master.
     kw = ats.ats_score(jd_text, tailored_md or master)["score"]
+    # Every job already carries a self-score from the patch call (call 1, prompts.py
+    # STEP 3) — that's the default verdict. A real Brain call 3 (the strict
+    # senior-reviewer rubric) only runs for jobs that clear a higher bar: the extra
+    # rigor is spent where it can actually change a go/no-go call, not on every job.
+    score_gate = config.int_setting("score_gate_keyword_pct", 80)
+    scored_fully = kw is not None and kw >= score_gate
+    if scored_fully:
+        score_user = ("JOB DESCRIPTION:\n" + jd_text.strip()
+                      + "\n\nTAILORED RESUME (Markdown):\n" + tailored_md.strip())
+        verdict = brain.structured("score", system=scorer._SCORER_SYSTEM, user=score_user,
+                                   schema=scorer.SCORE_SCHEMA, max_tokens=2000)
+    else:
+        verdict = {
+            "overall_score": patch.get("self_score"),
+            "verdict": patch.get("self_verdict"),
+            "match_pct": patch.get("self_match_pct"),
+            "gaps": patch.get("self_gaps") or [],
+            "missing_must_haves": [],
+        }
+
+    # 8. Record ---------------------------------------------------------------------
     # The honest path to a higher match: JD asks the resume couldn't claim. The
     # masters are themselves tailored subsets, so an unclaimed ask may be something
     # the candidate HAS done but never documented — surfacing it lets them confirm
@@ -279,6 +304,9 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
     notes = "; ".join(check["problems"] + [f"review: {i}" for i in review_issues])
     if unclaimed:
         extra = "unclaimed asks (add to achievements.md if true): " + "; ".join(unclaimed)
+        notes = f"{notes}; {extra}" if notes else extra
+    if not scored_fully:
+        extra = f"self-scored (tailored-resume keyword match {kw}% < {score_gate}% gate)"
         notes = f"{notes}; {extra}" if notes else extra
     rec = tracker.save_application(
         company=company or "Unknown", role=role or "Unknown", url=url, status="scored",
@@ -296,7 +324,8 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
     )
     if verbose:
         flag = "" if check["ok"] else f"  ⚠ final_check: {len(check['problems'])} problem(s)"
-        print(f"    scored {verdict.get('overall_score')}/10 "
+        tier = "self-score" if not scored_fully else "scored"
+        print(f"    {tier} {verdict.get('overall_score')}/10 "
               f"({verdict.get('verdict')}), must-haves {verdict.get('match_pct')}%{flag}")
     return rec
 

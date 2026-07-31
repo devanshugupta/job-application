@@ -126,14 +126,31 @@ def _to_openai_messages(system: str, messages: list) -> list:
 # --- structured (JSON-schema) call -------------------------------------------
 
 def structured(*, provider: str, model: str, system: str, user: str,
-               schema: dict, max_tokens: int = 2000):
-    """Get a JSON object matching `schema`. Returns (parsed_dict, usage_dict)."""
+               schema: dict, max_tokens: int = 2000, cache_blocks: list[str] | None = None):
+    """Get a JSON object matching `schema`. Returns (parsed_dict, usage_dict).
+
+    `cache_blocks`: optional list of text blocks that are byte-identical across many
+    calls in a run (e.g. the master resume + achievements doc, reused for every job).
+    On Anthropic these are joined into one prefix block marked `cache_control`, placed
+    before the per-call `user` text — so only the first call in a run pays full price
+    for that content; every later call in the same run (within the ~5min TTL) reads it
+    from cache at a fraction of the input-token cost. The system prompt is always
+    cache_control'd too, since it never changes within a run. OpenAI has no manual
+    cache_control knob (it caches automatically based on prefix match), so there we
+    just concatenate cache_blocks + user into one string.
+    """
     if provider == "anthropic":
         import anthropic
         client = anthropic.Anthropic()
+        content = []
+        if cache_blocks:
+            content.append({"type": "text", "text": "\n\n".join(cache_blocks),
+                            "cache_control": {"type": "ephemeral"}})
+        content.append({"type": "text", "text": user})
         resp = client.messages.create(
-            model=model, max_tokens=max_tokens, system=system,
-            messages=[{"role": "user", "content": user}],
+            model=model, max_tokens=max_tokens,
+            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": content}],
             output_config={"format": {"type": "json_schema", "schema": schema}})
         text = next((b.text for b in resp.content if b.type == "text"), "{}")
         return json.loads(text), _norm_usage("anthropic", resp.usage)
@@ -141,12 +158,13 @@ def structured(*, provider: str, model: str, system: str, user: str,
     if provider == "openai":
         from openai import OpenAI
         client = OpenAI()
+        full_user = "\n\n".join([*cache_blocks, user]) if cache_blocks else user
         resp = client.chat.completions.create(
             model=model, max_tokens=max_tokens,
             response_format={"type": "json_schema", "json_schema":
                              {"name": "result", "schema": schema, "strict": False}},
             messages=[{"role": "system", "content": system},
-                      {"role": "user", "content": user}])
+                      {"role": "user", "content": full_user}])
         return json.loads(resp.choices[0].message.content), _norm_usage("openai", resp.usage)
 
     raise ValueError(f"unknown provider {provider!r}")

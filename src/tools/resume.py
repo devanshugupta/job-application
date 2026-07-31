@@ -87,15 +87,30 @@ def _rebuild(sections: list[tuple[str, str]]) -> str:
 
 def apply_patch(patch: dict, profile: str | None = None,
                 company: str | None = None, role: str | None = None,
-                url: str | None = None) -> str:
-    """Merge a tailoring patch into the master resume and write the tailored copy.
+                url: str | None = None, jd_text: str = "") -> str:
+    """Apply a tailoring patch to the master resume and write the tailored copy.
 
-    Only touches the Summary, Technical Skills, and the top-two bullets of the chosen
-    Experience block. ``profile`` selects which master resume to tailor from. When
-    ``company`` and ``role`` are given, also writes a per-application artifact folder
-    (data/applications/<slug>/ with tailored_resume.md + changes.json) so the dashboard
-    can show exactly what changed and link the files. Returns the tailored Markdown.
+    When the profile has a ``.tex`` master (the real, rendered resume), the tailored
+    Markdown is DERIVED from the edited ``.tex`` (select-and-prune, ``jd_text``-ranked) —
+    so the Markdown that lint/scoring read is byte-for-byte the same content the PDF
+    renders, never a separately-built approximation. ``profile``/``company``/``role``/
+    ``url`` unchanged; when ``company``+``role`` are given, also writes the per-application
+    artifact folder. Falls back to the legacy Markdown-merge for ``.md``-only profiles.
+    Returns the tailored Markdown.
     """
+    tex_master = latex.tex_master_path(profile) if profile is not None else None
+    if tex_master is not None:
+        edited_tex = latex.edit_tex(tex_master.read_text(), dict(patch), jd_text=jd_text)
+        tailored = latex.tex_to_text(edited_tex)
+        out = config.TAILORED_MD_PATH
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(tailored)
+        if company and role:
+            info = artifacts.save_artifacts(company, role, tailored_md=tailored,
+                                            patch=patch, url=url)
+            return f"{tailored}\n\n[artifacts saved to {info['dir']}]"
+        return tailored
+
     md = read_master(profile)
     if md.startswith("No master resume"):
         return md
@@ -120,7 +135,10 @@ def apply_patch(patch: dict, profile: str | None = None,
 
     # Technical Skills
     if patch.get("technical_skills") is not None:
-        i = find("technical skills") or find("skills")
+        # `or` would treat a legitimate index 0 as "not found" — check for None.
+        i = find("technical skills")
+        if i is None:
+            i = find("skills")
         if i is not None:
             sections[i] = (sections[i][0], "\n" + patch["technical_skills"].strip() + "\n\n")
 
@@ -281,7 +299,7 @@ def lint(markdown: str | None = None, focus_bullets: list[str] | None = None) ->
 def render_pdf(markdown: str | None = None, out_path: str | None = None,
                company: str | None = None, role: str | None = None,
                url: str | None = None, profile: str | None = None,
-               patch: dict | None = None) -> str:
+               patch: dict | None = None, jd_text: str = "") -> str:
     """Render a tailored resume PDF.
 
     The PDF filename comes from the profile's full name ("First_Last_Resume.pdf")
@@ -300,7 +318,7 @@ def render_pdf(markdown: str | None = None, out_path: str | None = None,
     if profile is not None and patch is not None:
         tex_master = latex.tex_master_path(profile)
         if tex_master is not None and latex.have_pdflatex():
-            edited = latex.edit_tex(tex_master.read_text(), patch)
+            edited = latex.edit_tex(tex_master.read_text(), patch, jd_text=jd_text)
             ok, msg = latex.compile_pdf(edited, dest)
             if ok:
                 if company and role:
