@@ -37,8 +37,41 @@ from .. import config
 
 _GUEST = ("https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
           "?keywords={kw}&location={loc}&start={start}")
+# Public guest JD endpoint — returns the full description HTML with NO login, same ToS
+# posture as the guest search above. Lets us capture jd_text at discovery.
+_GUEST_JD = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{jid}"
 _UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
+
+
+def _job_id(url: str) -> str:
+    """The numeric posting id trailing a /jobs/view/<slug>-<id> URL ('' if absent)."""
+    m = re.search(r"-(\d+)/?$", url or "")
+    return m.group(1) if m else ""
+
+
+def _strip(html: str) -> str:
+    html = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", html or "")
+    html = re.sub(r"(?i)<(br|/p|/div|/li|/h[1-6]|/ul)[^>]*>", "\n", html)
+    html = re.sub(r"<[^>]+>", " ", html)
+    import html as _h
+    html = _h.unescape(html)
+    html = re.sub(r"[ \t]+", " ", html)
+    return re.sub(r"\n\s*\n+", "\n\n", html).strip()
+
+
+def _jd(job_id: str) -> str:
+    """Full JD text from the public guest jobPosting endpoint (no login). '' on failure."""
+    if not job_id:
+        return ""
+    try:
+        req = urllib.request.Request(_GUEST_JD.format(jid=job_id), headers=_UA)
+        with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310
+            html = r.read().decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+    m = re.search(r'(?is)(show-more-less-html__markup|description__text).*?>(.*?)</div>', html)
+    return _strip(m.group(2)) if m else ""
 
 
 def _rel_to_ts(text: str, now: int) -> tuple[str, int]:
@@ -130,7 +163,45 @@ class LinkedInSource(Source):
                 time.sleep(1.5)  # be gentle
             if verbose:
                 print(f"  linkedin '{s.get('keywords', '')[:24]:<24}' {got:>4} cards")
+        _attach_jds(jobs)                       # capture JD at discovery (guest endpoint)
         return jobs, errors
+
+
+def _attach_jds(jobs: list[dict]) -> None:
+    """Fill jd_text (in place) for each card from the guest JD endpoint, concurrently."""
+    from concurrent.futures import ThreadPoolExecutor
+    todo = [j for j in jobs if not (j.get("jd_text") or "").strip()]
+    if not todo:
+        return
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        for j, jd in zip(todo, ex.map(lambda x: _jd(_job_id(x["url"])), todo)):
+            j["jd_text"] = jd
+
+
+def search(keywords: str, *, location: str = "United States", hours: int = 168,
+           pages: int = 2, limit: int = 25) -> list[dict]:
+    """Reusable LinkedIn guest search: newest cards for `keywords`, with jd_text attached
+    from the guest JD endpoint. ToS-sensitive — keep volume low. Returns normalized jobs."""
+    now = int(time.time())
+    cutoff = now - hours * 3600
+    kw, loc = urllib.parse.quote(keywords), urllib.parse.quote(location)
+    out: list[dict] = []
+    for p in range(pages):
+        try:
+            req = urllib.request.Request(_GUEST.format(kw=kw, loc=loc, start=p * 25), headers=_UA)
+            with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310
+                cards = _parse_cards(r.read().decode("utf-8", errors="replace"), now)
+        except Exception:
+            break
+        if not cards:
+            break
+        out.extend(c for c in cards if not c["posted_ts"] or c["posted_ts"] >= cutoff)
+        if len(out) >= limit:
+            break
+        time.sleep(1.5)
+    out = out[:limit]
+    _attach_jds(out)
+    return out
 
 
 register(LinkedInSource())

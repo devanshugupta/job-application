@@ -311,6 +311,32 @@ def cmd_watchlist() -> None:
     print("\nAPI-tagged companies are swept automatically by `discover`/`pipeline`.")
 
 
+def cmd_scout(query: str, hours: int, h1b: bool, limit: int, save: bool) -> None:
+    """Browse the ScoutBetter API for fresh roles (reusable — no throwaway scripts).
+
+    Prints newest-first matches with the real apply URL + JD already resolved; --h1b
+    filters to sponsorship-friendly postings, --save records them as 'found' rows."""
+    from datetime import datetime, timezone
+    from .sources import scoutbetter
+    jobs = scoutbetter.search(query, hours=hours, h1b=h1b, limit=limit)
+    tag = " [H1B sponsorship only]" if h1b else ""
+    print(f"=== ScoutBetter: '{query}' — {len(jobs)} roles, past {hours}h{tag} ===\n")
+    now = datetime.now(timezone.utc)
+    for j in jobs:
+        try:
+            age = f"{int((now - datetime.fromtimestamp(j['posted_ts'], timezone.utc)).total_seconds() // 3600)}h"
+        except Exception:
+            age = "?"
+        sal = f"${(j.get('salary_min') or 0)//1000}-{(j.get('salary_max') or 0)//1000}k" if j.get("salary_min") else ""
+        print(f"  {age:>4}  {j.get('company','?')[:22]:<22} {j.get('role','')[:40]:<40} "
+              f"{(j.get('locations') or '')[:16]:<16} yoe={j.get('yoe','?')} {sal}")
+        print(f"        {j.get('url','')}")
+    if save and jobs:
+        from .tools import discover
+        discover.discover(hours=hours, target=limit, sources=["scoutbetter"], verbose=False)
+        print(f"\nSaved to tracker. Tailor with: python -m src.cli pipeline --from-tracker")
+
+
 def cmd_status(verbose: bool = False) -> None:
     apps = tracker.list_applications()
     if not apps:
@@ -517,6 +543,13 @@ def main(argv: list[str] | None = None) -> None:
     p_fill.add_argument("url")
     p_fill.add_argument("--headless", action="store_true")
 
+    p_scout = sub.add_parser("scout", help="Browse the ScoutBetter API for fresh roles")
+    p_scout.add_argument("query", help="search term, e.g. \"machine learning engineer\"")
+    p_scout.add_argument("--hours", type=int, default=168, help="freshness window (default 7d)")
+    p_scout.add_argument("--h1b", action="store_true", help="H1B-sponsorship postings only")
+    p_scout.add_argument("--limit", type=int, default=20)
+    p_scout.add_argument("--save", action="store_true", help="record results as 'found' rows")
+
     p_status = sub.add_parser("status", help="Show application history")
     p_status.add_argument("--verbose", action="store_true")
     p_dash = sub.add_parser("dashboard", help="Regenerate the scores dashboard")
@@ -565,6 +598,8 @@ def main(argv: list[str] | None = None) -> None:
         cmd_score(args.url, args.model, args.headless, args.profile)
     elif args.command == "apply":
         cmd_apply(args.url, args.model, args.headless, args.profile)
+    elif args.command == "scout":
+        cmd_scout(args.query, args.hours, args.h1b, args.limit, args.save)
     elif args.command == "status":
         cmd_status(verbose=args.verbose)
     elif args.command == "dashboard":

@@ -22,7 +22,45 @@ import pathlib
 from datetime import date, datetime
 
 from .. import config
-from . import scoring, tracker
+from . import artifacts, scoring, tracker
+
+# A row is "tailored" (has a real resume) if a recompilable artifact exists on disk — a
+# tailored .tex or a PDF — NOT the flaky tailored_pdf field, which past runs often left
+# unset. A .tex counts because it recompiles to a PDF on demand.
+def _canon_source(s: str | None) -> str:
+    """Collapse a source label to its FAMILY so the 'by source' list has one row per real
+    source. The tracker holds drift across code versions — 'greenhouse' vs 'greenhouse-api',
+    'github:simplify-newgrad' vs 'SimplifyJobs/New-Grad-Positions', 'careers:google' vs
+    'google-careers' — all the same source. Maps every variant to a single canonical name."""
+    s = (s or "").strip().lower()
+    if not s or s in ("?", "user", "pipeline", "manual", "feed"):
+        return "manual"
+    if "scout" in s:
+        return "scoutbetter"
+    if "linkedin" in s:
+        return "linkedin"
+    if "simplify" in s or "new-grad" in s or "newgrad" in s:
+        return "simplify"
+    if "chrome" in s:
+        return "chrome-tabs"
+    if "careers" in s or s.endswith("-careers"):
+        return "careers"
+    for fam in ("greenhouse", "ashby", "lever", "workday", "smartrecruiters", "workable"):
+        if fam in s:
+            return fam
+    return s[:-4] if s.endswith("-api") else s   # merge stray 'x-api' with 'x'
+
+
+def _has_resume(a: dict) -> bool:
+    pdf = a.get("tailored_pdf")
+    if pdf and pathlib.Path(pdf).exists():
+        return True
+    try:
+        d = artifacts.BASE / artifacts.company_dir(a.get("company", "")) / \
+            artifacts.job_dir(a.get("role", ""), a.get("url"))
+        return d.exists() and (any(d.glob("*.tex")) or any(d.glob("*.pdf")))
+    except Exception:
+        return False
 
 OUT_PATH = config.DASHBOARD_PATH
 
@@ -103,6 +141,8 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     profiles_seen: set[str] = set()
     prof_total: dict[str, int] = {}      # roles per profile (ml_ai / sde / data_engineer)
     prof_applied: dict[str, int] = {}    # of those, how many applied
+    src_total: dict[str, int] = {}       # roles per source (scoutbetter / linkedin / ...)
+    src_applied: dict[str, int] = {}     # of those, how many applied
     removed_count = 0
     for a in ordered:
         # Rows you removed are kept in the tracker (never deleted) but hidden by default
@@ -128,6 +168,11 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             prof_total[prof] = prof_total.get(prof, 0) + 1
             if a.get("status") in _SUBMITTED:
                 prof_applied[prof] = prof_applied.get(prof, 0) + 1
+        if not removed:
+            src = _canon_source(a.get("source"))
+            src_total[src] = src_total.get(src, 0) + 1
+            if a.get("status") in _SUBMITTED:
+                src_applied[src] = src_applied.get(src, 0) + 1
 
         # The color already conveys the grade, so the badge shows just the number.
         aqs_cell = (
@@ -187,11 +232,13 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         # A row counts as "tailored" if a tailored PDF was produced, a resume diff was
         # recorded, or it reached the tailored/applied stage — the "tailored only" filter
         # keys on this so you can jump straight to jobs that have a resume ready.
-        is_tailored = bool(pdf or a.get("resume_diff") or a.get("status") == "tailored")
+        is_tailored = _has_resume(a)
+        ready = is_tailored and a.get("status") not in _SUBMITTED
         rows.append(
             f"<tr data-status='{html.escape(str(a.get('status') or ''))}' "
             f"data-profile='{html.escape(prof)}' data-removed='{1 if removed else 0}' "
-            f"data-tailored='{1 if is_tailored else 0}'>"
+            f"data-source='{html.escape(str(a.get('source') or '?'))}' "
+            f"data-tailored='{1 if is_tailored else 0}' data-ready='{1 if ready else 0}'>"
             f"<td class='rmcell'>{rm_btn}</td>"
             f"{date_cell(a.get('date'))}"
             f"<td class='co'>{cell(a.get('company'))}</td>"
@@ -213,8 +260,8 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     total = len(live)
     found_today = sum(1 for a in live if a.get("status") == "found"
                       and (a.get("date") or "")[:10] == today)
-    tailored = sum(1 for a in live if a.get("tailored_pdf") or a.get("resume_diff")
-                   or a.get("status") == "tailored")
+    tailored = sum(1 for a in live if _has_resume(a))
+    ready = sum(1 for a in live if _has_resume(a) and a.get("status") not in _SUBMITTED)
     applied = sum(1 for a in live if a.get("status") in _SUBMITTED)
     scored = sum(1 for a in live if a.get("resume_score") is not None)
     avg_aqs = round(sum(aqs_values) / len(aqs_values)) if aqs_values else "—"
@@ -257,10 +304,21 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         for p in sorted(prof_total, key=lambda p: -prof_total[p])
     ) or "<div class='mut'>no scored roles yet</div>"
 
+    # Jobs by source — one compact horizontal strip: "scoutbetter 74 · ashby 9 · …".
+    # data-tot/data-app let the "applied only" switch swap the number and re-sort in place.
+    src_rows_html = "".join(
+        f"<span class='schip' data-tot='{src_total[s]}' data-app='{src_applied.get(s, 0)}'>"
+        f"{html.escape(s)} <b>{src_total[s]}</b></span>"
+        for s in sorted(src_total, key=lambda s: -src_total[s])
+    ) or "<span class='mut'>no roles yet</span>"
+
+    # Status chips: drop low-signal statuses ('duplicate' is noise, 'skipped' is roles we
+    # already passed on) so the bar stays actionable.
+    _HIDE_STATUS = {"duplicate", "skipped"}
     status_chips = "".join(
         f"<button class='chip' data-status='{html.escape(s)}' onclick='chip(this)'>"
         f"{html.escape(s)} ({n})</button>"
-        for s, n in sorted(statuses.items(), key=lambda kv: -kv[1]))
+        for s, n in sorted(statuses.items(), key=lambda kv: -kv[1]) if s not in _HIDE_STATUS)
     if removed_count:
         status_chips += (f"<button class='chip chip-rm' onclick='toggleRemoved(this)'>"
                          f"🗑 removed ({removed_count})</button>")
@@ -269,9 +327,9 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
 
     page = _TEMPLATE.format(
         generated=today, total=total, found_today=found_today, tailored=tailored,
-        applied=applied, avg_aqs=avg_aqs, a_grades=a_grades,
+        ready=ready, applied=applied, avg_aqs=avg_aqs, a_grades=a_grades,
         funnel=funnel_html, hist=hist_html, aqs_n=len(aqs_values),
-        prof_chart=prof_chart_html,
+        prof_chart=prof_chart_html, src_rows=src_rows_html,
         chips=status_chips, profile_opts=profile_opts,
         rows="\n".join(rows) or "<tr><td colspan='12' class='mut'>No applications yet — "
                                 "run <code>python -m src.cli pipeline</code>.</td></tr>",
@@ -326,6 +384,17 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
           border-radius:999px; padding:4px 12px; font-size:12px; cursor:pointer; }}
   .chip.on {{ color:var(--acc); border-color:var(--acc); background:var(--acc-soft); font-weight:600; }}
   .chip-tl.on {{ color:var(--ok); border-color:var(--ok); background:#dcfce7; font-weight:600; }}
+  .chip-rd.on {{ color:#047857; border-color:#047857; background:#d1fae5; font-weight:600; }}
+  .srchdr {{ display:flex; justify-content:space-between; align-items:center;
+             font-size:11px; font-weight:600; color:var(--mut); text-transform:uppercase;
+             letter-spacing:.4px; border-top:1px solid var(--line); padding-top:8px; }}
+  .sw {{ display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-weight:500;
+         text-transform:none; letter-spacing:0; }}
+  .srcstrip {{ display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; padding:6px 0 2px; }}
+  .schip {{ flex:0 0 auto; background:var(--bg); border:1px solid var(--line);
+            border-radius:20px; padding:2px 9px; font-size:12px; color:var(--mut); }}
+  .schip b {{ color:var(--acc); font-variant-numeric:tabular-nums; margin-left:2px; }}
+  .schip.zero {{ opacity:.35; }}
   table {{ border-collapse:collapse; width:100%; font-size:13px; background:var(--panel);
           border:1px solid var(--line); border-radius:10px; overflow:hidden; }}
   th,td {{ border-bottom:1px solid var(--line); padding:8px 10px; text-align:left;
@@ -380,7 +449,8 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   <div class="card"><b>{total}</b><span>tracked</span></div>
   <div class="card"><b>{found_today}</b><span>found today</span></div>
   <div class="card"><b>{tailored}</b><span>tailored</span></div>
-  <div class="card"><b>{applied}</b><span>applied / ready</span></div>
+  <div class="card"><b id="kpiReady">{ready}</b><span>ready to apply</span></div>
+  <div class="card"><b id="kpiApplied">{applied}</b><span>applied</span></div>
   <div class="card"><b>{avg_aqs}</b><span>avg AQS</span></div>
   <div class="card"><b>{a_grades}</b><span>A-grade (80+)</span></div>
 </div>
@@ -394,9 +464,14 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   </div>
   <div class="panel"><h3>AQS distribution — {aqs_n} scored rows</h3><div class="hist">{hist}</div></div>
   <div class="panel"><h3>Roles by profile (applied / total)</h3>{prof_chart}
-    <div class="mut" style="font-size:10.5px;margin-top:8px">
+    <div class="mut" style="font-size:10.5px;margin:8px 0 10px">
       <span style="color:var(--ok)">green</span> = applied ·
       <span style="color:var(--acc)">blue</span> = total</div>
+    <div class="srchdr">by source
+      <label class="sw"><input type="checkbox" id="srcAppliedTog" onchange="toggleSrcApplied()">
+        <span>applied only</span></label>
+    </div>
+    <div id="srcList" class="srcstrip">{src_rows}</div>
   </div>
 </div>
 
@@ -405,6 +480,8 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   <select id="prof" onchange="apply()"><option value="">all profiles</option>{profile_opts}</select>
   <button class="chip chip-tl" data-tailored="1" onclick="toggleTailored(this)"
           title="Show only jobs that already have a tailored resume">✓ tailored ({tailored})</button>
+  <button class="chip chip-rd" data-ready="1" onclick="toggleReady(this)"
+          title="Resume produced (recompilable) AND not applied yet">✅ ready to apply ({ready})</button>
   {chips}
   <span class="mut" style="font-size:11px">status chips multi-select</span>
 </div>
@@ -462,14 +539,33 @@ function post(path, url) {{
     }});
 }}
 function applyJob(btn) {{
-  var url = btn.dataset.url;
+  // Toggle: odd click marks applied AND opens the posting; even click un-marks it and
+  // does NOT re-open the link. So an even number of clicks leaves the row as it was.
+  var url = btn.dataset.url, tr = btn.closest('tr'), tag = tr.querySelector('.tag');
+  var SUBMITTED = ['submitted','applied','ready_to_submit','skipped_submit'];
+  function bumpApplied(d) {{ var el = document.getElementById('kpiApplied');
+    if (el) el.textContent = (parseInt(el.textContent, 10) || 0) + d; }}
+  if (btn.classList.contains('done')) {{
+    post('/api/unapplied', url).then(function(j) {{
+      var st = j.status || 'tailored';
+      btn.classList.remove('done'); btn.textContent = 'apply ↗';
+      tr.dataset.status = st;
+      if (tag) {{ tag.textContent = st; tag.className = 'tag tag-' + st; }}
+      if (SUBMITTED.indexOf(st) < 0) bumpApplied(-1);  // left the applied/ready bucket
+      toast('Unmarked applied.');
+    }}).catch(function(e) {{
+      toast(e.noBackend ? 'Cannot change status from a static page. ' + HINT
+                        : 'Could not unmark: ' + e.message, true);
+    }});
+    return;
+  }}
   window.open(url, '_blank');
-  if (btn.classList.contains('done')) return;
+  var wasSubmitted = SUBMITTED.indexOf(tr.dataset.status) >= 0;
   post('/api/applied', url).then(function() {{
     btn.classList.add('done'); btn.textContent = 'applied ✓';
-    var tr = btn.closest('tr'), tag = tr.querySelector('.tag');
     tr.dataset.status = 'applied';
     if (tag) {{ tag.textContent = 'applied'; tag.className = 'tag tag-applied'; }}
+    if (!wasSubmitted) bumpApplied(1);  // newly entered the applied/ready bucket
     toast('Marked applied.');
   }}).catch(function(e) {{
     toast(e.noBackend ? 'Opened the posting, but could NOT mark it applied. ' + HINT
@@ -557,6 +653,7 @@ if (location.protocol.indexOf('http') === 0) {{
 // one on/off, so you can view e.g. scored + tailored together.
 var activeStatuses = new Set();
 var tailoredOnly = false;
+var readyOnly = false;
 function chip(el) {{
   var s = el.dataset.status;
   if (activeStatuses.has(s)) {{ activeStatuses.delete(s); el.classList.remove('on'); }}
@@ -567,6 +664,29 @@ function toggleTailored(el) {{
   tailoredOnly = !tailoredOnly;
   el.classList.toggle('on', tailoredOnly);
   apply();
+}}
+function toggleReady(el) {{
+  readyOnly = !readyOnly;
+  el.classList.toggle('on', readyOnly);
+  apply();
+}}
+// "by source" list: the applied-only switch swaps each row's number (total <-> applied)
+// and re-sorts the list in place by that number, descending.
+function toggleSrcApplied() {{
+  var appliedOnly = document.getElementById('srcAppliedTog').checked;
+  var box = document.getElementById('srcList');
+  var chips = Array.prototype.slice.call(box.querySelectorAll('.schip'));
+  chips.forEach(function(c) {{
+    var v = appliedOnly ? +c.dataset.app : +c.dataset.tot;
+    c.querySelector('b').textContent = v;
+    c.classList.toggle('zero', v === 0);
+  }});
+  chips.sort(function(a, b) {{
+    var av = appliedOnly ? +a.dataset.app : +a.dataset.tot;
+    var bv = appliedOnly ? +b.dataset.app : +b.dataset.tot;
+    return bv - av;
+  }});
+  chips.forEach(function(c) {{ box.appendChild(c); }});
 }}
 // Pagination: 30 rows/page over whatever currently matches the filters, in current DOM
 // (sort) order. apply() recomputes which rows match and always resets to page 1; sortBy()
@@ -585,11 +705,12 @@ function apply() {{
     var okS = activeStatuses.size === 0 || activeStatuses.has(tr.dataset.status);
     var okP = !p || tr.dataset.profile === p;
     var okT = !tailoredOnly || tr.dataset.tailored === '1';
+    var okRd = !readyOnly || tr.dataset.ready === '1';
     // Pagination sets inline display, which would otherwise beat the CSS rule that
     // hides removed rows by default — so "removed" has to be a filter condition too,
     // not left to that stylesheet rule, once any row has been paginated.
     var okR = document.body.classList.contains('show-removed') || tr.dataset.removed !== '1';
-    if (okQ && okS && okP && okT && okR) {{ filteredRows.push(tr); }} else {{ tr.style.display = 'none'; }}
+    if (okQ && okS && okP && okT && okRd && okR) {{ filteredRows.push(tr); }} else {{ tr.style.display = 'none'; }}
   }});
   pgPage = 1;
   renderPage();

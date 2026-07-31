@@ -47,13 +47,98 @@ def _iso_ts(s: str) -> tuple[str, int]:
         return "", 0
 
 
-def _detail_url(job_id) -> str | None:
-    """Resolve a job's real apply URL from the detail endpoint. None on failure."""
+def _strip_html(raw: str) -> str:
+    import html as _html
+    import re
+    raw = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", raw or "")
+    raw = re.sub(r"(?i)<(br|/p|/div|/li|/h[1-6])[^>]*>", "\n", raw)
+    raw = re.sub(r"<[^>]+>", " ", raw)
+    raw = _html.unescape(raw)
+    raw = re.sub(r"[ \t]+", " ", raw)
+    return re.sub(r"\n\s*\n+", "\n\n", raw).strip()
+
+
+def _detail(job_id) -> tuple[str | None, str]:
+    """From the detail endpoint, return (real_apply_url, jd_text). The JD is fetched
+    here at DISCOVERY time (it comes free in the same call that resolves the apply URL),
+    so a ScoutBetter job is tailorable immediately and never needs a later re-fetch."""
     try:
         d = _get(f"{API}/{job_id}/")
-        return d.get("job_url") or None
+        jd = _strip_html(d.get("description") or "") or (d.get("job_overview") or "")
+        return (d.get("job_url") or None), jd
     except Exception:
-        return None
+        return None, ""
+
+
+def _collect(term: str, *, market: str, cutoff_ts: int, h1b: bool,
+             page_size: int, max_jobs: int, kept: dict, errors: list) -> None:
+    """Page one search term newest-first into `kept` (id -> normalized job), stopping at
+    the freshness cutoff or max_jobs. `h1b=True` adds the API's h1b_sponsorship filter."""
+    offset, stop = 0, False
+    while not stop and offset < 1000 and len(kept) < max_jobs:
+        params = {"market": market, "ordering": "-posted_at", "search": term,
+                  "limit": page_size, "offset": offset}
+        if h1b:
+            params["h1b_sponsorship"] = "true"
+        try:
+            page = _get(f"{API}/?{urllib.parse.urlencode(params)}").get("results", [])
+        except Exception as e:
+            errors.append(f"scoutbetter '{term}' @{offset}: {e}")
+            return
+        if not page:
+            return
+        for j in page:
+            pd, ts = _iso_ts(j.get("posted_at"))
+            if ts and ts < cutoff_ts:            # newest-first -> the rest are older
+                stop = True
+                break
+            jid = j.get("id")
+            if jid in kept:
+                continue
+            kept[jid] = {
+                "company": (j.get("company") or {}).get("name", ""),
+                "role": j.get("title", ""), "url": "",
+                "posted_date": pd, "posted_ts": ts,
+                "locations": j.get("location", ""),
+                "yoe": j.get("yoe"), "salary_min": j.get("salary_min"),
+                "salary_max": j.get("salary_max"), "work_mode": j.get("work_mode"),
+                "source": "scoutbetter", "_id": jid,
+                "_overview": j.get("job_overview", ""),
+            }
+        offset += page_size
+
+
+def _resolve(items: list[dict], *, keep_all: bool = False) -> list[dict]:
+    """Resolve each job's real apply URL AND full JD from the detail endpoint (threaded).
+    The JD is captured here, at discovery — never deferred to tailor time. By default
+    keeps only jobs with a real apply link; keep_all=True keeps every job (for browsing)."""
+    if not items:
+        return []
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        details = list(ex.map(lambda it: _detail(it["_id"]), items))
+    out = []
+    for it, (url, jd) in zip(items, details):
+        it.pop("_id", None)
+        it["jd_text"] = jd or it.pop("_overview", "") or ""
+        it.pop("_overview", None)
+        it["url"] = url or f"https://scoutbetter.jobs/jobs/{it.get('posted_ts')}"
+        if url or keep_all:
+            out.append(it)
+    return out
+
+
+def search(term: str, *, hours: int = 168, h1b: bool = False, limit: int = 25,
+           market: str = "US") -> list[dict]:
+    """Reusable ScoutBetter query: newest-first jobs matching `term` within `hours`,
+    optionally H1B-sponsorship only. Returns up to `limit` normalized job dicts with the
+    real apply URL and full JD already attached. This is the single entry point for
+    browsing/pulling ScoutBetter — CLI and discovery both use it, so no throwaway scripts."""
+    cutoff = int(datetime.now(timezone.utc).timestamp()) - hours * 3600
+    kept: dict[int, dict] = {}
+    errors: list[str] = []
+    _collect(term, market=market, cutoff_ts=cutoff, h1b=h1b,
+             page_size=min(50, max(10, limit)), max_jobs=limit, kept=kept, errors=errors)
+    return _resolve(list(kept.values()), keep_all=True)[:limit]
 
 
 class ScoutBetterSource(Source):
@@ -74,61 +159,21 @@ class ScoutBetterSource(Source):
         market = cfg.get("market", "US")
         searches = cfg.get("searches", DEFAULT_SEARCHES)
         page_size = int(cfg.get("page_size", 50))
-        max_jobs = int(cfg.get("max_jobs", 120))     # cap kept jobs (bounds detail calls)
-        now = int(datetime.now(timezone.utc).timestamp())
-        cutoff = now - hours * 3600
-
-        kept: dict[int, dict] = {}   # job_id -> normalized (dedupe across searches)
+        max_jobs = int(cfg.get("max_jobs", 120))
+        h1b = bool(cfg.get("h1b_only", False))
+        cutoff = int(datetime.now(timezone.utc).timestamp()) - hours * 3600
+        kept: dict[int, dict] = {}
         errors: list[str] = []
         for term in searches:
             if len(kept) >= max_jobs:
                 break
-            offset, stop = 0, False
-            while not stop and offset < 1000 and len(kept) < max_jobs:
-                qs = urllib.parse.urlencode({
-                    "market": market, "ordering": "-posted_at", "search": term,
-                    "limit": page_size, "offset": offset})
-                try:
-                    page = _get(f"{API}/?{qs}").get("results", [])
-                except Exception as e:
-                    errors.append(f"scoutbetter '{term}' @{offset}: {e}")
-                    break
-                if not page:
-                    break
-                for j in page:
-                    pd, ts = _iso_ts(j.get("posted_at"))
-                    if ts and ts < cutoff:          # newest-first -> rest are older
-                        stop = True
-                        break
-                    jid = j.get("id")
-                    if jid in kept:
-                        continue
-                    kept[jid] = {
-                        "company": (j.get("company") or {}).get("name", ""),
-                        "role": j.get("title", ""),
-                        "url": "",                  # filled from detail below
-                        "posted_date": pd, "posted_ts": ts,
-                        "locations": j.get("location", ""),
-                        "source": "scoutbetter",
-                        "_id": jid,
-                        "_overview": j.get("job_overview", ""),
-                    }
-                offset += page_size
+            _collect(term, market=market, cutoff_ts=cutoff, h1b=h1b,
+                     page_size=page_size, max_jobs=max_jobs, kept=kept, errors=errors)
             if verbose:
                 print(f"  scoutbetter '{term[:22]:<22}' kept {len(kept)} (cum.)")
-
-        # resolve real apply URLs (threaded, bounded by max_jobs)
-        items = list(kept.values())
-        with ThreadPoolExecutor(max_workers=8) as ex:
-            urls = list(ex.map(lambda it: _detail_url(it["_id"]), items))
-        out = []
-        for it, url in zip(items, urls):
-            it.pop("_id", None); it.pop("_overview", None)
-            it["url"] = url or f"https://scoutbetter.jobs/jobs/{it.get('posted_ts')}"
-            if url:                                  # only keep jobs with a real apply link
-                out.append(it)
+        out = _resolve(list(kept.values()))
         if verbose:
-            print(f"  scoutbetter resolved {len(out)}/{len(items)} apply URLs")
+            print(f"  scoutbetter resolved {len(out)}/{len(kept)} apply URLs")
         return out, errors
 
 

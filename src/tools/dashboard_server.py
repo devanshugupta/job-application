@@ -57,8 +57,26 @@ def reveal(path: pathlib.Path) -> None:
 
 
 def mark_applied(url: str) -> dict | None:
+    # Remember the status we're leaving, so a second click can undo cleanly.
+    rec = tracker._find_by_url(tracker.list_applications(), url)
+    prev = rec.get("status") if rec and rec.get("status") != "applied" else None
     return tracker.update_application(
-        url, status="applied", applied_date=date.today().isoformat())
+        url, status="applied", applied_date=date.today().isoformat(),
+        prev_status=prev)
+
+
+def unmark_applied(url: str) -> str:
+    """Undo an 'applied' mark (the even-numbered click). Restores the status the row
+    had before it was marked applied (or a sensible fallback), clears applied_date, and
+    returns the restored status so the UI can re-render the row's tag."""
+    rec = tracker._find_by_url(tracker.list_applications(), url)
+    prev = (rec or {}).get("prev_status")
+    if not prev:  # no stored prior status — infer from how far the row got
+        prev = ("tailored" if (rec or {}).get("tailored_pdf")
+                else "scored" if (rec or {}).get("resume_score") is not None
+                else "found")
+    tracker.update_application(url, status=prev, applied_date="", prev_status="")
+    return prev
 
 
 def recompile_resume(rec: dict) -> pathlib.Path:
@@ -216,6 +234,8 @@ class _Handler(BaseHTTPRequestHandler):
                         if tracker._norm_url(r.get("url", "")) == key), None)
             if rec is None:
                 return self._json(404, {"error": "unknown job"})
+            if self.path.startswith("/api/unapplied"):
+                return self._json(200, {"status": unmark_applied(url)})
             if self.path.startswith("/api/applied"):
                 mark_applied(url)
                 return self._json(200, {"status": "applied"})

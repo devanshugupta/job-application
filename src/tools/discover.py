@@ -177,6 +177,45 @@ def coverage(hours: int = 24, *, profile: str | None = None,
     return gather(hours, profile=profile, sources=sources, verbose=False)["stats"]["coverage"]
 
 
+def _ensure_jd_text(jobs: list[dict], *, verbose: bool = True) -> None:
+    """Populate jd_text (in place) for any job that lacks it, at discovery time. Sources
+    with an inline JD already have it; for the rest we fetch the posting now — cheap ATS
+    API/HTTP paths, with a browser render only for Simplify/LinkedIn/careers/github links.
+    Day-cached per URL and run concurrently. Never raises."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from . import finder, jd_fetch
+    today = date.today().isoformat()
+    todo = []
+    for j in jobs:
+        if (j.get("jd_text") or "").strip():
+            continue
+        cached = finder.get_cached(f"jd:{j['url']}", None, today)
+        if cached is not None:
+            j["jd_text"] = cached[0] if cached else ""
+        else:
+            todo.append(j)
+    if not todo:
+        return
+
+    def _one(j: dict) -> tuple[dict, str]:
+        src = (j.get("source") or "").lower()
+        render = any(k in src for k in ("simplify", "linkedin", "careers", "github", "chrome"))
+        try:
+            f = jd_fetch.fetch_jd(j["url"], allow_browser=render)
+            return j, (f["text"] if f["looks_complete"] else "")
+        except Exception:
+            return j, ""
+
+    with ThreadPoolExecutor(max_workers=min(6, len(todo))) as pool:
+        for j, jd in pool.map(_one, todo):
+            j["jd_text"] = jd
+            finder.put_cache(f"jd:{j['url']}", None, today, [jd] if jd else [])
+    if verbose:
+        got = sum(1 for j in todo if j.get("jd_text"))
+        print(f"  JD capture: fetched {got}/{len(todo)} missing JDs at discovery.")
+
+
 def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
              sources: list[str] | None = None, save: bool = True, verbose: bool = True,
              refresh: bool = False) -> list[dict]:
@@ -203,6 +242,10 @@ def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
         print(f"Using today's cached discovery: {len(jobs)} roles "
               "(--refresh to re-sweep).")
     shortlist = jobs[:target]
+    # Capture the JD NOW, when the job is found — not deferred to tailor time. Sources
+    # with an inline JD (ATS APIs, ScoutBetter) already carry it; for the rest we fetch
+    # here so every saved row is self-sufficient and tailorable without a re-fetch.
+    _ensure_jd_text(shortlist, verbose=verbose)
     if save:
         existing_urls = {a.get("url") for a in tracker.list_applications()}
         for j in shortlist:
