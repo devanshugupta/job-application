@@ -259,6 +259,24 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
     (call 3 + its two-tier gate). Everything between them is deterministic."""
     comp = company or "Unknown"
     rol = role or "Unknown"
+
+    # 0. Removed-row gate  the dashboard's "remove" (−) button sets removed=True to
+    # hide a job the user has already decided isn't worth pursuing (never deletes the
+    # row, so restore stays possible). Honor that decision here too: don't spend any
+    # tailoring effort re-processing something the user explicitly dismissed. Match by
+    # URL first (the specific posting this call is for); fall back to company+role only
+    # if this exact URL isn't tracked yet. Checked before the JD fetch  a removed row
+    # shouldn't cost anything, not even a fetch.
+    _norm = tracker._norm_url(url)
+    existing_row = next((r for r in reversed(tracker.list_applications())
+                         if tracker._norm_url(r.get("url", "")) == _norm), None)
+    if existing_row is None:
+        existing_row = tracker.find_advanced_duplicate(comp, rol, min_status="found")
+    if existing_row is not None and existing_row.get("removed"):
+        if verbose:
+            print("    ⛔ removed from dashboard; skipping (restore it there to re-enable)")
+        return existing_row
+
     # 1. JD ---------------------------------------------------------------------
     if not jd_text:
         fetched = jd_fetch.fetch_jd(url)
