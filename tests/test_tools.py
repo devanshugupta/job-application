@@ -1,7 +1,24 @@
 """Unit tests for the deterministic tool logic (no API, no browser)."""
 
-from src.tools import ats, feeds, final_check, finder, latex, portals, usage as usage_mod
+from src.tools import ats, feeds, final_check, finder, jd_fetch, latex, portals, usage as usage_mod
 from src.sources import linkedin
+
+
+def test_login_wall_detected():
+    # A logged-out LinkedIn job page renders its auth/nav shell as body text; it is long
+    # but contains no JD. It must be recognized so it never becomes a resume.
+    shell = ("Machine Learning Engineer in Seattle, WA Expand search This button "
+             "displays the currently selected search type. Jobs People Learning "
+             "Sign in Join now " * 20)
+    assert jd_fetch._looks_like_login_wall(shell)
+
+
+def test_real_jd_not_flagged_as_login_wall():
+    # A genuine JD that happens to mention "sign in" once must NOT be flagged (needs 2+
+    # distinct login-shell markers).
+    jd = ("We are hiring a backend engineer to build authentication and sign in flows "
+          "for our platform, working with Python, PostgreSQL, and distributed systems. " * 10)
+    assert not jd_fetch._looks_like_login_wall(jd)
 
 
 def test_linkedin_dedupe_near_duplicates_same_company():

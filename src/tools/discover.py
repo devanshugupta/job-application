@@ -203,7 +203,13 @@ def _ensure_jd_text(jobs: list[dict], *, verbose: bool = True) -> None:
 
     def _one(j: dict) -> tuple[dict, str]:
         src = (j.get("source") or "").lower()
-        render = any(k in src for k in ("simplify", "linkedin", "careers", "github", "chrome"))
+        # NB: LinkedIn is deliberately NOT here. Its JD is captured at source-fetch via
+        # the guest jobPosting endpoint (sources/linkedin._jd); browser-rendering a
+        # linkedin.com/jobs/view URL only ever returns the logged-out login-wall shell,
+        # so a render fallback would waste a browser launch to produce junk. If the guest
+        # endpoint didn't yield a JD, we leave it empty and the validity gate in
+        # tailor_job filters the job out before any resume is built.
+        render = any(k in src for k in ("simplify", "careers", "github", "chrome"))
         try:
             f = jd_fetch.fetch_jd(j["url"], allow_browser=render)
             return j, (f["text"] if f["looks_complete"] else "")

@@ -281,10 +281,23 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
     if not jd_text:
         fetched = jd_fetch.fetch_jd(url)
         jd_text = fetched["text"]
-        if not fetched["looks_complete"]:
-            raise RuntimeError(
-                f"Could not extract a usable JD from {url} (source={fetched['source']}, "
-                f"{len(jd_text)} chars). Use `apply`/`score` (browser agent) for this one.")
+
+    # 1a. JD validity gate  the JD we're about to tailor against must be REAL posting
+    # text, whether it was freshly fetched above or pre-supplied from the tracker. A
+    # login-wall shell (a logged-out LinkedIn page renders its nav/auth chrome as body
+    # text) or a too-thin capture must never become a resume  the bullets would be
+    # tailored to nothing. This check sits BEFORE any brain spend and covers BOTH
+    # sources of jd_text, because stored junk bypasses the fetch path entirely. We do
+    # not persist the bad text back (so a later clean re-capture can still fill it).
+    if len(jd_text or "") < jd_fetch.MIN_COMPLETE_CHARS or jd_fetch._looks_like_login_wall(jd_text):
+        reason = ("unusable JD (login wall or too thin) — no clean posting text to "
+                  "tailor against; capture the JD from the company careers page")
+        rec = tracker.save_application(
+            company=comp, role=rol, url=url, status="skipped", source=source,
+            posted_date=posted_date, profile=profile, notes=reason)
+        if verbose:
+            print(f"    ⛔ {reason}")
+        return rec
 
     # 1b. Hard gates  don't spend tailoring effort on a role we can't be hired for.
     if _requires_sponsorship():

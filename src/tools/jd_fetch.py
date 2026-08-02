@@ -20,6 +20,20 @@ _UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
 TIMEOUT = 25
 MIN_COMPLETE_CHARS = 600  # below this, the page was probably JS-rendered
 
+# A logged-out LinkedIn job page renders its full nav/auth shell ("Sign in", "Join now",
+# the search-type-selector button copy) as body text when the real posting requires a
+# session  long enough to clear MIN_COMPLETE_CHARS despite containing zero JD content.
+# Length alone can't tell them apart; this phrase cluster can. Two-of-three keeps a real
+# JD that happens to mention "sign in" once (rare) from being falsely rejected.
+_LOGIN_WALL_MARKERS = (
+    "sign in", "join now", "currently selected search type",
+)
+
+
+def _looks_like_login_wall(text: str) -> bool:
+    low = text.lower()
+    return sum(m in low for m in _LOGIN_WALL_MARKERS) >= 2
+
 
 def _get(url: str) -> str:
     req = urllib.request.Request(url, headers=_UA)
@@ -186,11 +200,13 @@ def _fetch_jd_cached(url: str, max_chars: int, allow_browser: bool) -> tuple[str
 
     if allow_browser:
         rendered = _browser_fetch(url)
-        if len(rendered) >= MIN_COMPLETE_CHARS:
+        if len(rendered) >= MIN_COMPLETE_CHARS and not _looks_like_login_wall(rendered):
             return rendered[:max_chars], "browser", True
         http_text = rendered or http_text  # keep whatever's longer/available
 
-    return http_text[:max_chars], "http", len(http_text) >= MIN_COMPLETE_CHARS
+    complete = (len(http_text) >= MIN_COMPLETE_CHARS
+               and not _looks_like_login_wall(http_text))
+    return http_text[:max_chars], "http", complete
 
 
 def fetch_jd(url: str, max_chars: int = 12000, *, allow_browser: bool = True) -> dict:
