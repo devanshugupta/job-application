@@ -183,9 +183,12 @@ class LinkedInSource(Source):
             if verbose:
                 print(f"  linkedin '{s.get('keywords', '')[:24]:<24}' {got:>4} cards")
         _attach_jds(jobs)                       # capture JD at discovery (guest endpoint)
-        jobs = _dedupe_near_duplicates(jobs)
-        _flag_reposts(jobs, now - hours * 3600, verbose=verbose)
-        return [j for j in jobs if not j.get("repost")], errors
+        jobs = _dedupe_near_duplicates(jobs)     # collapse same-batch reposts (JD overlap)
+        # Cross-run reposts (same posting resurfacing under a new job id on a later day)
+        # are dropped downstream in discover.save by (company, role) identity  the only
+        # reliable signal left now that LinkedIn serves a login wall (no JSON-LD) on the
+        # full posting page. See _is_repost's docstring for why the old check is retired.
+        return jobs, errors
 
 
 def _attach_jds(jobs: list[dict]) -> None:
@@ -208,43 +211,14 @@ _ORGANIC_WINDOW_S = 30 * 86400   # organic posts: validThrough = datePosted + ex
 _WINDOW_TOL_S = 6 * 3600
 
 
-def _is_repost(url: str) -> bool | None:
-    """True if the posting page's JSON-LD says this listing is a repost.
-
-    The guest card feed bumps a repost's relative date ('4 hours ago'), and the JSON-LD
-    ``datePosted`` is bumped with it  but ``validThrough`` stays anchored to the
-    ORIGINAL posting: an organic post carries validThrough = datePosted + exactly 30
-    days (same time-of-day), while reposts show 60+ day windows with a mismatched
-    clock. Verified empirically on live postings (Paramount/Obin/Archil reposts vs an
-    organic same-day post). None = couldn't determine (fetch/parse failure)  fail
-    open, don't drop. One full-page fetch (~330KB); call only for cards already inside
-    the freshness window."""
-    try:
-        req = urllib.request.Request(url, headers=_UA)
-        with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310
-            html = r.read().decode("utf-8", errors="replace")
-        m = _LD_JSON.search(html)
-        d = json.loads(m.group(1))
-        dp = datetime.fromisoformat(d["datePosted"].replace("Z", "+00:00"))
-        vt = datetime.fromisoformat(d["validThrough"].replace("Z", "+00:00"))
-        return abs((vt - dp).total_seconds() - _ORGANIC_WINDOW_S) > _WINDOW_TOL_S
-    except Exception:
-        return None
-
-
-def _flag_reposts(jobs: list[dict], cutoff_ts: int, *, verbose: bool = True) -> None:
-    """Mark repost=True (in place) on freshness-window cards whose posting page shows a
-    reset listing clock. Only cards that would survive the freshness cut are checked
-    stale cards get dropped downstream anyway, so no page fetch is spent on them."""
-    fresh = [j for j in jobs if (j.get("posted_ts") or 0) >= cutoff_ts]
-    dropped = 0
-    for j in fresh:
-        if _is_repost(j["url"]):
-            j["repost"] = True
-            dropped += 1
-        time.sleep(1.0)  # be gentle: one page per fresh card
-    if verbose and fresh:
-        print(f"  linkedin repost check: {dropped}/{len(fresh)} fresh cards were reposts")
+# RETIRED: JSON-LD repost detection. It read the posting page's datePosted vs
+# validThrough (organic = exactly datePosted+30d; repost = a reset/longer window). As of
+# this change LinkedIn serves a logged-out AUTH WALL for the full /jobs/view/<id> page
+# (~294KB, no application/ld+json), so the check could never find the JSON-LD and always
+# returned None (fail-open  dropped nothing) while paying a huge fetch per card. The
+# guest jobPosting *endpoint* still returns the JD (that's what _jd uses), but it carries
+# no repost/listed-date signal. So guest-side repost detection is not possible; cross-run
+# (company, role) identity dedup in discover.save is the reliable replacement.
 
 
 def _dedupe_near_duplicates(jobs: list[dict]) -> list[dict]:

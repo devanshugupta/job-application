@@ -256,16 +256,35 @@ def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
     # here so every saved row is self-sufficient and tailorable without a re-fetch.
     _ensure_jd_text(shortlist, verbose=verbose)
     if save:
-        existing_urls = {a.get("url") for a in tracker.list_applications()}
+        apps = tracker.list_applications()
+        existing_urls = {a.get("url") for a in apps}
+        # Identity-by-(company, role), not just URL. LinkedIn (and other boards) mint a
+        # NEW url when a posting is reposted, so URL-dedup alone lets every repost back in
+        # as "fresh"  the exact problem the user hit. LinkedIn locked down the full
+        # posting page (login wall, no JSON-LD) so the datePosted/validThrough repost
+        # signal is gone; matching the normalized company+role we've already tracked is
+        # the reliable, fetch-free way to drop a reposted/duplicate listing. Seeded from
+        # the whole tracker (any status) and extended as we save, so dupes within this
+        # same batch collapse too.
+        existing_keys = {tracker._job_key(a) for a in apps}
+        skipped_dupe = 0
         for j in shortlist:
             if j["url"] in existing_urls:
                 continue  # already tracked  don't duplicate rows
+            key = tracker._job_key(j)
+            if key in existing_keys:
+                skipped_dupe += 1
+                continue  # same company+role already tracked (repost under a new URL)
+            existing_keys.add(key)
             tracker.save_application(
                 company=j["company"], role=j["role"], url=j["url"], status="found",
                 match_score=j["match"], source=j.get("source", "feed"),
                 posted_date=j["posted_date"], profile=j["profile"],
                 jd_text=j.get("jd_text"),
             )
+        if verbose and skipped_dupe:
+            print(f"  Skipped {skipped_dupe} repost/duplicate listing(s) "
+                  "(same company+role already tracked).")
     if verbose:
         print(f"\nDiscovered {len(jobs)} fresh roles (past {hours}h); "
               f"kept top {len(shortlist)}.")
