@@ -8,11 +8,35 @@ have a history (and so the agent can dedupe / follow up later).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 from datetime import datetime
 
 from .. import config
+
+try:
+    import fcntl  # POSIX only (macOS/Linux); used to serialize concurrent tracker writes
+except ImportError:  # pragma: no cover  Windows fallback: no cross-process lock
+    fcntl = None
+
+
+@contextlib.contextmanager
+def _db_lock():
+    """Serialize the load-modify-save of applications.json across processes, so parallel
+    tailor runs (e.g. several agents) can't lose each other's row updates via a
+    last-writer-wins whole-file overwrite. Best-effort: a no-op where fcntl is absent."""
+    if fcntl is None:
+        yield
+        return
+    APPLICATIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = APPLICATIONS_PATH.with_suffix(".lock")
+    with open(lock_path, "w") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
 
 PROFILE_PATH = config.PROFILE_PATH
 APPLICATIONS_PATH = config.APPLICATIONS_PATH
@@ -104,9 +128,6 @@ def save_application(
     signals (``match_score``/``resume_score``/``match_pct``/``scorer_verdict``/
     ``scorer_gaps``), provenance (``source``/``posted_date``/``profile``), and the
     rendered ``tailored_pdf`` path. All backward compatible."""
-    db = _load_applications()
-    apps = db["applications"]
-
     # Fields the caller actually supplied (drop None so they never clobber on merge).
     incoming = {
         "company": company, "role": role, "url": url, "status": status,
@@ -120,29 +141,33 @@ def save_application(
     }
     incoming = {k: v for k, v in incoming.items() if v is not None}
 
-    existing = _find_by_url(apps, url)
-    if existing is not None:
-        # Status only ever ADVANCES. A later call writing a less-advanced status (e.g.
-        # rerank_by_jd's sponsorship gate writing 'skipped' onto a row already tailored
-        # or applied) must not erase the fact that we built a resume / sent it. Unknown
-        # free-form statuses rank -1 and are always accepted.
-        old_rank = _STATUS_RANK.get(existing.get("status"), -1)
-        if _STATUS_RANK.get(status, -1) < old_rank:
-            incoming.pop("status", None)
-        existing.update(incoming)
-        # `date` is the FOUND date: set once at creation, never bumped by later
-        # touches (scoring, tailoring, apply clicks).
-        existing.setdefault("date", _stamp())
-        record = existing
-    else:
-        record = {
-            "id": max((r.get("id", 0) for r in apps), default=0) + 1,
-            "scorer_gaps": [], "resume_diff": {},
-            **incoming,
-            "date": _stamp(),
-        }
-        apps.append(record)
-    _save_db(db)
+    # Locked so parallel writers (agents) don't lose each other's row updates.
+    with _db_lock():
+        db = _load_applications()
+        apps = db["applications"]
+        existing = _find_by_url(apps, url)
+        if existing is not None:
+            # Status only ever ADVANCES. A later call writing a less-advanced status (e.g.
+            # rerank_by_jd's sponsorship gate writing 'skipped' onto a row already tailored
+            # or applied) must not erase the fact that we built a resume / sent it. Unknown
+            # free-form statuses rank -1 and are always accepted.
+            old_rank = _STATUS_RANK.get(existing.get("status"), -1)
+            if _STATUS_RANK.get(status, -1) < old_rank:
+                incoming.pop("status", None)
+            existing.update(incoming)
+            # `date` is the FOUND date: set once at creation, never bumped by later
+            # touches (scoring, tailoring, apply clicks).
+            existing.setdefault("date", _stamp())
+            record = existing
+        else:
+            record = {
+                "id": max((r.get("id", 0) for r in apps), default=0) + 1,
+                "scorer_gaps": [], "resume_diff": {},
+                **incoming,
+                "date": _stamp(),
+            }
+            apps.append(record)
+        _save_db(db)
     return record
 
 
@@ -164,13 +189,14 @@ def find_advanced_duplicate(company: str, role: str, *, min_status: str = "score
 
 def update_application(url: str, **fields) -> dict | None:
     """Update the most recent record matching `url` in place. Returns the record or None."""
-    db = _load_applications()
-    record = _find_by_url(db["applications"], url)
-    if record is None:
-        return None
-    record.update({k: v for k, v in fields.items() if v is not None})
-    record.setdefault("date", _stamp())
-    _save_db(db)
+    with _db_lock():
+        db = _load_applications()
+        record = _find_by_url(db["applications"], url)
+        if record is None:
+            return None
+        record.update({k: v for k, v in fields.items() if v is not None})
+        record.setdefault("date", _stamp())
+        _save_db(db)
     return record
 
 

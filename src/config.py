@@ -39,7 +39,9 @@ USAGE_LOG_PATH = DATA_DIR / "usage_log.jsonl"
 DASHBOARD_PATH = DATA_DIR / "dashboard.html"
 SCREENSHOTS_DIR = DATA_DIR / "screenshots"
 BRAIN_DIR = DATA_DIR / "brain"          # ManualBrain prompt/response packets
-TAILORED_MD_PATH = DATA_DIR / "tailored_resume.md"
+# Per-process so several tailor runs (e.g. parallel agents) never clobber each other's
+# intermediate resume markdown. Each process gets its own file; cleaned up implicitly.
+TAILORED_MD_PATH = DATA_DIR / f"tailored_resume_{os.getpid()}.md"
 
 RESUME_RULES_PATH = RESUME_DIR / "formatting_rules.md"
 MASTERS_INDEX_PATH = MASTERS_DIR / "index.json"
