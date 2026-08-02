@@ -147,10 +147,13 @@ def gather(hours: int, *, profile: str | None = None, sources: list[str] | None 
         jobs.append(j)
 
     # --- match + rank -----------------------------------------------------------
-    # Title-level match against the ONE combined master (all ML+SDE+DE points), via the
-    # shared ats.jd_match  so discovery, rerank, and rescore all score identically.
+    # Match against the ONE combined master via the shared ats.jd_match. Sources with
+    # an inline JD (ATS APIs, ScoutBetter) are scored on the FULL jd_text; title+location
+    # is only the fallback when no JD was captured  a perfect-fit JD behind a generic
+    # title must not rank below a keyword-stuffed title.
     for j in jobs:
-        j["match"] = ats.jd_match(f"{j['role']} {j.get('locations', '')}")["score"]
+        basis = j.get("jd_text") or f"{j['role']} {j.get('locations', '')}"
+        j["match"] = ats.jd_match(basis)["score"]
         comp = scoring.composite(ats_score=j["match"], posted_date=j["posted_date"],
                                  today=today)
         j["found_score"] = comp["score"]

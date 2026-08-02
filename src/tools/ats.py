@@ -124,7 +124,14 @@ def _ontology() -> tuple[re.Pattern | None, dict[str, str]]:
     if not forms:
         return None, {}
     ordered = sorted(forms, key=len, reverse=True)   # longest match wins at each position
-    pattern = re.compile(r"\b(" + "|".join(re.escape(f) for f in ordered) + r")\b")
+    # \b requires a transition to/from a WORD character on both sides, so it silently
+    # fails to close after a form ending in a symbol ("c++"  the trailing '+' is not a
+    # word char, so \b never fires there and the whole alternative never matches).
+    # Negative lookaround checks only "not a word char immediately outside" on each
+    # side, which is correct for symbol-ending forms too and behaves identically to \b
+    # for ordinary word-ending forms  a strict generalization, nothing lost.
+    pattern = re.compile(r"(?<![A-Za-z0-9_])(" + "|".join(re.escape(f) for f in ordered)
+                         + r")(?![A-Za-z0-9_])")
     return pattern, forms
 
 

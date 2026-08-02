@@ -1,14 +1,22 @@
 """Scores dashboard  one static HTML file that answers "how good are my applications?"
 
-Built around the **Application Quality Score** (AQS, 0-100  see scoring.py): every
-row gets one headline number with a grade and a hover breakdown of its components
-(reviewer /10, JD must-have %, ATS keywords, recency). Around the table:
+Three DISTINCT, never-blended fit signals per row  no composite score hides how a
+number was reached:
 
-  - KPI cards: tracked, found today, tailored, applied, average AQS, A-grades
-  - pipeline funnel: found -> scored -> ready -> applied
-  - AQS distribution histogram
-  - filter chips (status), profile filter, text search, sortable columns
-  - per-row "what changed" expander + apply / find-resume action buttons
+  - **Master ATS** (0-100): deterministic keyword match of the JD against your
+    unmodified MASTER resume. Free, no LLM, available the moment a JD is captured
+    (even at 'found'). THE primary "is this worth tailoring for" signal and what
+    the ATS/score filter and 'high fit' KPI key on.
+  - **Tailored ATS** (0-100): same deterministic keyword match, but against the
+    resume actually tailored+sent for this job. Shows what tailoring achieved.
+  - **Reviewer /10**: senior-hiring-manager LLM judgment of the tailored resume.
+    Only exists once a job has actually been scored by the brain  never folded
+    into the ATS numbers above.
+
+Around the table: KPI cards, a pipeline funnel (found -> high fit -> tailored ->
+applied), a Master ATS distribution histogram, filter chips (status + high-fit +
+tailored + ready), profile filter, text search, sortable columns, per-row "what
+changed" expander + apply/find-resume action buttons.
 
 Self-contained (inline CSS/JS): `open data/dashboard.html` works read-only; the action
 buttons need the backend (`dashboard --serve`, see dashboard_server.py).
@@ -22,7 +30,7 @@ import pathlib
 from datetime import date, datetime
 
 from .. import config
-from . import artifacts, scoring, tracker
+from . import artifacts, tracker
 
 # A row is "tailored" (has a real resume) if a recompilable artifact exists on disk  a
 # tailored .tex or a PDF  NOT the flaky tailored_pdf field, which past runs often left
@@ -120,12 +128,6 @@ def _grade_color(score) -> str:
     return "var(--bad)"
 
 
-def _breakdown_title(comp: dict) -> str:
-    names = {"reviewer": "Reviewer", "match": "Match", "recency": "Recency"}
-    parts = [f"{names[k]} {v}" for k, v in comp.get("breakdown", {}).items()]
-    return f"{comp.get('meaning', '')} · " + " · ".join(parts) if parts else ""
-
-
 def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     apps = tracker.list_applications()
     today = date.today().isoformat()
@@ -136,7 +138,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
                      reverse=True)
 
     rows = []
-    aqs_values = []
+    mats_values = []   # master ATS values (deterministic, available pre-LLM) -> histogram/avg
     statuses: dict[str, int] = {}
     profiles_seen: set[str] = set()
     prof_total: dict[str, int] = {}      # roles per profile (ml_ai / sde / data_engineer)
@@ -151,27 +153,25 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         removed = bool(a.get("removed"))
         if removed:
             removed_count += 1
-        comp = scoring.score_record(a, today)
-        aqs = comp["score"]
-        # ONE unified fit number = must-have coverage blended with keyword ATS.
-        m = scoring.match_pct_combined(a.get("match_pct"),
-                                       a.get("match_score") if a.get("match_score")
-                                       is not None else a.get("ats_score"))
-        match_v = round(m) if m is not None else None
-        # Tailoring lift: master-vs-JD keyword ATS (pre-tailor baseline) -> tailored ATS.
-        # Shows how much rewriting for THIS JD actually moved the keyword match.
-        mstr, tld = a.get("master_ats"), a.get("match_score")
-        if mstr is not None and tld is not None:
-            d = tld - mstr
-            _lc = "var(--ok)" if d > 0 else ("var(--mut)" if d == 0 else "var(--bad)")
-            lift_cell = (f"<span class='lift' style='color:{_lc}' title='master baseline "
-                         f"{mstr} to tailored {tld} (keyword ATS)'>{'+' if d >= 0 else ''}{d}</span>")
-            lift_v = d
-        else:
-            lift_cell, lift_v = "<span class='mut'></span>", None
+        # Master ATS: deterministic keyword match of THIS JD against the unmodified
+        # master resume. No LLM involved, available the instant a JD is captured, and
+        # never blended with the reviewer's judgment  the single number the ATS/score
+        # filter and 'high fit' KPI key on.
+        mats = a.get("master_ats")
+        mats_cell = (f"<span class='aqs' style='background:{_grade_color(mats)}'>{mats}</span>"
+                     if mats is not None else "<span class='mut'></span>")
+        # Tailored ATS: same deterministic keyword match, against the resume actually
+        # sent for this job  shows what tailoring achieved, kept as its own column
+        # rather than folded into Master ATS. Gated on a REAL tailored resume existing
+        # on disk: match_score is also written at discovery time (a cheap title/location
+        # pre-rank, unrelated to any resume), so showing it here for a never-tailored
+        # row would silently pass off that discovery-time number as "what tailoring
+        # achieved" when no tailoring ever happened.
+        is_tailored = _has_resume(a)
+        tats = a.get("match_score") if is_tailored else None
         if not removed:
-            if aqs is not None and a.get("status") != "found":
-                aqs_values.append(aqs)
+            if mats is not None:
+                mats_values.append(mats)
             statuses[a.get("status") or "?"] = statuses.get(a.get("status") or "?", 0) + 1
         prof = a.get("profile") or ""
         if prof and not removed:
@@ -185,12 +185,6 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             if a.get("status") in _SUBMITTED:
                 src_applied[src] = src_applied.get(src, 0) + 1
 
-        # The color already conveys the grade, so the badge shows just the number.
-        aqs_cell = (
-            f"<span class='aqs' style='background:{_grade_color(aqs)}' "
-            f"title='{html.escape(_breakdown_title(comp))}'>{aqs}</span>"
-            if aqs is not None else "<span class='mut'></span>"
-        )
         url = a.get("url") or ""
         pdf = a.get("tailored_pdf") or ""
         # Actions. Under `dashboard --serve` these POST back (mark applied / file the
@@ -240,28 +234,26 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             return (f"<td data-v='{key or 0}'>{html.escape(disp)}</td>" if disp
                     else "<td class='mut'></td>")
 
-        # A row counts as "tailored" if a tailored PDF was produced, a resume diff was
-        # recorded, or it reached the tailored/applied stage  the "tailored only" filter
-        # keys on this so you can jump straight to jobs that have a resume ready.
-        is_tailored = _has_resume(a)
+        # is_tailored was already computed above (gates the Tailored ATS cell); reused
+        # here for the "tailored only" / "ready to apply" filters.
         ready = is_tailored and a.get("status") not in _SUBMITTED
+        high_fit = mats is not None and mats >= 70
         rows.append(
             f"<tr data-status='{html.escape(str(a.get('status') or ''))}' "
             f"data-profile='{html.escape(prof)}' data-removed='{1 if removed else 0}' "
             f"data-source='{html.escape(str(a.get('source') or '?'))}' "
-            f"data-tailored='{1 if is_tailored else 0}' data-ready='{1 if ready else 0}'>"
+            f"data-tailored='{1 if is_tailored else 0}' data-ready='{1 if ready else 0}' "
+            f"data-highfit='{1 if high_fit else 0}'>"
             f"<td class='rmcell'>{rm_btn}</td>"
             f"{date_cell(a.get('date'))}"
             f"<td class='co'>{cell(a.get('company'))}</td>"
             f"<td>{cell(a.get('role'))}</td>"
             f"<td class='mut'>{cell(_job_id(a.get('url') or ''))}</td>"
             f"<td>{cell(prof)}</td>"
-            f"<td data-v='{aqs if aqs is not None else -1}'>{aqs_cell}</td>"
+            f"<td data-v='{mats if mats is not None else -1}'>{mats_cell}</td>"
+            f"<td data-v='{tats if tats is not None else -1}'>{cell(tats)}</td>"
             f"<td data-v='{a.get('resume_score') if a.get('resume_score') is not None else -1}'>"
             f"{cell(a.get('resume_score'))}</td>"
-            f"<td data-v='{match_v if match_v is not None else -1}'>"
-            f"{cell(match_v)}</td>"
-            f"<td data-v='{lift_v if lift_v is not None else -999}'>{lift_cell}</td>"
             f"{date_cell(a.get('posted_date'))}"
             f"<td class='mut'>{cell(a.get('source'))}</td>"
             f"<td>{' · '.join(links) or ''}</td>"
@@ -275,12 +267,16 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     tailored = sum(1 for a in live if _has_resume(a))
     ready = sum(1 for a in live if _has_resume(a) and a.get("status") not in _SUBMITTED)
     applied = sum(1 for a in live if a.get("status") in _SUBMITTED)
-    scored = sum(1 for a in live if a.get("resume_score") is not None)
-    avg_aqs = round(sum(aqs_values) / len(aqs_values)) if aqs_values else ""
-    a_grades = sum(1 for v in aqs_values if v >= 80)
+    # "high fit" = Master ATS >= 70  the ONE deterministic, pre-LLM signal for whether
+    # a role is worth spending tailoring effort on. This replaces the old blended AQS
+    # 'scored'/'A-grade' concepts, which mixed in the LLM reviewer score.
+    high_fit = sum(1 for a in live if (a.get("master_ats") or -1) >= 70)
+    high_fit_not_applied = sum(1 for a in live if (a.get("master_ats") or -1) >= 70
+                               and a.get("status") not in _SUBMITTED)
+    avg_mats = round(sum(mats_values) / len(mats_values)) if mats_values else ""
 
     # funnel widths (relative to the largest stage)
-    funnel = [("found", statuses.get("found", 0)), ("scored", scored),
+    funnel = [("found", statuses.get("found", 0)), ("high fit (ATS 70+)", high_fit),
               ("tailored", tailored), ("applied", applied)]
     fmax = max((n for _, n in funnel), default=0) or 1
     funnel_html = "".join(
@@ -289,15 +285,16 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         f"<span class='fnum'>{n}</span></div>"
         for name, n in funnel)
 
-    # AQS histogram, 10 buckets
+    # Master ATS histogram, 10 buckets  deterministic, so this reflects every row with
+    # a captured JD (not just LLM-reviewed ones).
     buckets = [0] * 10
-    for v in aqs_values:
+    for v in mats_values:
         buckets[min(9, v // 10)] += 1
     bmax = max(buckets) or 1
     # Count label ABOVE each bar (0 shown muted) so the histogram reads as live data, not
-    # decoration  and a total so you can see it track the scored-row count as it grows.
+    # decoration  and a total so you can see it track row count as it grows.
     hist_html = "".join(
-        f"<div class='hcol' title='AQS {i * 10}-{i * 10 + 9}: {n} role(s)'>"
+        f"<div class='hcol' title='Master ATS {i * 10}-{i * 10 + 9}: {n} role(s)'>"
         f"<span class='hn{' z' if not n else ''}'>{n}</span>"
         f"<div class='hbar' style='height:{round(100 * n / bmax)}%'></div>"
         f"<span class='hx'>{i * 10}</span></div>"
@@ -319,14 +316,18 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     # Jobs by source  one compact horizontal strip: "scoutbetter 74 · ashby 9 · …".
     # data-tot/data-app let the "applied only" switch swap the number and re-sort in place.
     src_rows_html = "".join(
-        f"<span class='schip' data-tot='{src_total[s]}' data-app='{src_applied.get(s, 0)}'>"
+        f"<span class='schip' data-tot='{src_total[s]}' data-app='{src_applied.get(s, 0)}' "
+        f"title='{html.escape(s)}: {src_total[s]} role(s), {src_applied.get(s, 0)} applied'>"
         f"<span class='sl'>{html.escape(s)}</span><b>{src_total[s]}</b></span>"
         for s in sorted(src_total, key=lambda s: -src_total[s])
     ) or "<span class='mut'>no roles yet</span>"
 
-    # Status chips: drop low-signal statuses ('duplicate' is noise, 'skipped' is roles we
-    # already passed on) so the bar stays actionable.
-    _HIDE_STATUS = {"duplicate", "skipped"}
+    # Status chips: drop low-signal/duplicate statuses. 'duplicate' is noise, 'skipped'
+    # is roles we already passed on. 'scored' is dropped because its meaning was
+    # ambiguous (which score?)  use the "high fit" chip instead. 'tailored' status is
+    # dropped because the resume-existence "✓ tailored" chip below already covers it
+    # and is the more reliable signal (a tailored PDF/tex on disk, not a status string).
+    _HIDE_STATUS = {"duplicate", "skipped", "scored", "tailored"}
     status_chips = "".join(
         f"<button class='chip' data-status='{html.escape(s)}' onclick='chip(this)'>"
         f"{html.escape(s)} ({n})</button>"
@@ -339,11 +340,12 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
 
     page = _TEMPLATE.format(
         generated=today, total=total, found_today=found_today, tailored=tailored,
-        ready=ready, applied=applied, avg_aqs=avg_aqs, a_grades=a_grades,
-        funnel=funnel_html, hist=hist_html, aqs_n=len(aqs_values),
+        ready=ready, applied=applied, avg_mats=avg_mats,
+        high_fit_not_applied=high_fit_not_applied,
+        funnel=funnel_html, hist=hist_html, mats_n=len(mats_values),
         prof_chart=prof_chart_html, src_rows=src_rows_html,
         chips=status_chips, profile_opts=profile_opts,
-        rows="\n".join(rows) or "<tr><td colspan='13' class='mut'>No applications yet  "
+        rows="\n".join(rows) or "<tr><td colspan='12' class='mut'>No applications yet  "
                                 "run <code>python -m src.cli pipeline</code>.</td></tr>",
     )
     dest = pathlib.Path(out_path)
@@ -397,12 +399,13 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .chip.on {{ color:var(--acc); border-color:var(--acc); background:var(--acc-soft); font-weight:600; }}
   .chip-tl.on {{ color:var(--ok); border-color:var(--ok); background:#dcfce7; font-weight:600; }}
   .chip-rd.on {{ color:#047857; border-color:#047857; background:#d1fae5; font-weight:600; }}
+  .chip-hf.on {{ color:#b45309; border-color:#b45309; background:#fef3c7; font-weight:600; }}
   .srchdr {{ display:flex; justify-content:space-between; align-items:center;
              font-size:11px; font-weight:600; color:var(--mut); text-transform:uppercase;
              letter-spacing:.4px; border-top:1px solid var(--line); padding-top:8px; }}
   .sw {{ display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-weight:500;
          text-transform:none; letter-spacing:0; }}
-  .srcstrip {{ display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; padding:6px 0 2px; }}
+  .srcstrip {{ display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; padding:6px 0 2px; }}
   .schip {{ display:flex; align-items:center; justify-content:space-between; gap:6px;
             box-sizing:border-box; min-width:0; background:var(--bg);
             border:1px solid var(--line); border-radius:20px; padding:3px 11px;
@@ -420,7 +423,6 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .co {{ font-weight:600; }}
   .aqs {{ color:#fff; padding:2px 9px; border-radius:10px; font-weight:700;
          font-size:12px; white-space:nowrap; cursor:help; }}
-  .lift {{ font-weight:700; font-size:12px; white-space:nowrap; cursor:help; }}
   .tag {{ padding:1px 8px; border-radius:8px; font-size:11.5px; border:1px solid var(--line);
          color:var(--mut); }}
   .tag-applied,.tag-submitted,.tag-ready_to_submit {{ color:var(--ok); border-color:var(--ok); }}
@@ -459,7 +461,7 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   #pgLabel {{ font-size:12.5px; min-width:110px; text-align:center; }}
 </style></head><body>
 <h1>Job Pipeline Dashboard</h1>
-<div class="sub">generated {generated} · AQS = 0.40·reviewer + 0.45·match + 0.15·recency (match = must-haves blended with keyword ATS; missing reviewer caps un-reviewed rows) · hover a score for its breakdown</div>
+<div class="sub">generated {generated} · Master ATS = deterministic keyword match of the JD against your UNCHANGED master resume (no LLM, no reviewer blended in) · Tailored ATS = same match against the resume actually sent · Reviewer /10 = senior-hiring-manager LLM judgment, a separate signal</div>
 
 <div class="grid">
   <div class="card"><b>{total}</b><span>tracked</span></div>
@@ -467,8 +469,9 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   <div class="card"><b>{tailored}</b><span>tailored</span></div>
   <div class="card"><b id="kpiReady">{ready}</b><span>ready to apply</span></div>
   <div class="card"><b id="kpiApplied">{applied}</b><span>applied</span></div>
-  <div class="card"><b>{avg_aqs}</b><span>avg AQS</span></div>
-  <div class="card"><b>{a_grades}</b><span>A-grade (80+)</span></div>
+  <div class="card"><b>{avg_mats}</b><span>avg master ATS</span></div>
+  <div class="card" title="Master ATS 70+, not yet applied  your actionable backlog">
+    <b>{high_fit_not_applied}</b><span>high fit, not applied</span></div>
 </div>
 
 <div class="panels">
@@ -478,7 +481,7 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
       <span id="runstatus" class="mut">last run: </span>
     </div>
   </div>
-  <div class="panel"><h3>AQS distribution  {aqs_n} scored rows</h3><div class="hist">{hist}</div></div>
+  <div class="panel"><h3>Master ATS distribution  {mats_n} rows</h3><div class="hist">{hist}</div></div>
   <div class="panel"><h3>Roles by profile (applied / total)</h3>{prof_chart}
     <div class="mut" style="font-size:10.5px;margin:8px 0 10px">
       <span style="color:var(--ok)">green</span> = applied ·
@@ -493,6 +496,8 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
 <div class="bar">
   <input id="q" placeholder="Search company / role / verdict…" onkeyup="apply()">
   <select id="prof" onchange="apply()"><option value="">all profiles</option>{profile_opts}</select>
+  <button class="chip chip-hf" data-highfit="1" onclick="toggleHighFit(this)"
+          title="Master ATS score is 70 or above  worth spending tailoring effort on">🎯 high fit (ATS 70+)</button>
   <button class="chip chip-tl" data-tailored="1" onclick="toggleTailored(this)"
           title="Show only jobs that already have a tailored resume">✓ tailored ({tailored})</button>
   <button class="chip chip-rd" data-ready="1" onclick="toggleReady(this)"
@@ -505,10 +510,10 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   <th></th><th onclick="sortBy(1)">Date</th><th onclick="sortBy(2)">Company</th>
   <th onclick="sortBy(3)">Role</th><th onclick="sortBy(4)">Job ID</th>
   <th onclick="sortBy(5)">Profile</th>
-  <th onclick="sortBy(6)">AQS</th>
-  <th onclick="sortBy(7)">Reviewer /10</th><th onclick="sortBy(8)">Match %</th>
-  <th onclick="sortBy(9)" title="tailoring lift: master keyword ATS to tailored">Lift</th>
-  <th onclick="sortBy(10)">Posted</th><th onclick="sortBy(11)">Source</th><th>Actions</th>
+  <th onclick="sortBy(6)" title="deterministic keyword match of the JD vs your unmodified master resume">Master ATS</th>
+  <th onclick="sortBy(7)" title="deterministic keyword match of the JD vs the resume actually tailored/sent">Tailored ATS</th>
+  <th onclick="sortBy(8)" title="senior-hiring-manager LLM judgment of the tailored resume">Reviewer /10</th>
+  <th onclick="sortBy(9)">Posted</th><th onclick="sortBy(10)">Source</th><th>Actions</th>
 </tr></thead><tbody>{rows}</tbody></table>
 
 <div class="pager" id="pager">
@@ -517,11 +522,11 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   <button class="btn" id="pgNext" onclick="pgGo(1)">next ›</button>
 </div>
 
-<p class="legend">AQS color: <b style="color:var(--ok)">green</b> 80+ apply now ·
-<b style="color:var(--good)">lime</b> 65+ strong · <b style="color:var(--warn)">amber</b> 50+ decent ·
-<b style="color:var(--bad)">red</b> below 50 weak/mismatch. Reviewer = senior hiring-manager score /10.
-Match % = JD↔resume fit: must-have coverage blended with concept-keyword ATS (the gate
-runs on the keyword part pre-LLM). Tailored files live in <code>data/applications/&lt;Company&gt;/&lt;role-id&gt;/</code>.</p>
+<p class="legend">Master ATS color: <b style="color:var(--ok)">green</b> 80+ · <b style="color:var(--good)">lime</b> 65+ ·
+<b style="color:var(--warn)">amber</b> 50+ · <b style="color:var(--bad)">red</b> below 50  all deterministic keyword
+match, computed against the UNCHANGED master resume, before any LLM involvement. Tailored ATS is the same
+measure against the resume actually sent. Reviewer /10 is a separate senior-hiring-manager LLM judgment  never
+blended into either ATS number. Tailored files live in <code>data/applications/&lt;Company&gt;/&lt;role-id&gt;/</code>.</p>
 
 <div id="toast"></div>
 <script>
@@ -670,6 +675,7 @@ if (location.protocol.indexOf('http') === 0) {{
 var activeStatuses = new Set();
 var tailoredOnly = false;
 var readyOnly = false;
+var highFitOnly = false;
 function chip(el) {{
   var s = el.dataset.status;
   if (activeStatuses.has(s)) {{ activeStatuses.delete(s); el.classList.remove('on'); }}
@@ -684,6 +690,11 @@ function toggleTailored(el) {{
 function toggleReady(el) {{
   readyOnly = !readyOnly;
   el.classList.toggle('on', readyOnly);
+  apply();
+}}
+function toggleHighFit(el) {{
+  highFitOnly = !highFitOnly;
+  el.classList.toggle('on', highFitOnly);
   apply();
 }}
 // "by source" list: the applied-only switch swaps each row's number (total <-> applied)
@@ -722,11 +733,12 @@ function apply() {{
     var okP = !p || tr.dataset.profile === p;
     var okT = !tailoredOnly || tr.dataset.tailored === '1';
     var okRd = !readyOnly || tr.dataset.ready === '1';
+    var okHf = !highFitOnly || tr.dataset.highfit === '1';
     // Pagination sets inline display, which would otherwise beat the CSS rule that
     // hides removed rows by default  so "removed" has to be a filter condition too,
     // not left to that stylesheet rule, once any row has been paginated.
     var okR = document.body.classList.contains('show-removed') || tr.dataset.removed !== '1';
-    if (okQ && okS && okP && okT && okRd && okR) {{ filteredRows.push(tr); }} else {{ tr.style.display = 'none'; }}
+    if (okQ && okS && okP && okT && okRd && okHf && okR) {{ filteredRows.push(tr); }} else {{ tr.style.display = 'none'; }}
   }});
   pgPage = 1;
   renderPage();

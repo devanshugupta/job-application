@@ -280,6 +280,21 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
                 print(f"    ⛔ {reason}")
             return rec
 
+    # 1c. Duplicate gate  the same underlying job can resurface under a different URL
+    # (a LinkedIn repost mints a new job id for a requisition already applied to via
+    # another board/source). Re-tailoring wastes effort; re-applying risks a bounced
+    # "we already have your application" email. Skip without touching the original row.
+    dup = tracker.find_advanced_duplicate(comp, rol)
+    if dup is not None:
+        reason = (f"duplicate of an already-{dup.get('status')} application "
+                  f"({dup.get('url')}) found on {dup.get('date','?')[:10]}")
+        rec = tracker.save_application(
+            company=comp, role=rol, url=url, status="skipped", source=source,
+            posted_date=posted_date, profile=profile, notes=reason, jd_text=jd_text)
+        if verbose:
+            print(f"    ⛔ {reason}")
+        return rec
+
     # 2. Profile + master --------------------------------------------------------
     if not profile:
         profile, _scores = profiles.auto_pick(jd_text)

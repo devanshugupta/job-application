@@ -23,25 +23,25 @@
 
   "evaluation": ["evaluation", "offline evaluation", "online evaluation", "model evaluation", "a/b testing", "ab testing", "experimentation", "experiment", "controlled experiments", "metrics", "model metrics", "quality metrics", "offline metrics", "online metrics", "feature engineering", "feature store"],
 
-  "aws": ["aws", "amazon web services", "ec2", "s3", "lambda", "sqs", "sns", "cloudwatch", "elb", "ecs", "eks", "dynamodb", "sagemaker", "bedrock", "amazon bedrock", "amazon sagemaker", "cloud"],
+  "aws": ["aws", "amazon web services", "ec2", "s3", "aws lambda", "lambda function", "lambda functions", "sqs", "sns", "cloudwatch", "elb", "ecs", "eks", "dynamodb", "sagemaker", "bedrock", "amazon bedrock", "amazon sagemaker"],
 
   "azure": ["azure", "adls", "azure data lake", "data lake", "databricks", "azure data factory", "data factory"],
 
   "data-pipeline": ["data pipeline", "data pipelines", "etl", "elt", "spark", "apache spark", "pyspark", "kafka", "apache kafka", "airflow", "apache airflow", "data ingestion", "ingestion", "streaming", "batch processing", "data processing", "dbt"],
 
-  "api": ["rest", "rest api", "restful", "rest apis", "grpc", "api", "apis", "microservices", "microservice", "backend services", "web services", "graphql", "service oriented"],
+  "api": ["rest api", "rest apis", "restful", "restful api", "grpc", "api", "apis", "microservices", "microservice", "backend services", "web services", "graphql", "service oriented"],
 
   "distributed-systems": ["distributed systems", "distributed system", "scalable systems", "large-scale systems", "high availability", "fault tolerance", "concurrency", "parallelism", "system design", "scalability"],
 
   "infra": ["kubernetes", "k8s", "docker", "containers", "containerization", "ci/cd", "cicd", "continuous integration", "continuous deployment", "terraform", "infrastructure as code", "linux", "observability", "monitoring"],
 
   "python": ["python", "pandas", "numpy", "scipy"],
-  "java": ["java", "spring", "spring boot", "jvm"],
+  "java": ["java", "spring boot", "spring framework", "jvm"],
   "cpp": ["c++", "cpp"],
   "sql": ["sql", "postgresql", "postgres", "mysql", "nosql", "database", "databases", "relational database"],
   "kotlin": ["kotlin"],
-  "go": ["go", "golang"],
-  "typescript": ["typescript", "javascript", "node.js", "nodejs", "react"],
+  "go": ["golang", "go programming language", "go lang"],
+  "typescript": ["typescript", "javascript", "node.js", "nodejs", "react.js", "reactjs"],
 
   "latency": ["latency", "low latency", "low-latency", "p99", "p95", "throughput", "performance optimization", "latency optimization", "query optimization", "caching", "cache"]
 }

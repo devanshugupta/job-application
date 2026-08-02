@@ -130,7 +130,9 @@ def save_application(
         if _STATUS_RANK.get(status, -1) < old_rank:
             incoming.pop("status", None)
         existing.update(incoming)
-        existing["date"] = _stamp()
+        # `date` is the FOUND date: set once at creation, never bumped by later
+        # touches (scoring, tailoring, apply clicks).
+        existing.setdefault("date", _stamp())
         record = existing
     else:
         record = {
@@ -144,6 +146,22 @@ def save_application(
     return record
 
 
+def find_advanced_duplicate(company: str, role: str, *, min_status: str = "scored") -> dict | None:
+    """The existing record for the same job (company+role, source/URL-independent) IF
+    it's already at ``min_status`` or beyond. Callers use this BEFORE tailoring/applying
+    to a newly discovered posting, since the same underlying job resurfaces under a
+    different URL on re-sweep  most commonly a LinkedIn repost minting a new job id for
+    a requisition already applied to elsewhere. Returns None (never merges/mutates) so
+    the original record's URL and application data are never at risk of being
+    overwritten by a fresh, unvetted tailoring pass; the caller decides what to do
+    (typically: skip and mark the new row 'skipped' with a note)."""
+    key = _job_key({"company": company, "role": role})
+    threshold = _STATUS_RANK.get(min_status, 0)
+    apps = list_applications()
+    return next((r for r in reversed(apps) if _job_key(r) == key
+                and _STATUS_RANK.get(r.get("status"), -1) >= threshold), None)
+
+
 def update_application(url: str, **fields) -> dict | None:
     """Update the most recent record matching `url` in place. Returns the record or None."""
     db = _load_applications()
@@ -151,7 +169,7 @@ def update_application(url: str, **fields) -> dict | None:
     if record is None:
         return None
     record.update({k: v for k, v in fields.items() if v is not None})
-    record["date"] = _stamp()
+    record.setdefault("date", _stamp())
     _save_db(db)
     return record
 

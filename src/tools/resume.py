@@ -318,8 +318,22 @@ def render_pdf(markdown: str | None = None, out_path: str | None = None,
     if profile is not None and patch is not None:
         tex_master = latex.tex_master_path(profile)
         if tex_master is not None and latex.have_pdflatex():
-            edited = latex.edit_tex(tex_master.read_text(), patch, jd_text=jd_text)
-            ok, msg = latex.compile_pdf(edited, dest)
+            # Fit-retry ladder: if the compiled page clips its tail (the unbreakable
+            # Skills box falling off page 1), re-edit with fewer secondary bullets /
+            # projects until the FULL content renders on one page.
+            ok, msg, edited = False, "", ""
+            for _k, _kp in ((None, None), (2, 2), (1, 2), (1, 1)):
+                edited = latex.edit_tex(tex_master.read_text(), patch,
+                                        jd_text=jd_text, k=_k, k_proj=_kp)
+                ok, msg = latex.compile_pdf(edited, dest)
+                if ok and latex.pdf_renders_complete(dest, edited):
+                    break
+                if ok:
+                    msg = "page overflow clipped content; retried with fewer bullets"
+                    ok = False
+            if not ok and edited:
+                # last resort: keep the tightest compile even if the check failed
+                ok, msg = latex.compile_pdf(edited, dest)
             if ok:
                 if company and role:
                     appdir = artifacts.folder(company, role, url)

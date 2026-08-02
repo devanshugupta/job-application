@@ -21,7 +21,7 @@ import pathlib
 from datetime import date
 
 from .. import config
-from . import ats, jd_fetch, latex, tracker
+from . import ats, jd_fetch, latex, profiles, tracker
 
 
 def _tailored_text(rec: dict) -> str | None:
@@ -82,3 +82,41 @@ def refresh_match_scores(*, verbose: bool = True) -> dict:
         print(f"\nrescored: {updated} updated, {unchanged} unchanged, "
               f"{skipped} skipped (no JD).")
     return {"updated": updated, "unchanged": unchanged, "skipped": skipped}
+
+
+def backfill_master_ats(*, verbose: bool = True) -> dict:
+    """Fill in ``master_ats`` (deterministic keyword match of the JD against the
+    UNCHANGED master resume) for every row that's missing it but already has a
+    captured ``jd_text``. Uses only stored data  no network fetch, no LLM  so it's
+    instant and safe to run any time the master resume changes. Returns
+    {filled, skipped_no_jd, already_had}."""
+    db = tracker._load_applications()
+    rows = db["applications"]
+    filled = skipped_no_jd = already_had = 0
+    for rec in rows:
+        if rec.get("master_ats") is not None:
+            already_had += 1
+            continue
+        jd = rec.get("jd_text") or ""
+        if not jd:
+            skipped_no_jd += 1
+            continue
+        master = profiles.read_master_for(rec.get("profile"))
+        if master.startswith("No master resume"):
+            skipped_no_jd += 1
+            continue
+        score = ats.ats_score(jd, master)["score"]
+        if score is None:
+            skipped_no_jd += 1
+            continue
+        rec["master_ats"] = score
+        filled += 1
+        if verbose:
+            print(f"  {rec.get('company', '?')[:22]:22} master_ats={score:>3}  "
+                  f"{(rec.get('role') or '')[:40]}")
+    if filled:
+        tracker._save_db(db)
+    if verbose:
+        print(f"\nbackfilled: {filled} filled, {already_had} already had it, "
+              f"{skipped_no_jd} skipped (no JD text).")
+    return {"filled": filled, "already_had": already_had, "skipped_no_jd": skipped_no_jd}

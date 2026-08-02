@@ -147,11 +147,12 @@ def test_migrate_layout_refiles_and_repoints(tmp_data):
 
 def test_dashboard_renders_score_columns(tmp_data):
     tracker.save_application(company="A", role="SDE", url="u", status="scored",
-                             match_score=40, resume_score=8, match_pct=70,
+                             master_ats=55, match_score=40, resume_score=8, match_pct=70,
                              posted_date="2026-06-10")
     dashboard.render(tmp_data / "dash.html")
     html = (tmp_data / "dash.html").read_text()
-    # composite AQS column + reviewer + the ONE unified match column
-    assert "AQS" in html and "Reviewer /10" in html and "Match %" in html
-    assert "Must-have %" not in html and "ATS /100" not in html  # unified, not separate
-    assert "class='aqs'" in html  # the scored row got a composite badge
+    # three DISTINCT signals, never blended into one composite: Master ATS (pre-tailor
+    # keyword baseline), Tailored ATS (post-tailor keyword match), Reviewer /10 (LLM).
+    assert "Master ATS" in html and "Tailored ATS" in html and "Reviewer /10" in html
+    assert "AQS" not in html and "Match %" not in html  # composite/blended concepts gone
+    assert "class='aqs'" in html  # the scored row's Master ATS got a colored badge

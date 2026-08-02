@@ -1,6 +1,38 @@
 """Unit tests for the deterministic tool logic (no API, no browser)."""
 
 from src.tools import ats, feeds, final_check, finder, latex, portals, usage as usage_mod
+from src.sources import linkedin
+
+
+def test_linkedin_dedupe_near_duplicates_same_company():
+    jobs = [
+        {"company": "Acme", "role": "Backend Engineer", "jd_text": "We build scalable APIs " * 20},
+        {"company": "Acme", "role": "Backend Developer", "jd_text": "We build scalable APIs " * 20},
+        {"company": "Other Co", "role": "Backend Engineer", "jd_text": "We build scalable APIs " * 20},
+    ]
+    out = linkedin._dedupe_near_duplicates(jobs)
+    assert len(out) == 2   # the Acme duplicate collapses; Other Co (different company) survives
+    assert [j["company"] for j in out] == ["Acme", "Other Co"]
+
+
+def test_linkedin_dedupe_keeps_distinct_same_company_roles():
+    jobs = [
+        {"company": "Acme", "role": "Backend Engineer", "jd_text": "distributed systems and kafka pipelines"},
+        {"company": "Acme", "role": "Frontend Engineer", "jd_text": "react typescript accessibility design systems"},
+    ]
+    out = linkedin._dedupe_near_duplicates(jobs)
+    assert len(out) == 2   # low word-overlap -> genuinely different roles, both kept
+
+
+def test_linkedin_dedupe_survives_missing_jd_text():
+    # A same-company card with no captured JD must not poison later comparisons
+    # (regression: empty word-set in the bucket caused ZeroDivisionError).
+    jobs = [
+        {"company": "Acme", "role": "Backend Engineer", "jd_text": ""},
+        {"company": "Acme", "role": "Platform Engineer", "jd_text": "kubernetes go microservices"},
+    ]
+    out = linkedin._dedupe_near_duplicates(jobs)
+    assert len(out) == 2
 
 
 # --- ATS scoring ---------------------------------------------------------------

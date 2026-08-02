@@ -495,7 +495,8 @@ def _replace_skills_block(tex: str, skills: str) -> str:
     return tex[:open_brace + 1] + body + tex[k:]  # keep the closing '}' at k
 
 
-def edit_tex(tex_source: str, patch: dict, jd_text: str = "") -> str:
+def edit_tex(tex_source: str, patch: dict, jd_text: str = "",
+             k: int | None = None, k_proj: int | None = None) -> str:
     """Apply a tailoring patch to the LaTeX source, marker-free  select-and-prune.
 
     The .tex master holds the FULL point pool; this renders a 1-page subset:
@@ -508,8 +509,10 @@ def edit_tex(tex_source: str, patch: dict, jd_text: str = "") -> str:
     ``jd_text`` drives the deterministic relevance ranking of the non-chosen blocks and
     the projects. Returns edited LaTeX; a compile-check downstream guards bad edits.
     """
-    k = config.int_setting("secondary_bullets", 3)
-    k_proj = config.int_setting("max_projects", 3)
+    if k is None:
+        k = config.int_setting("secondary_bullets", 3)
+    if k_proj is None:
+        k_proj = config.int_setting("max_projects", 3)
     tex = tex_source
     if patch.get("summary"):
         tex = _replace_section_body(tex, "Summary", patch["summary"])
@@ -560,6 +563,34 @@ def _dedupe_resume_items(tex: str, keep: list[str], threshold: float = 0.6) -> s
 
 
 # --- compilation -------------------------------------------------------------
+
+def pdf_renders_complete(pdf_path: pathlib.Path, edited_tex: str) -> bool:
+    """True iff the compiled PDF is 1 page AND actually shows the END of the content.
+
+    Root cause this guards: the Technical Skills block renders as one unbreakable
+    ``\\small{\\item{...}}`` box at the bottom of the page  when the page runs long,
+    pdflatex clips the box's tail off the printable area WITHOUT creating a second
+    page, silently dropping the last skills row(s). We verify the last meaningful
+    words of the edited source appear in the extracted PDF text; on failure the
+    caller re-edits with fewer secondary bullets/projects and recompiles."""
+    import subprocess
+    try:
+        out = subprocess.run(["pdftotext", str(pdf_path), "-"],
+                             capture_output=True, text=True, timeout=30)
+        pdf_text = re.sub(r"\W+", " ", out.stdout).lower()
+        info = subprocess.run(["pdfinfo", str(pdf_path)],
+                              capture_output=True, text=True, timeout=30)
+        pages = int(re.search(r"Pages:\s+(\d+)", info.stdout).group(1))
+    except Exception:
+        return True  # tooling missing  don't block rendering on the check
+    if pages != 1:
+        return False
+    plain = [ln.strip() for ln in tex_to_text(edited_tex).splitlines() if ln.strip()]
+    if not plain:
+        return True
+    tail_words = re.sub(r"\W+", " ", plain[-1]).lower().split()[-3:]
+    return all(w in pdf_text for w in tail_words)
+
 
 def compile_pdf(tex_source: str, out_pdf: pathlib.Path) -> tuple[bool, str]:
     """Compile LaTeX source to PDF. Returns (ok, message). Never raises.

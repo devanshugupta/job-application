@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 
 from . import config
 from .agent import DEFAULT_MODEL, _FINDER_SYSTEM, run_agent
-from .brain import get_brain, pending_packets
+from .brain import BrainPending, get_brain, pending_packets
 from .tools import dashboard as dash
 from .tools import ats, discover, feeds, finder, profiles, runlog, tailor, tracker, usage
 from .tools.browser import Browser
@@ -75,6 +75,38 @@ def cmd_discover(hours: int, target: int, profile: str | None,
     _print_results_hint()
 
 
+def cmd_tailor(query: str, brain_mode: str | None, profile: str | None) -> None:
+    """Tailor ONE tracked job, matched by substring against company/role/url.
+
+    The single-job counterpart of `pipeline --from-tracker`: reuses the row's stored
+    jd_text (so no re-fetch and stable ManualBrain packet hashes), the same brain
+    resolution, and the same tailor_job path with all its gates. In manual-brain mode
+    each of the 3 judgment calls pauses on a data/brain packet; answer it and re-run
+    the same command to continue."""
+    mode = brain_mode or config.brain_mode()
+    if mode == "api":
+        _require_key()
+    brain = get_brain(mode)
+    q = query.lower()
+    rows = [a for a in tracker.list_applications()
+            if q in f"{a.get('company','')} {a.get('role','')} {a.get('url','')}".lower()]
+    if not rows:
+        print(f"No tracked job matches '{query}'. Run `discover` first or check `status`.")
+        return
+    row = rows[-1]
+    print(f"Tailoring: {row['company']}  {row['role']}")
+    try:
+        rec = tailor.tailor_job(
+            row["url"], brain=brain, profile=profile or row.get("profile"),
+            company=row["company"], role=row["role"],
+            posted_date=row.get("posted_date"), source=row.get("source"),
+            jd_text=(row.get("jd_text") or None))
+        print(f"  -> {rec.get('status')}  score={rec.get('resume_score')}/10  "
+              f"match={rec.get('match_pct')}%  pdf={rec.get('tailored_pdf')}")
+    except BrainPending as e:
+        print(f"  ⏸ {e}")
+
+
 def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str | None,
                  from_tracker: bool, refresh: bool = False,
                  sources: list[str] | None = None) -> None:
@@ -117,7 +149,7 @@ def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str | No
         # Stage 1: wide title-ranked pool; stage 2: re-rank the pool by REAL
         # full-JD match (+ sponsorship hard gate) so tailoring slots go to the
         # roles the resume can honestly score highest against.
-        pool = discover.discover(hours=hours, target=top * 3, profile=profile,
+        pool = discover.discover(hours=hours, target=max(top * 3, 50), profile=profile,
                                  sources=sources, refresh=refresh)
         jobs = discover.rerank_by_jd(pool, top=top)
     if not jobs:
@@ -420,6 +452,9 @@ def cmd_fill(url: str, headless: bool) -> None:
         if "ashbyhq.com" in url.lower() or "ashby" in url.lower():
             from .tools import ashby
             result = ashby.fill_ashby_form(browser, url, pdf_path)
+        elif "lever.co" in url.lower():
+            from .tools import lever
+            result = lever.fill_lever_form(browser, url, pdf_path)
         else:
             result = gh.fill_greenhouse_form(browser, url, pdf_path)
         print(f"\n  Filled:  {', '.join(result['filled']) or '(none)'}")
@@ -522,6 +557,11 @@ def main(argv: list[str] | None = None) -> None:
     p_pipe.add_argument("--source", default=None,
                         help="comma-separated source names/keywords; default: all available")
 
+    p_tailor = sub.add_parser("tailor", help="Tailor one tracked job (match by company/role/url substring)")
+    p_tailor.add_argument("query", help="substring matching the tracked job's company/role/url")
+    p_tailor.add_argument("--profile", default=None)
+    p_tailor.add_argument("--brain", choices=["api", "manual"], default=None)
+
     sub.add_parser("brain", help="List manual-brain packets awaiting responses")
 
     p_find = sub.add_parser("find", help="Agent crawls boards for roles (needs key)")
@@ -543,7 +583,7 @@ def main(argv: list[str] | None = None) -> None:
     p_apply.add_argument("--profile", default=None)
     p_apply.add_argument("--headless", action="store_true")
 
-    p_fill = sub.add_parser("fill", help="Deterministic Greenhouse/Ashby form fill (no key)")
+    p_fill = sub.add_parser("fill", help="Deterministic Greenhouse/Ashby/Lever form fill (no key)")
     p_fill.add_argument("url")
     p_fill.add_argument("--headless", action="store_true")
 
@@ -594,6 +634,8 @@ def main(argv: list[str] | None = None) -> None:
                      refresh=args.refresh, sources=_srcs(args.source))
     elif args.command == "run":
         cmd_pipeline(args.days * 24, args.top, args.profile, args.brain, False)
+    elif args.command == "tailor":
+        cmd_tailor(args.query, args.brain, args.profile)
     elif args.command == "brain":
         cmd_brain()
     elif args.command == "find":

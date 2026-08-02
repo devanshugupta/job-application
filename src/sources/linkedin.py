@@ -26,6 +26,7 @@ LinkedIn-sourced URLs as DISCOVERY pointers  the apply step opens the real compa
 
 from __future__ import annotations
 
+import json
 import re
 import time
 import urllib.parse
@@ -94,8 +95,22 @@ def _rel_to_ts(text: str, now: int) -> tuple[str, int]:
     return "", 0
 
 
+_BENEFITS_TEXT = re.compile(r'job-posting-benefits__text">\s*(.*?)\s*<', re.S)
+
+
 def _parse_cards(html: str, now: int) -> list[dict]:
-    """Extract job cards from the guest endpoint's HTML fragment."""
+    """Extract job cards from the guest endpoint's HTML fragment.
+
+    Two fields beyond the basics, both confirmed present in the raw card markup (not
+    documented anywhere, found by inspecting the actual response): LinkedIn itself marks
+    a subset of cards `job-search-card__listdate--new` (vs the plain `--listdate` class
+    every other card gets) -- that's LinkedIn's own "genuinely fresh" judgment, a
+    stronger signal than our own relative-date parsing. And a `job-posting-benefits__text`
+    chip carries "Be an early applicant" (low competition, real positive signal) or
+    "Actively Hiring" (generic engagement noise, not discriminating) or an actual benefits
+    list -- captured as `hiring_tag` so callers can use "Be an early applicant" and ignore
+    the rest. Neither field exists at all for a JD-sparse card (both '' / False if absent).
+    """
     jobs = []
     for card in re.split(r"<li>", html):
         url_m = re.search(r'href="(https://[^"]*?/jobs/view/[^"?]+)', card)
@@ -106,6 +121,7 @@ def _parse_cards(html: str, now: int) -> list[dict]:
         if not (url_m and title_m and comp_m):
             continue
         posted_date, posted_ts = _rel_to_ts(card, now)
+        benefits_m = _BENEFITS_TEXT.search(card)
         jobs.append({
             "company": re.sub(r"<[^>]+>", "", comp_m.group(1)).strip(),
             "role": re.sub(r"<[^>]+>", "", title_m.group(1)).strip(),
@@ -113,6 +129,9 @@ def _parse_cards(html: str, now: int) -> list[dict]:
             "posted_date": posted_date, "posted_ts": posted_ts,
             "locations": (loc_m.group(1).strip() if loc_m else ""),
             "source": "linkedin",
+            "is_new": "job-search-card__listdate--new" in card,
+            "hiring_tag": (re.sub(r"\s+", " ", benefits_m.group(1)).strip()
+                          if benefits_m else ""),
         })
     return jobs
 
@@ -164,7 +183,9 @@ class LinkedInSource(Source):
             if verbose:
                 print(f"  linkedin '{s.get('keywords', '')[:24]:<24}' {got:>4} cards")
         _attach_jds(jobs)                       # capture JD at discovery (guest endpoint)
-        return jobs, errors
+        jobs = _dedupe_near_duplicates(jobs)
+        _flag_reposts(jobs, now - hours * 3600, verbose=verbose)
+        return [j for j in jobs if not j.get("repost")], errors
 
 
 def _attach_jds(jobs: list[dict]) -> None:
@@ -176,6 +197,78 @@ def _attach_jds(jobs: list[dict]) -> None:
     with ThreadPoolExecutor(max_workers=6) as ex:
         for j, jd in zip(todo, ex.map(lambda x: _jd(_job_id(x["url"])), todo)):
             j["jd_text"] = jd
+
+
+_DUP_WORD = re.compile(r"[a-z0-9]+")
+_DUP_THRESHOLD = 0.85   # word-overlap ratio above which two same-company JDs are one job
+
+
+_LD_JSON = re.compile(r'<script type="application/ld\+json">(.*?)</script>', re.S)
+_ORGANIC_WINDOW_S = 30 * 86400   # organic posts: validThrough = datePosted + exactly 30d
+_WINDOW_TOL_S = 6 * 3600
+
+
+def _is_repost(url: str) -> bool | None:
+    """True if the posting page's JSON-LD says this listing is a repost.
+
+    The guest card feed bumps a repost's relative date ('4 hours ago'), and the JSON-LD
+    ``datePosted`` is bumped with it  but ``validThrough`` stays anchored to the
+    ORIGINAL posting: an organic post carries validThrough = datePosted + exactly 30
+    days (same time-of-day), while reposts show 60+ day windows with a mismatched
+    clock. Verified empirically on live postings (Paramount/Obin/Archil reposts vs an
+    organic same-day post). None = couldn't determine (fetch/parse failure)  fail
+    open, don't drop. One full-page fetch (~330KB); call only for cards already inside
+    the freshness window."""
+    try:
+        req = urllib.request.Request(url, headers=_UA)
+        with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310
+            html = r.read().decode("utf-8", errors="replace")
+        m = _LD_JSON.search(html)
+        d = json.loads(m.group(1))
+        dp = datetime.fromisoformat(d["datePosted"].replace("Z", "+00:00"))
+        vt = datetime.fromisoformat(d["validThrough"].replace("Z", "+00:00"))
+        return abs((vt - dp).total_seconds() - _ORGANIC_WINDOW_S) > _WINDOW_TOL_S
+    except Exception:
+        return None
+
+
+def _flag_reposts(jobs: list[dict], cutoff_ts: int, *, verbose: bool = True) -> None:
+    """Mark repost=True (in place) on freshness-window cards whose posting page shows a
+    reset listing clock. Only cards that would survive the freshness cut are checked
+    stale cards get dropped downstream anyway, so no page fetch is spent on them."""
+    fresh = [j for j in jobs if (j.get("posted_ts") or 0) >= cutoff_ts]
+    dropped = 0
+    for j in fresh:
+        if _is_repost(j["url"]):
+            j["repost"] = True
+            dropped += 1
+        time.sleep(1.0)  # be gentle: one page per fresh card
+    if verbose and fresh:
+        print(f"  linkedin repost check: {dropped}/{len(fresh)} fresh cards were reposts")
+
+
+def _dedupe_near_duplicates(jobs: list[dict]) -> list[dict]:
+    """Collapse the same underlying job surfacing more than once in one batch  common
+    on LinkedIn (re-listed under a slightly different title, or picked up by more than
+    one of our search terms, each carrying its own job id/url). Two postings only ever
+    count as duplicates when they share a company AND their JD word-overlap clears
+    ``_DUP_THRESHOLD``  cross-company overlap is never compared (two different
+    employers' JDs sharing generic boilerplate is coincidence, not a duplicate), and a
+    same-company but genuinely different role won't share 85%+ of its JD text. Keeps
+    the FIRST occurrence of each cluster, in input order."""
+    kept: list[dict] = []
+    seen_by_company: dict[str, list[set[str]]] = {}
+    for j in jobs:
+        company = (j.get("company") or "").strip().lower()
+        words = set(_DUP_WORD.findall((j.get("jd_text") or "").lower()))
+        bucket = seen_by_company.setdefault(company, [])
+        if words and any(other and len(words & other) / min(len(words), len(other)) >= _DUP_THRESHOLD
+                        for other in bucket):
+            continue
+        if words:  # empty word-sets (no JD captured) can't identify a duplicate
+            bucket.append(words)
+        kept.append(j)
+    return kept
 
 
 def search(keywords: str, *, location: str = "United States", hours: int = 168,
@@ -201,7 +294,7 @@ def search(keywords: str, *, location: str = "United States", hours: int = 168,
         time.sleep(1.5)
     out = out[:limit]
     _attach_jds(out)
-    return out
+    return _dedupe_near_duplicates(out)
 
 
 register(LinkedInSource())

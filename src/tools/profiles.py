@@ -112,6 +112,47 @@ def read_master_for(profile: str | None) -> str:
     )
 
 
+# Ontology concept -> a real, natural job-title search phrase for that concept. Only
+# the DISTINCTIVE concepts get an entry -- generic ones (languages, cloud, infra, api,
+# evaluation, ml-frameworks) are deliberately omitted because a search on "python engineer"
+# or "aws engineer" returns a generic flood, not roles that actually match this candidate's
+# real niche. Keyed by the SAME concept tokens ats.py's ontology produces, so this stays
+# in sync automatically if the master resume (and therefore its matched concepts) changes
+# -- no manual keyword list to maintain by hand.
+_CONCEPT_SEARCH_TERMS = {
+    "retrieval": "search relevance engineer",
+    "vector-search": "vector search engineer",
+    "ranking": "ranking engineer",
+    "recommendation": "recommendation systems engineer",
+    "llm": "LLM engineer",
+    "fine-tuning": "LLM fine-tuning engineer",
+    "model-serving": "ML platform engineer",
+    "nlp": "conversational AI engineer",
+    "machine-learning": "machine learning engineer",
+    "distributed-systems": "distributed systems engineer",
+}
+
+
+def signature_search_terms(profile: str | None = None) -> list[str]:
+    """Search-engine keyword phrases derived from what the master resume's concepts
+    ACTUALLY are, not a hand-guessed generic list. Uses the same ats.py ontology that
+    scores JD-vs-resume fit, so a term only appears here if the resume genuinely
+    evidences that concept -- and the list updates itself the next time the master
+    resume changes, with no keyword list to keep in sync by hand.
+
+    Ordered so the niche/high-signal concepts (retrieval, vector search, recommendation,
+    LLM) lead and the more generic ones (plain "machine learning engineer") trail --
+    niche terms return a smaller, better-targeted pool; generic ones are a wide net.
+    """
+    from . import ats  # local import: avoid a cycle at module load
+
+    master = read_master_for(profile)
+    if master.startswith("No master resume"):
+        return []
+    concepts = ats._concept_set(master)
+    return [term for concept, term in _CONCEPT_SEARCH_TERMS.items() if concept in concepts]
+
+
 def auto_pick(jd_text: str) -> tuple[str | None, dict]:
     """Pick the profile whose target keywords best overlap the JD.
 
