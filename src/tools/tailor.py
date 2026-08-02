@@ -135,8 +135,10 @@ def _merge_review(patch: dict, review: dict) -> tuple[dict, bool]:
 # the resume matches. Deterministic and cheap  catches these BEFORE any tailoring work.
 _NO_SPONSOR = re.compile(
     r"without (?:the )?need (?:for|of) (?:employer |visa )?sponsorship|"
-    r"(?:will not|won't|unable to|cannot|can't|do(?:es)? not) (?:provide |offer )?sponsor|"
+    r"(?:will not|won't|unable to|cannot|can't|do(?:es)? not|not able to) (?:provide|offer|support)?\s*(?:visa |work |employment )*sponsor|"
     r"no (?:visa )?sponsorship|not eligible for (?:visa )?sponsorship|"
+    r"sponsorship (?:is )?not (?:available|offered|provided)|"
+    r"(?:visa|immigration) sponsorship is not|"
     r"u\.?s\.? citizens? only|citizenship (?:is )?required|"
     r"(?:active|current) (?:security )?clearance (?:is )?required|top secret",
     re.I)
