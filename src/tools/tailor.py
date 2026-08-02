@@ -94,8 +94,8 @@ def _tailor_system() -> str:
 def _validate_patch(patch: dict) -> list[str]:
     problems = []
     bullets = patch.get("top_bullets") or []
-    if not 2 <= len(bullets) <= 7:  # ≥2 JD-anchored leads; ≤7 bullets on the current role
-        problems.append(f"top_bullets must have 2-7 entries (got {len(bullets)}).")
+    if not 2 <= len(bullets) <= 5:  # ≥2 JD-anchored leads; ≤5 keeps the 1-page render safe
+        problems.append(f"top_bullets must have 2-5 entries (got {len(bullets)}).")
     for key in ("summary", "technical_skills"):
         if not (patch.get(key) or "").strip():
             problems.append(f"{key} is empty.")
@@ -279,6 +279,16 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
             if verbose:
                 print(f"    ⛔ {reason}")
             return rec
+
+    # 1b2. Applied-row protection  once a resume has been SENT, it is a record of what
+    # the employer received; never regenerate or overwrite it. Re-running the pipeline
+    # over an applied row is always accidental (re-sweep, backlog pass), so return the
+    # existing record untouched.
+    existing = tracker.find_advanced_duplicate(comp, rol, min_status="applied")
+    if existing is not None and tracker._norm_url(existing.get("url")) == tracker._norm_url(url):
+        if verbose:
+            print(f"    ⛔ already applied on {str(existing.get('applied_date') or existing.get('date'))[:10]}; resume left untouched")
+        return existing
 
     # 1c. Duplicate gate  the same underlying job can resurface under a different URL
     # (a LinkedIn repost mints a new job id for a requisition already applied to via

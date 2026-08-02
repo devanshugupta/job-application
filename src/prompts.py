@@ -72,9 +72,11 @@ real work in the JD's language, not adding a new skill  still bound by HONESTY: 
 label a concept the candidate could defend explaining in an interview from what they \
 actually built. Never add a DIFFERENT tool/technique they did not use.
 
-TOP_BULLETS (2 to 7  the rewritten/reordered bullets of the chosen experience block):
+TOP_BULLETS (2 to 5  the rewritten/reordered bullets of the chosen experience block):
   These become the ENTIRE bullet list of the chosen block (it renders exactly these, in \
-order  everything else in that block is dropped for this JD); max 7. The \
+order  everything else in that block is dropped for this JD); max 5  a 10-second \
+  skim rewards density, and more than 5 risks clipping the one-page render  when \
+  tempted to add a 6th, cut the weakest instead; every bullet must earn its line. The \
 first two are the whole game  a reviewer must think "this person has done exactly what \
 we need" in a 10-second skim. Pick the TRUE experience that best proves each priority \
 (mine the master resume's full bullet pool) and re-frame it in the JD's own vocabulary.
