@@ -30,3 +30,6 @@ data/pipeline_run.json
 resume/references.md
 resume/_retired/
 .idea/
+
+# personal networking pipeline data (per-user, like profile.json)
+data/network/

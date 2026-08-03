@@ -176,3 +176,14 @@ def test_chrome_has_no_ai_glyphs(tmp_path, monkeypatch):
     html = dash.build_index([], {})
     for glyph in ("—", "→", " · "):
         assert glyph not in html
+
+
+def test_configured_keywords_reads_settings(tmp_path, monkeypatch):
+    root = tmp_path
+    (root / "config").mkdir()
+    (root / "config" / "settings.json").write_text(
+        '{"network": {"keywords": ["robotics", "slam", "perception"]}}')
+    monkeypatch.setattr(hiring_heat, "ROOT", root)
+    assert hiring_heat.configured_keywords() == ["robotics", "slam", "perception"]
+    (root / "config" / "settings.json").write_text("{}")
+    assert hiring_heat.configured_keywords() == hiring_heat.DEFAULT_KEYWORDS

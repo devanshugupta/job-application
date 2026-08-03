@@ -56,6 +56,20 @@ DEFAULT_KEYWORDS = [
 ]
 
 
+def configured_keywords() -> list[str]:
+    """Target-role keywords, personal to the operator: config/settings.json
+    {"network": {"keywords": ["robotics", "slam", ...]}} overrides the default
+    (which suits an ML/SDE profile). --keywords overrides both."""
+    try:
+        settings = json.loads((ROOT / "config" / "settings.json").read_text())
+        kw = settings.get("network", {}).get("keywords")
+        if isinstance(kw, list) and kw:
+            return [str(k) for k in kw]
+    except Exception:
+        pass
+    return DEFAULT_KEYWORDS
+
+
 def score_company(entry: dict, keywords: list[str]) -> dict | None:
     ats, token = entry.get("ats"), entry.get("token")
     fetch = FETCHERS.get(ats or "")
@@ -126,7 +140,7 @@ def main() -> None:
     args = ap.parse_args()
 
     keywords = ([k.strip() for k in args.keywords.split(",") if k.strip()]
-                or DEFAULT_KEYWORDS)
+                or configured_keywords())
     watchlist = json.loads((ROOT / "config" / "watchlist.json").read_text())
     entries = [c for c in watchlist.get("companies", []) if c.get("ats") and c.get("token")]
     if args.company:

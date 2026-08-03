@@ -1,0 +1,4 @@
+{
+  "_comment": "Networking pipeline tracker, maintained by the company-scout agent. status flow: scouted -> outreach_drafted -> contacted -> replied -> call_booked -> referred -> interviewing -> closed. Each person: {name, title, rwl: [R,W,L], hook, outreach: [{date, channel: dm|connect|email|intro, mode: A|B|C, touch_n: 1-3, outcome: none|replied|referred|declined}]}. The outreach log is the feedback loop \u2014 aggregate it to learn which persona/channel/mode gets replies. Keep 10-15 companies in flight; per-company reply odds with 3 well-chosen people ~30-40%.",
+  "companies": []
+}
