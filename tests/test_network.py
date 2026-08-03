@@ -178,12 +178,17 @@ def test_chrome_has_no_ai_glyphs(tmp_path, monkeypatch):
         assert glyph not in html
 
 
-def test_configured_keywords_reads_settings(tmp_path, monkeypatch):
+def test_configured_keywords_priority(tmp_path, monkeypatch):
+    """network.json (personal constants) wins, then settings.json, then default."""
     root = tmp_path
     (root / "config").mkdir()
-    (root / "config" / "settings.json").write_text(
-        '{"network": {"keywords": ["robotics", "slam", "perception"]}}')
     monkeypatch.setattr(hiring_heat, "ROOT", root)
+    (root / "config" / "settings.json").write_text(
+        '{"network": {"keywords": ["from-settings"]}}')
+    (root / "config" / "network.json").write_text(
+        '{"keywords": ["robotics", "slam", "perception"]}')
     assert hiring_heat.configured_keywords() == ["robotics", "slam", "perception"]
+    (root / "config" / "network.json").unlink()
+    assert hiring_heat.configured_keywords() == ["from-settings"]
     (root / "config" / "settings.json").write_text("{}")
     assert hiring_heat.configured_keywords() == hiring_heat.DEFAULT_KEYWORDS

@@ -57,16 +57,21 @@ DEFAULT_KEYWORDS = [
 
 
 def configured_keywords() -> list[str]:
-    """Target-role keywords, personal to the operator: config/settings.json
-    {"network": {"keywords": ["robotics", "slam", ...]}} overrides the default
-    (which suits an ML/SDE profile). --keywords overrides both."""
-    try:
-        settings = json.loads((ROOT / "config" / "settings.json").read_text())
-        kw = settings.get("network", {}).get("keywords")
-        if isinstance(kw, list) and kw:
-            return [str(k) for k in kw]
-    except Exception:
-        pass
+    """Target-role keywords, personal to the operator. Priority:
+    config/network.json "keywords" (the personal constants file, gitignored;
+    copy network.example.json and fill in yours, e.g. robotics terms), then
+    config/settings.json {"network": {"keywords": [...]}}, then the ML/SDE
+    default. --keywords overrides all three."""
+    for path, getter in [
+        (ROOT / "config" / "network.json", lambda d: d.get("keywords")),
+        (ROOT / "config" / "settings.json", lambda d: d.get("network", {}).get("keywords")),
+    ]:
+        try:
+            kw = getter(json.loads(path.read_text()))
+            if isinstance(kw, list) and kw:
+                return [str(k) for k in kw]
+        except Exception:
+            pass
     return DEFAULT_KEYWORDS
 
 

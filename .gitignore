@@ -33,3 +33,4 @@ resume/_retired/
 
 # personal networking pipeline data (per-user, like profile.json)
 data/network/
+config/network.json
