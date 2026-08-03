@@ -1,0 +1,4 @@
+{
+  "_comment": "Networking pipeline tracker, maintained by the company-scout agent. status flow: scouted -> outreach_drafted -> contacted -> replied -> call_booked -> referred -> interviewing -> closed. 'people' mirrors the ranked list in the dossier; keep in sync.",
+  "companies": []
+}

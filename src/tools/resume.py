@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import pathlib
 import re
+import shutil
+import tempfile
 
 from .. import config
 from . import artifacts, latex, profiles
@@ -311,9 +313,38 @@ def render_pdf(markdown: str | None = None, out_path: str | None = None,
     any LaTeX error we fall back too  never hard-fail.
     """
     pdf_name = config.resume_pdf_name()
-    dest = pathlib.Path(out_path) if out_path else config.DATA_DIR / pdf_name
+    # Render into a UNIQUE per-call working dir, never a shared path. The final artifact
+    # is copied into the per-application folder below; `dest` here is only a transient
+    # compile target. Using one fixed path (config.DATA_DIR / pdf_name) is a data race
+    # under concurrency: two parallel renders compile to the same file, and each then
+    # reads it back to file into its own folder  so job A can pick up job B's bytes and
+    # ship B's resume under A's name. A fresh temp dir per call eliminates the shared
+    # mutable state entirely (the standard fix). Cleaned up in `finally`.
+    _tmp: pathlib.Path | None = None
+    if out_path:
+        dest = pathlib.Path(out_path)
+    elif company and role:
+        _tmp = pathlib.Path(tempfile.mkdtemp(prefix="resume_render_"))
+        dest = _tmp / pdf_name
+    else:
+        dest = config.DATA_DIR / pdf_name
     dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        return _render_pdf_to(dest, pdf_name, markdown=markdown, company=company,
+                              role=role, url=url, profile=profile, patch=patch,
+                              jd_text=jd_text)
+    finally:
+        if _tmp is not None:
+            shutil.rmtree(_tmp, ignore_errors=True)
 
+
+def _render_pdf_to(dest: pathlib.Path, pdf_name: str, *, markdown: str | None,
+                   company: str | None, role: str | None, url: str | None,
+                   profile: str | None, patch: dict | None, jd_text: str) -> str:
+    """Body of render_pdf, compiling to a caller-provided `dest` path. Split out so the
+    caller can give each invocation a unique temp `dest` (see render_pdf) and guarantee
+    cleanup. Files the finished PDF into the per-application folder when company+role
+    are given, exactly as before."""
     # --- preferred: LaTeX via pdflatex (marker-free edit of the user's real template) ---
     if profile is not None and patch is not None:
         tex_master = latex.tex_master_path(profile)
