@@ -150,6 +150,20 @@ def test_validate_patch_density_rules():
         {**ok, "projects": [{"name": "n", "bullet": "b"}, {"name": "m", "bullet": "c"}]}))
 
 
+def test_save_artifacts_no_deprecated_files(tmp_path, monkeypatch):
+    """save_artifacts must NOT emit the retired changes.json / tailored_resume.md
+    (the diff lives on the tracker row; the .tex is the artifact of record)."""
+    from src.tools import artifacts
+    monkeypatch.setattr(artifacts, "folder", lambda c, r, u=None: tmp_path)
+    info = artifacts.save_artifacts("Acme", "Engineer",
+                                    tailored_md="ignored", patch={"summary": "x"},
+                                    pdf_bytes=b"%PDF-1.4 fake")
+    assert not (tmp_path / "changes.json").exists()
+    assert not (tmp_path / "tailored_resume.md").exists()
+    assert (tmp_path / config.resume_pdf_name()).exists()   # pdf still written when given
+    assert info["changes"] is None
+
+
 # --- ATS scoring ---------------------------------------------------------------
 
 def test_ats_score_basic():

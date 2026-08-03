@@ -4,9 +4,11 @@ When we tailor a resume for a specific role, we don't just overwrite one scratch
 we write a dedicated folder so you can always see exactly what was sent where:
 
     data/applications/<Company>/<job-id>/
-        tailored_resume.md      # the tailored Markdown
         Devanshu_Gupta_Resume.pdf   # the rendered PDF that gets uploaded
-        changes.json            # what changed vs the master (summary/skills/bullets)
+        tailored_resume.tex         # the edited LaTeX it was compiled from
+
+    (The old tailored_resume.md + changes.json are retired: the diff now lives on the
+    tracker row as `resume_diff`, and rescore reads the .tex. See save_artifacts.)
 
 Grouped by company, then by the posting's JOB ID (parsed from the URL), so every role
 at one employer sits together and two roles with the same title never collide. Postings
@@ -185,23 +187,21 @@ def migrate_layout(apply: bool = True) -> list[tuple[str, str]]:
 
 def save_artifacts(company: str, role: str, *, tailored_md: str, patch: dict,
                    url: str | None = None, pdf_bytes: bytes | None = None) -> dict:
-    """Write the tailored md, the changes.json, and (optionally) the pdf. Returns the
-    paths so the caller can record them on the application (for the dashboard)."""
+    """Ensure the per-application folder exists and (optionally) drop the PDF into it.
+
+    The canonical per-application artifacts are the PDF and ``tailored_resume.tex``, both
+    written by resume.render_pdf. The old ``changes.json`` and ``tailored_resume.md`` this
+    used to emit are RETIRED: nothing reads changes.json (the diff lives on the tracker
+    row as ``resume_diff``, which the dashboard uses), and rescore reads the ``.tex``. So
+    this no longer writes them  keeping every application folder consistent (PDF + tex).
+    Return shape is unchanged for callers."""
     d = folder(company, role, url)
-    md_path = d / "tailored_resume.md"
-    md_path.write_text(tailored_md)
-    changes = {
-        "summary": patch.get("summary"),
-        "technical_skills": patch.get("technical_skills"),
-        "top_bullets": patch.get("top_bullets", []),
-    }
-    (d / "changes.json").write_text(json.dumps(changes, indent=2))
     pdf_path = d / config.resume_pdf_name()
     if pdf_bytes is not None:
         pdf_path.write_bytes(pdf_bytes)
     return {
         "dir": str(d),
-        "tailored_md": str(md_path),
+        "tailored_md": None,
         "tailored_pdf": str(pdf_path) if pdf_bytes is not None else None,
-        "changes": changes,
+        "changes": None,
     }

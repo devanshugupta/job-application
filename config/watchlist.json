@@ -334,6 +334,22 @@
       "tier": "consulting-tech",
       "sponsors_h1b": true,
       "board": "https://www.ibm.com/careers/search"
+    },
+    {
+      "name": "Reducto",
+      "tier": "data-ai",
+      "sponsors_h1b": null,
+      "ats": "ashby",
+      "token": "reducto",
+      "board": "https://jobs.ashbyhq.com/reducto"
+    },
+    {
+      "name": "Speechify",
+      "tier": "consumer-ai",
+      "sponsors_h1b": null,
+      "ats": "greenhouse",
+      "token": "speechify",
+      "board": "https://speechify.com/careers/"
     }
   ]
 }
