@@ -374,7 +374,7 @@ def build_index(tracker: list[dict], heat: dict) -> str:
             f'<div class="fit">{esc(c.get("fit",""))}</div>'
             f'<div class="mut">people: {esc(ppl)}</div></a>')
     if not cards:
-        cards = '<div class="mut">No companies scouted yet — run /scout &lt;company&gt;.</div>'
+        cards = '<div class="mut">No companies scouted yet. Run /scout &lt;company&gt; to add one.</div>'
 
     heat_trs = ""
     for r in heat_rows:

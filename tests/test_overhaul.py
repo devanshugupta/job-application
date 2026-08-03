@@ -368,14 +368,16 @@ def test_review_merge_applies_only_changed_fields():
     assert out["summary"] == "orig sum" and out["technical_skills"] == "orig skills"
 
 
-def test_sources_registry_and_selection():
-    from src import sources
+def test_sources_registry_and_selection(monkeypatch):
+    from src import sources, config
     names = set(sources.all_sources())
     assert {"ats_boards", "github_feed", "linkedin", "scoutbetter"} <= names
     # select by keyword
     chosen = sources.resolve(["greenhouse"])
     assert [s.name for s in chosen] == ["ats_boards"]
-    # linkedin is off until configured; scoutbetter is a public API (on by default)
+    # linkedin is off until configured (hermetic: ignore the local settings.json);
+    # scoutbetter is a public API (on by default)
+    monkeypatch.setattr(config, "_settings", lambda: {})
     assert sources.all_sources()["linkedin"].available() is False
     assert sources.all_sources()["scoutbetter"].available() is True
     # explicit selection bypasses availability (lets you force one on)
