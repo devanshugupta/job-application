@@ -12,5 +12,6 @@ After the subagent returns, relay to me:
 4. The single best next action
 
 If any person is marked `[verify on LinkedIn]` and my Chrome is connected,
-offer to verify them and find mutual connections / ASU alumni via LinkedIn
+offer to verify them and find mutual connections / school alumni (schools are
+in config/network.json) via LinkedIn
 (read-only — never send anything without my explicit go).

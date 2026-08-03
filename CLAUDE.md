@@ -356,3 +356,28 @@ Automating job sites and LinkedIn can violate their Terms of Service and get acc
 restricted. Default to human-in-the-loop, never fabricate application content, rate-
 limit yourself, and prefer official APIs / automation-friendly boards. The operator is
 responsible for how this is used.
+
+## Networking agent (company-scout) — per-user setup
+
+The networking layer (`/scout <company>`, `scripts/hiring_heat.py`,
+`scripts/network_dashboard.py`, `scripts/linkedin_probe.py`) is fully
+profile-driven. NOTHING personal is hardcoded; everything resolves from
+**`config/network.json`** (gitignored). New users:
+
+1. `cp config/network.example.json config/network.json` and fill in your own
+   candidate block (name, schools, employers, stack, role families, target
+   titles, one_liner), target-role `keywords` for the hiring-heat sweep,
+   `linkedin_school_slug`, outreach ask phrasing, and `resume_core` (the
+   always-on skills line the tailor prompt enforces).
+2. `cp resume/achievements.example.md resume/achievements.md` — outreach
+   drafts are grounded ONLY in this file.
+3. Edit `config/watchlist.json` to your target companies (ats+token entries
+   get swept by hiring_heat).
+4. Pipeline data lives in `data/network/` (gitignored, created on first run):
+   `companies.json` tracker (schema: `config/network_companies.example.json`),
+   `dossiers/*.md`, `dashboard.html` (regenerate:
+   `python scripts/network_dashboard.py`).
+
+The scout agent prompt (`.claude/agents/company-scout.md`) references these as
+`{candidate.*}` / `{outreach.*}` variables and refuses to run without
+`config/network.json`.

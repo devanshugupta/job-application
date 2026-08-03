@@ -60,8 +60,7 @@ each "Group: item, item, …" — e.g. "Languages: … | ML: … | Retrieval: �
 Cloud: …"). Five full, keyword-dense groups (not 3-4) so the skills section is rich and \
 maximizes JD/ATS keyword coverage:
   Fixed core  ALWAYS include these regardless of JD, never drop them: \
-Languages must include Python, SQL, Kotlin. ML (when an ML/ML-adjacent group is present) \
-must include PyTorch, TensorFlow, scikit-learn, Koog. On top of that fixed core, add \
+{fixed_core} On top of that fixed core, add \
 whatever other skills the candidate has actually used AND the role cares about, \
 front-loading the JD's named tools (e.g. MLflow, LangGraph, XGBoost). Drop irrelevant \
 groups other than the fixed core above.
@@ -149,6 +148,27 @@ max, no restating the rules or the JD, no preamble. Do not over-explain.
 Return ONLY the JSON patch."""
 
 
+_DEFAULT_FIXED_CORE = (
+    "Languages must include Python, SQL, Kotlin. ML (when an ML/ML-adjacent group is "
+    "present) must include PyTorch, TensorFlow, scikit-learn, Koog.")
+
+
+def _fixed_core() -> str:
+    """Candidate-specific always-on skills, from config/network.json
+    resume_core (e.g. {"resume_core": "Languages must include C++, Python.
+    Robotics group must include ROS2, SLAM."}). Falls back to the default."""
+    import json
+    from . import config
+    try:
+        net = json.loads((config.ROOT / "config" / "network.json").read_text())
+        core = net.get("resume_core")
+        if isinstance(core, str) and core.strip():
+            return core.strip()
+    except Exception:
+        pass
+    return _DEFAULT_FIXED_CORE
+
+
 def render_tailor_system() -> str:
     """TAILOR_SYSTEM with the live section budgets from resume.BUDGETS filled in."""
     from .tools import resume
@@ -156,7 +176,8 @@ def render_tailor_system() -> str:
     return TAILOR_SYSTEM.format(
         summary_min=b["summary_min_words"], summary_max=b["summary_max_words"],
         skills_max=b["technical_skills_max_words"],
-        bullet_min=b["bullet_min_words"], bullet_max=b["bullet_max_words"])
+        bullet_min=b["bullet_min_words"], bullet_max=b["bullet_max_words"],
+        fixed_core=_fixed_core())
 
 
 # ---------------------------------------------------------------------------

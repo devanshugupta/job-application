@@ -111,9 +111,16 @@ def main() -> None:
     ap.add_argument("--login", action="store_true", help="pause for manual login first")
     ap.add_argument("--company", default="anthropic", help="company slug for /company/<slug>/")
     ap.add_argument("--person-url", default="", help="optional public profile URL to probe")
-    ap.add_argument("--school", default="arizona-state-university", help="school slug for alumni page")
+    ap.add_argument("--school", default="", help="school slug for the alumni page "
+                    "(default: linkedin_school_slug from config/network.json)")
     args = ap.parse_args()
 
+    if not args.school:
+        try:
+            net = json.loads((ROOT / "config" / "network.json").read_text())
+            args.school = net.get("linkedin_school_slug", "")
+        except Exception:
+            pass
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
     results: list[dict] = []
 
@@ -141,8 +148,9 @@ def main() -> None:
              f"https://www.linkedin.com/search/results/people/?keywords=machine%20learning%20engineer%20{co}"),
             ("job_search",
              "https://www.linkedin.com/jobs/search/?keywords=machine%20learning%20engineer&f_TPR=r86400"),
-            ("alumni", f"https://www.linkedin.com/school/{args.school}/people/"),
         ]
+        if args.school:
+            targets.append(("alumni", f"https://www.linkedin.com/school/{args.school}/people/"))
         if args.person_url:
             targets.append(("person_profile", args.person_url))
 
