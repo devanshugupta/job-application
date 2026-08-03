@@ -92,16 +92,28 @@ def _tailor_system() -> str:
 
 
 def _validate_patch(patch: dict) -> list[str]:
+    from . import latex
     problems = []
     bullets = patch.get("top_bullets") or []
-    if not 2 <= len(bullets) <= 5:  # ≥2 JD-anchored leads; ≤5 keeps the 1-page render safe
-        problems.append(f"top_bullets must have 2-5 entries (got {len(bullets)}).")
+    lo, hi = latex.MIN_BULLETS_PER_BLOCK, latex.MAX_BULLETS_PER_BLOCK
+    if not lo <= len(bullets) <= hi:  # density floor: a thin chosen block reads as a weak resume
+        problems.append(f"top_bullets must have {lo}-{hi} entries (got {len(bullets)}).")
     for key in ("summary", "technical_skills"):
         if not (patch.get(key) or "").strip():
             problems.append(f"{key} is empty.")
+    # Technical Skills must have exactly NUM_SKILL_GROUPS "Group: ..." segments so the
+    # rendered skills block is full and keyword-dense for ATS  not a thin 2-3 line list.
+    skills = patch.get("technical_skills") or ""
+    groups = [s for s in re.split(r"(?<!\w)\|(?!\w)", skills) if ":" in s]
+    if skills.strip() and len(groups) != latex.NUM_SKILL_GROUPS:
+        problems.append(f"technical_skills must have exactly {latex.NUM_SKILL_GROUPS} "
+                        f"'Group: ...' sections (got {len(groups)}).")
+    # Projects: the tailor usually leaves this [] (the renderer selects NUM_PROJECTS from
+    # the master pool). If it DOES re-select, it must supply exactly NUM_PROJECTS.
     projects = patch.get("projects") or []
-    if len(projects) > 4:
-        problems.append(f"projects must have at most 4 entries (got {len(projects)}).")
+    if projects and len(projects) != latex.NUM_PROJECTS:
+        problems.append(f"projects, if provided, must have exactly {latex.NUM_PROJECTS} "
+                        f"entries (got {len(projects)}).")
     if any(not (p.get("name") or "").strip() or not (p.get("bullet") or "").strip()
            for p in projects if isinstance(p, dict)):
         problems.append("every project needs a non-empty name and bullet.")

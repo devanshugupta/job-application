@@ -495,37 +495,93 @@ def _replace_skills_block(tex: str, skills: str) -> str:
     return tex[:open_brace + 1] + body + tex[k:]  # keep the closing '}' at k
 
 
+# Deterministic content-density floors (see check_resume_structure). Every rendered
+# resume must satisfy these regardless of the 1-page fit-retry: gutting a block to make
+# room produces a thin, low-ATS resume (the Backburner bug: TCS down to 1 bullet, 1
+# project). The fit-retry trims only the CHOSEN block's tail toward MIN_BULLETS, never
+# the secondary blocks or projects below their floors.
+MIN_BULLETS_PER_BLOCK = 3
+MAX_BULLETS_PER_BLOCK = 7
+NUM_PROJECTS = 3
+NUM_SKILL_GROUPS = 5
+
+
 def edit_tex(tex_source: str, patch: dict, jd_text: str = "",
-             k: int | None = None, k_proj: int | None = None) -> str:
+             k: int | None = None, k_proj: int | None = None,
+             primary_k: int | None = None) -> str:
     """Apply a tailoring patch to the LaTeX source, marker-free  select-and-prune.
 
-    The .tex master holds the FULL point pool; this renders a 1-page subset:
+    The .tex master holds the FULL point pool; this renders a 1-page subset that still
+    respects the density floors (>=3 bullets/block, exactly NUM_PROJECTS projects):
       - Summary body (patch['summary']) and Technical Skills block
         (patch['technical_skills']).
-      - Experience: the chosen block (patch['experience_section_index']) renders exactly
-        patch['top_bullets']; every other block renders its k most JD-relevant bullets.
-      - Projects: patch['projects'] if the tailor re-selected them, else the k most
-        JD-relevant projects from the .tex pool.
-    ``jd_text`` drives the deterministic relevance ranking of the non-chosen blocks and
-    the projects. Returns edited LaTeX; a compile-check downstream guards bad edits.
+      - Experience: the chosen block (patch['experience_section_index']) renders
+        patch['top_bullets'] (optionally capped to ``primary_k`` for 1-page fit, never
+        below MIN_BULLETS_PER_BLOCK); every OTHER block renders its ``k`` most
+        JD-relevant bullets, with ``k`` clamped to [MIN, MAX] so no block is gutted.
+      - Projects: patch['projects'] if re-selected, else the ``k_proj`` most JD-relevant
+        from the pool  ``k_proj`` clamped to at least NUM_PROJECTS.
+    ``jd_text`` drives the deterministic relevance ranking. The 1-page fit-retry in
+    resume.render_pdf varies ONLY ``primary_k`` (the chosen block's tail); the floors
+    here are invariant.
     """
     if k is None:
-        k = config.int_setting("secondary_bullets", 3)
+        k = config.int_setting("secondary_bullets", MIN_BULLETS_PER_BLOCK)
+    k = max(MIN_BULLETS_PER_BLOCK, min(MAX_BULLETS_PER_BLOCK, k))
     if k_proj is None:
-        k_proj = config.int_setting("max_projects", 3)
+        k_proj = config.int_setting("num_projects", NUM_PROJECTS)
+    k_proj = max(NUM_PROJECTS, k_proj)
+    top = list(patch.get("top_bullets") or [])
+    if primary_k is not None:
+        top = top[:max(MIN_BULLETS_PER_BLOCK, primary_k)]
     tex = tex_source
     if patch.get("summary"):
         tex = _replace_section_body(tex, "Summary", patch["summary"])
     if patch.get("technical_skills"):
         tex = _replace_skills_block(tex, patch["technical_skills"])
     tex = _render_experience_selected(
-        tex, int(patch.get("experience_section_index", 0) or 0),
-        patch.get("top_bullets") or [], jd_text, k)
+        tex, int(patch.get("experience_section_index", 0) or 0), top, jd_text, k)
     if patch.get("projects"):
-        tex = _replace_projects_section(tex, patch["projects"])
+        tex = _replace_projects_section(tex, patch["projects"][:k_proj])
     else:
         tex = _select_projects_in_tex(tex, jd_text, k_proj)
     return tex
+
+
+def check_resume_structure(edited_tex: str) -> list[str]:
+    r"""Deterministic density lint on a RENDERED resume. Returns a list of problems
+    (empty = ok). Enforces: every active Experience block has MIN..MAX bullets, the
+    Projects section has exactly NUM_PROJECTS, and Technical Skills has NUM_SKILL_GROUPS
+    groups. This is the guard that catches a gutted resume before it ships."""
+    problems: list[str] = []
+    i = 0
+    while True:
+        sp = _experience_block_span(edited_tex, i)
+        if sp is None:
+            break
+        block = edited_tex[sp[0]:sp[1]]
+        n = len([ln for ln in block.split("\n")
+                 if re.search(r"\\resumeItem\s*\{", ln) and not ln.strip().startswith("%")])
+        if n < MIN_BULLETS_PER_BLOCK or n > MAX_BULLETS_PER_BLOCK:
+            problems.append(f"experience block {i} has {n} bullets "
+                            f"(need {MIN_BULLETS_PER_BLOCK}-{MAX_BULLETS_PER_BLOCK}).")
+        i += 1
+    sec = re.search(r"\\section\{Projects\}", edited_tex)
+    if sec:
+        nxt = re.search(r"\\section\{", edited_tex[sec.end():])
+        body = edited_tex[sec.end(): sec.end() + nxt.start()] if nxt else edited_tex[sec.end():]
+        nproj = len([h for h in re.finditer(r"\\resumeProjectHeading", body)])
+        if nproj != NUM_PROJECTS:
+            problems.append(f"Projects has {nproj} entries (need exactly {NUM_PROJECTS}).")
+    skills = re.search(r"\\section\{Technical Skills\}", edited_tex)
+    if skills:
+        nxt = re.search(r"\\section\{", edited_tex[skills.end():])
+        body = edited_tex[skills.end(): skills.end() + nxt.start()] if nxt else edited_tex[skills.end():]
+        ngroups = len(re.findall(r"\\textbf\{", body))
+        if ngroups != NUM_SKILL_GROUPS:
+            problems.append(f"Technical Skills has {ngroups} groups "
+                            f"(need exactly {NUM_SKILL_GROUPS}).")
+    return problems
 
 
 def _word_overlap(a: str, b: str) -> float:

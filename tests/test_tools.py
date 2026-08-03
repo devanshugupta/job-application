@@ -99,6 +99,57 @@ def test_render_pdf_concurrent_no_cross_contamination(tmp_path, monkeypatch):
     assert len(set(seen_dests)) == len(seen_dests)        # every compile got a distinct dest
 
 
+def test_resume_density_floors_and_structure_lint():
+    """Deterministic content-density rules: >=3 bullets per experience block, exactly 3
+    projects, 5 skill groups. Regression for the gutted-resume bug (a non-chosen block
+    trimmed to 1 bullet and 1 project to force one page)."""
+    master = (latex.MASTERS_DIR / "ml_sde.tex")
+    if not master.exists():
+        import pytest
+        pytest.skip("master .tex not present")
+    tex = master.read_text()
+    patch = {"experience_section_index": 0,
+             "summary": "S",
+             "technical_skills": "Languages: Python, SQL | ML: PyTorch | Retrieval: FAISS | "
+                                 "Systems: gRPC | Cloud: AWS",
+             "top_bullets": [f"Shipped production service number {n} serving many users reliably each day."
+                             for n in range(5)],
+             "projects": []}
+    # Even with an aggressive primary trim, floors hold: every block >=3 bullets, 3 projects.
+    edited = latex.edit_tex(tex, patch, jd_text="python backend", primary_k=1)
+    assert latex.check_resume_structure(edited) == []
+    i, counts = 0, []
+    while (sp := latex._experience_block_span(edited, i)) is not None:
+        counts.append(len([l for l in edited[sp[0]:sp[1]].split("\n")
+                           if "\\resumeItem{" in l and not l.strip().startswith("%")]))
+        i += 1
+    assert all(latex.MIN_BULLETS_PER_BLOCK <= c <= latex.MAX_BULLETS_PER_BLOCK for c in counts)
+
+
+def test_structure_lint_flags_violations():
+    tex = (r"\section{Work Experience}\resumeSubheadingg{X}{Y}\resumeItemListStart"
+           r"\resumeItem{only one bullet here}\resumeItemListEnd"
+           r"\section{Projects}\resumeProjectHeading{a}{}\resumeItemListStart"
+           r"\resumeItem{p}\resumeItemListEnd"
+           r"\section{Technical Skills}\item{\textbf{Languages}{: Python}}")
+    problems = latex.check_resume_structure(tex)
+    assert any("bullet" in p for p in problems)     # 1 bullet < min 3
+    assert any("Projects" in p for p in problems)   # 1 project != 3
+    assert any("Skills" in p for p in problems)     # 1 group != 5
+
+
+def test_validate_patch_density_rules():
+    from src.tools.tailor import _validate_patch
+    ok = {"summary": "s", "technical_skills": "A: x | B: y | C: z | D: w | E: v",
+          "top_bullets": ["one two three four five six seven eight nine ten eleven twelve", "b", "c"],
+          "projects": []}
+    assert _validate_patch(ok) == []
+    assert any("top_bullets" in p for p in _validate_patch({**ok, "top_bullets": ["a", "b"]}))
+    assert any("technical_skills" in p for p in _validate_patch({**ok, "technical_skills": "A: x | B: y"}))
+    assert any("projects" in p for p in _validate_patch(
+        {**ok, "projects": [{"name": "n", "bullet": "b"}, {"name": "m", "bullet": "c"}]}))
+
+
 # --- ATS scoring ---------------------------------------------------------------
 
 def test_ats_score_basic():

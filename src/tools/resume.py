@@ -350,28 +350,34 @@ def _render_pdf_to(dest: pathlib.Path, pdf_name: str, *, markdown: str | None,
         tex_master = latex.tex_master_path(profile)
         if tex_master is not None and latex.have_pdflatex():
             # Fit-retry ladder: if the compiled page clips its tail (the unbreakable
-            # Skills box falling off page 1), re-edit with fewer secondary bullets /
-            # projects until the FULL content renders on one page.
+            # Skills box falling off page 1), re-edit trimming ONLY the chosen block's
+            # bullet tail (primary_k), never the secondary blocks or projects  those
+            # stay at their density floors (>=3 bullets/block, 3 projects). This is what
+            # stops a resume being gutted (TCS->1 bullet, 1 project) just to fit a page.
             ok, msg, edited = False, "", ""
-            for _k, _kp in ((None, None), (2, 2), (1, 2), (1, 1)):
+            for _primary in (None, 5, 4, latex.MIN_BULLETS_PER_BLOCK):
                 edited = latex.edit_tex(tex_master.read_text(), patch,
-                                        jd_text=jd_text, k=_k, k_proj=_kp)
+                                        jd_text=jd_text, primary_k=_primary)
                 ok, msg = latex.compile_pdf(edited, dest)
                 if ok and latex.pdf_renders_complete(dest, edited):
                     break
                 if ok:
-                    msg = "page overflow clipped content; retried with fewer bullets"
+                    msg = "page overflow clipped content; retried with fewer primary bullets"
                     ok = False
             if not ok and edited:
                 # last resort: keep the tightest compile even if the check failed
                 ok, msg = latex.compile_pdf(edited, dest)
             if ok:
+                # Density guard: surface any block/project/skills-count violation on the
+                # FINAL rendered tex so a thin resume is never shipped silently.
+                struct = latex.check_resume_structure(edited)
+                note = f"  ⚠ density: {'; '.join(struct)}" if struct else ""
                 if company and role:
                     appdir = artifacts.folder(company, role, url)
                     (appdir / pdf_name).write_bytes(dest.read_bytes())
                     (appdir / "tailored_resume.tex").write_text(edited)
-                    return f"Rendered LaTeX PDF (pdflatex) to {appdir / pdf_name}"
-                return f"Rendered LaTeX PDF (pdflatex) to {dest}"
+                    return f"Rendered LaTeX PDF (pdflatex) to {appdir / pdf_name}{note}"
+                return f"Rendered LaTeX PDF (pdflatex) to {dest}{note}"
             _latex_note = f" (LaTeX fallback: {msg})"
         else:
             _latex_note = " (no .tex master or pdflatex; used Markdown)"

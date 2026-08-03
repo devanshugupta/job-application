@@ -34,11 +34,23 @@ One-line "what they do" in plain words.
 
 ### 2. Funding & stage
 WebSearch: `"<company>" funding raised series`, `"<company>" site:techcrunch.com`,
-`"<company>" crunchbase`. Capture: last round (stage, amount, date, lead
+`"<company>" crunchbase`. **Name-collision guard:** for generic/ambiguous company
+names, search by distinctive product terms from step 1 plus HQ city (e.g.
+"HC3 code ontology Bellevue"), never the bare name — and verify every result
+actually refers to THIS company before citing it (learned: "Adapts" search
+returned Adaption Labs' $50M round — a different company). Capture: last round (stage, amount, date, lead
 investors), total raised, notable investors. If nothing found, check SEC EDGAR
-Form D search. Record a **hiring-heat signal**: raised <6 months ago = HOT;
-6-18 months = WARM; else COOL/unknown. Public company → note instead: recent
-earnings/layoffs/AI-org news.
+Form D search. Funding gives a provisional heat (raised <6 months = HOT; 6-18 = WARM), but
+**posting velocity trumps funding**: if the company has an ATS token, run
+`python scripts/hiring_heat.py --company <name-or-token>` (add the token to
+`config/watchlist.json` first if missing) — it computes new-reqs-in-30d,
+acceleration, ghost-share, and keyword-matched heat from real posting dates,
+zero tokens. Use ITS rating; check `data/network/hiring_heat.json` for a
+recent sweep before re-fetching. Active hiring is the #1 predictor of outreach
+response — a DEAD/COOL company gets at most 1 outreach slot (Mode B to a warm
+path), never 3. Public giants (Workday/custom ATS, no token): judge team-level
+heat instead — careers-site search for the target org's posting count/recency
++ recent earnings/AI-org expansion news + layoffs.fyi as the kill signal.
 
 ### 3. Open roles (AI/ML + SDE)
 - Find the careers page. Detect the ATS: try the free JSON APIs first
@@ -52,7 +64,12 @@ earnings/layoffs/AI-org news.
   "pre-posting" networking target — say so.
 
 ### 4. People map — who to approach
-Sources: company /team or /about page, WebSearch (`"<company>" "head of machine learning" OR "engineering manager" linkedin`),
+**Highest-value single page: `linkedin.com/company/<slug>/people/`** — one load
+gives headcount + geo split, every employee, AND connection degree + named
+mutual connections for all of them at once (this is how the Rohit Khoja mutual
+was caught at Adapts). Make it the first LinkedIn stop and the #1 parser
+target. Other sources: company /team or /about page, WebSearch
+(`"<company>" "head of machine learning" OR "engineering manager" linkedin`),
 GitHub org (who commits to their public repos), Google Scholar / arXiv (for
 research-flavored teams), founder Twitter/X.
 Budget: **only ~3 outreach slots per company** — selection quality beats
@@ -110,9 +127,32 @@ getting on the radar of; ask is a chat/future consideration, NOT a referral):
 > space]. I'd love to be considered as the team grows — open to a quick
 > 15-min chat?
 
+**Mode C — intro request** (target is 2nd-degree via a known mutual; the
+message goes to THE MUTUAL, not the target):
+> Hey [mutual] — hope you're doing well! I'm reaching out to [target] at
+> [company] about [role/the team]. Since you know them, would you be
+> comfortable intro'ing us? One-liner you can forward: "[Devanshu — [top
+> achievement + number], strong fit for [role/area], looking to connect.]"
+
 Produce Mode A per matching role; produce Mode B whenever the person is a
 strong contact regardless of current postings (e.g. pre-posting funded
-companies from step 3).
+companies from step 3); produce Mode C whenever the warm path runs through a
+known mutual.
+
+### Sequencing & cadence rules (violating these wastes the referral)
+- **Referral BEFORE application.** Most ATSs cannot attach a referral to an
+  already-submitted application. If outreach is in flight for a role, flag the
+  role "HOLD — awaiting referral" in the dossier so the apply pipeline skips
+  it; apply directly only after the referral lands or outreach goes quiet.
+- **Channel order:** 1st-degree → LinkedIn DM. 2nd w/ mutual → Mode C to the
+  mutual. Else → connect note (compressed template); if they have a public
+  email on their site, send the email variant the same day (site email =
+  consent to contact).
+- **Follow-up cadence:** touch 2 at day 4-6 (one new line: a different
+  achievement or a nudge with the req link), touch 3 at day 12-14 (graceful
+  close: "totally understand if timing's off"). Then STOP — never more than
+  3 touches. A large share of replies come from touches 2-3; schedule them in
+  the dossier's Next actions with dates.
 
 Draft, for the top 2-3 people:
 - **LinkedIn connection note** (≤280 chars — compressed template)
@@ -152,7 +192,19 @@ Why: ... Evidence: <url>
 
 ### B. Tracker update → `data/network/companies.json`
 Append/update the company entry (schema in the file's `_comment`). Preserve
-existing entries; update `status` and `last_scouted`.
+existing entries; update `status` and `last_scouted`. Every drafted/sent touch
+gets a row in the person's `outreach` log (`{date, channel, mode, touch_n,
+outcome}`) — this is the feedback loop: with ~3 sends per company across many
+companies, per-persona/channel/mode response rates become learnable. When
+scouting a new company, glance at aggregate outcomes so far and bias the R/W/L
+tie-breaks toward what has actually been getting replies.
+
+### C. Regenerate the dashboard
+After updating the tracker, run
+`python scripts/network_dashboard.py` — it rebuilds
+`data/network/dashboard.html` (stat tiles, hiring-heat table + chart, pipeline
+cards with R/W/L and outreach logs, next-actions from dossier checkboxes).
+Zero tokens; never edit the HTML by hand.
 
 ## Hard rules
 - NEVER fabricate funding numbers, names, titles, or emails. Unverified → mark

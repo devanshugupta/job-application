@@ -1,0 +1,109 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Adapts — scout</title><style>
+:root { color-scheme: light;
+  --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --mut:#898781;
+  --grid:#e1e0d9; --border:rgba(11,11,11,.10); --bar:#2a78d6; --wash:rgba(42,120,214,.08); }
+@media (prefers-color-scheme: dark) { :root { color-scheme: dark;
+  --page:#0d0d0d; --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --mut:#898781;
+  --grid:#2c2c2a; --border:rgba(255,255,255,.10); --bar:#3987e5; --wash:rgba(57,135,229,.12); } }
+* { box-sizing:border-box; margin:0 }
+body { background:var(--page); color:var(--ink);
+  font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; padding:24px; max-width:1080px; margin:auto }
+h1 { font-size:20px; margin-bottom:2px } h2 { font-size:15px; margin:26px 0 10px }
+h3 { font-size:13.5px; margin:16px 0 6px }
+.mut { color:var(--mut); font-size:12.5px; text-decoration:none }
+a { color:inherit } a.mut:hover, .lnk:hover { color:var(--bar) }
+.lnk { color:var(--bar); text-decoration:none } .lnk:hover { text-decoration:underline }
+.chip { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600;
+  padding:1px 8px; border-radius:999px; border:1px solid var(--chip); color:var(--chip); vertical-align:1px }
+.chip .dot { width:7px; height:7px; border-radius:50%; background:var(--chip) }
+.date { font-size:11.5px; color:var(--mut); border:1px solid var(--border); border-radius:5px; padding:0 6px }
+table { width:100%; border-collapse:collapse; background:var(--surface);
+  border:1px solid var(--border); border-radius:10px; overflow:hidden }
+th,td { padding:7px 10px; text-align:left; border-bottom:1px solid var(--grid); font-size:13px }
+th { color:var(--ink2); font-weight:600; font-size:12px }
+td.n,th.n { text-align:right; font-variant-numeric:tabular-nums }
+tr:last-child td { border-bottom:none }
+details summary { cursor:pointer; color:var(--bar); font-variant-numeric:tabular-nums }
+.fresh { margin:6px 0 2px 16px; font-size:12.5px }
+.tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-top:14px }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px }
+.tile .v { font-size:26px; font-weight:650 } .tile .k { color:var(--ink2); font-size:12px }
+.search { width:100%; margin:18px 0 4px; padding:9px 14px; font:inherit; color:var(--ink);
+  background:var(--surface); border:1px solid var(--border); border-radius:10px; outline:none }
+.search:focus { border-color:var(--bar) }
+.bchart { background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:14px 16px; margin-bottom:14px }
+.brow { display:grid; grid-template-columns:150px 1fr 34px; gap:10px; align-items:center; margin:5px 0 }
+.blab { font-size:12.5px; color:var(--ink2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.bar { display:block; height:14px; background:var(--bar); border-radius:0 4px 4px 0 }
+.bval { font-size:12.5px; text-align:right; font-variant-numeric:tabular-nums }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:14px 16px; margin-bottom:12px }
+.card:hover { border-color:var(--bar) }
+.chead { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap }
+.flow { display:flex; align-items:center; gap:3px }
+.step { width:14px; height:6px; border-radius:3px; background:var(--grid) }
+.step.on { background:var(--bar) }
+.fit { font-size:13px; color:var(--ink2); margin:4px 0 }
+.person { border-top:1px solid var(--grid); margin-top:10px; padding-top:8px }
+.rwl { display:inline-flex; gap:4px; margin:3px 0 }
+.rwl span { font-size:11px; font-weight:650; border:1px solid var(--border); border-radius:5px;
+  padding:0 5px; color:var(--ink2); font-variant-numeric:tabular-nums }
+.hook { font-size:12.5px; color:var(--ink2) }
+.log { margin:6px 0 0 16px; font-size:12.5px; color:var(--ink2) }
+ul { margin-left:18px } li { margin:2px 0 }
+.crumb { margin-bottom:14px; font-size:12.5px }
+.stats { display:flex; gap:18px; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; padding:10px 16px; margin:12px 0; font-variant-numeric:tabular-nums }
+.stats b { font-size:16px } .stats span { color:var(--ink2); font-size:12px }
+.doss { background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:6px 18px 14px; margin-top:12px }
+.doss h1 { font-size:16px; margin:12px 0 4px } .doss h2 { font-size:14px; margin:16px 0 6px }
+.doss h3 { font-size:13px; margin:12px 0 4px }
+.doss p { margin:6px 0 } .doss li { font-size:13px }
+.draft { position:relative; background:var(--wash); border-left:3px solid var(--bar);
+  border-radius:0 8px 8px 0; padding:10px 14px; margin:8px 0; font-size:13px }
+.copy { position:absolute; top:6px; right:6px; font-size:11px; padding:2px 8px; cursor:pointer;
+  color:var(--ink2); background:var(--surface); border:1px solid var(--border); border-radius:6px }
+.copy:hover { color:var(--bar); border-color:var(--bar) }
+.hidden { display:none }
+th[data-col] { cursor:pointer; user-select:none } th[data-col]:hover { color:var(--bar) }
+.fchips { display:flex; gap:6px; margin:8px 0 10px }
+.fchip { font:inherit; font-size:11.5px; font-weight:600; padding:2px 10px; cursor:pointer;
+  color:var(--ink2); background:var(--surface); border:1px solid var(--border); border-radius:999px }
+.fchip.on { color:var(--bar); border-color:var(--bar); background:var(--wash) }
+.acts { background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:10px 16px; margin:12px 0 }
+.acts li { font-size:13px; margin:4px 0 }
+</style></head><body><div class="crumb"><a class="lnk" href="../dashboard.html">← pipeline</a></div><h1>Adapts <span class="chip" style="--chip:#2a78d6"><span class="dot"></span>COOL</span> <span class="date">scouted 2026-08-03</span></h1><div class="mut"><a class="lnk" href="https://adapts.ai" target="_blank">website</a> · <a class="lnk" href="https://www.linkedin.com/company/adapts/people/" target="_blank">linkedin people</a></div><div class="flow" style="margin-top:8px"><span class="step on" title="scouted"></span><span class="step on" title="outreach_drafted"></span><span class="step" title="contacted"></span><span class="step" title="replied"></span><span class="step" title="call_booked"></span><span class="step" title="referred"></span><span class="step" title="interviewing"></span><span class="step" title="closed"></span><span class="mut">&nbsp;outreach_drafted</span></div><h2>Next actions</h2><div class="acts"><ul><li>⬜ Ask Rohit Khoja how well he knows Vivek Sheel; if solid → send Mode C intro request</li><li>⬜ Verify H1B/sponsorship stance before deeper investment (ask in the intro call, not in outreach)</li><li>⬜ Follow Adapts company page + Vivek (low-cost visibility)</li><li>⬜ Re-check jobs in ~6 weeks (hiring_heat has no ATS to sweep — manual recheck)</li></ul></div><h2>People (2)</h2><div class="card"><div class="person"><div><b>Vivek Sheel</b> <span class="mut">CEO (ex-Amazon SDM)</span></div><div class="rwl"><span title="response likelihood">R2</span><span title="warmth">W3</span><span title="leverage">L3</span></div><div class="hook">HC3 agentic code-ontology + shared Amazon lineage; mutual: Rohit Khoja</div></div><div class="person"><div><b>Sharad Agrawal</b> <span class="mut">COO (ex-Microsoft)</span></div><div class="rwl"><span title="response likelihood">R1</span><span title="warmth">W1</span><span title="leverage">L2</span></div><div class="hook">hold — only if Vivek thread opens</div></div></div><div class="doss"><h1>Adapts (adapts.ai) — scouted 2026-08-03</h1>
+<p><b>What they do:</b> Deterministic code-intelligence platform (&quot;HC3&quot; code-ontology engine) for AI-agent-driven modernization of legacy enterprise codebases — living docs, change-impact analysis, business-logic extraction. Sells to regulated enterprises (AirAsia, Olympus Insurance, CSX Technology, Johns Hopkins, CloudMoyo).</p>
+<p><b>Founded/led by:</b> Vivek Sheel (Gupta) — CEO, ex-AWS/Amazon SDM; Sharad Agrawal — COO, ex-Microsoft product lead. HQ Bellevue/Sammamish WA. GA launch Nov 2025.</p>
+<p><b>Funding:</b> none found publicly (no Crunchbase round news, no press) — likely bootstrapped or undisclosed [unverified — Crunchbase profile exists but paywalled]. Revenue signals: named enterprise customers.</p>
+<p><b>Heat:</b> COOL by posting velocity (LinkedIn Jobs: zero openings; no careers page on site) — but growing product-stage startup, 15K LinkedIn followers, 16 staff (10 India / 6 US). → <b>1 outreach slot only, Mode B/C.</b></p>
+<p><b>ATS:</b> none found.</p>
+<p><b>Fit note:</b> agentic-AI dev tools — matches Devanshu&#x27;s agentic/LLM-systems + backend profile (NOT recsys). ⚠️ 11-50 person startup, eng mostly India-based — H1B sponsorship unlikely/unknown; clarify before investing effort.</p>
+<h2>Open roles (AI/ML/SDE)</h2>
+<p>None posted (LinkedIn Jobs empty, no site careers page). Pre-posting networking target.</p>
+<h2>People to approach (ranked, R/W/L)</h2>
+<h3>1. Vivek Sheel — CEO  [warm: 2nd-degree, mutuals incl. <b>Rohit Khoja</b> (EMNLP co-author + reference!); ex-Amazon like Devanshu]</h3>
+<p>R2 (4K followers, active founder page; recent GA launch = talking mode) / W3 (known mutual + shared Amazon lineage) / L3 (founder, company &lt;50)</p>
+<p>Evidence: linkedin.com/company/adaptsai/people — &quot;CEO, Adapts | ex-AWS | Deterministic Modernization&quot;</p>
+<p><b>Path: Mode C via Rohit Khoja</b> (ask Rohit how he knows Vivek first).</p>
+<p><b>Intro request to Rohit (Mode C):</b></p>
+<div class="draft" data-raw="Hey Rohit — hope you&#x27;re doing well! I noticed you&#x27;re connected to Vivek Sheel, CEO of Adapts (agentic code-intelligence startup in Bellevue). Their HC3 engine work overlaps a lot with what I&#x27;ve been building — LLM-powered agentic systems at Prime Video and our Weaver paper. Would you be comfortable intro&#x27;ing us? One-liner you can forward: &quot;Devanshu — SDE (ML) at Amazon Prime Video, built LLM retrieval/ranking serving 1M+ users, first-author EMNLP &#x27;25 (Weaver: SQL+LLM reasoning) — interested in what Adapts is building.&quot;">Hey Rohit — hope you&#x27;re doing well! I noticed you&#x27;re connected to Vivek Sheel, CEO of Adapts (agentic code-intelligence startup in Bellevue). Their HC3 engine work overlaps a lot with what I&#x27;ve been building — LLM-powered agentic systems at Prime Video and our Weaver paper. Would you be comfortable intro&#x27;ing us? One-liner you can forward: &quot;Devanshu — SDE (ML) at Amazon Prime Video, built LLM retrieval/ranking serving 1M+ users, first-author EMNLP &#x27;25 (Weaver: SQL+LLM reasoning) — interested in what Adapts is building.&quot;</div>
+<p><b>Backup direct connect note (if Rohit path stalls):</b></p>
+<div class="draft" data-raw="Hi Vivek — fellow Amazonian (SDE-ML at Prime Video). Adapts&#x27; deterministic code-ontology approach to agentic modernization is the most credible take I&#x27;ve seen on the legacy problem. I build LLM+retrieval systems in production and co-authored Weaver (EMNLP &#x27;25, SQL+LLM reasoning). Would love to follow your journey.">Hi Vivek — fellow Amazonian (SDE-ML at Prime Video). Adapts&#x27; deterministic code-ontology approach to agentic modernization is the most credible take I&#x27;ve seen on the legacy problem. I build LLM+retrieval systems in production and co-authored Weaver (EMNLP &#x27;25, SQL+LLM reasoning). Would love to follow your journey.</div>
+<h3>2. Sharad Agrawal — COO  [2nd-degree, no known mutuals]</h3>
+<p>R1 / W1 / L2 — hold; only if Vivek thread opens.</p>
+<p>Timing note: GA launched Nov 2025; company in customer-growth mode — founders receptive to strong eng talent conversations even without posted reqs.</p>
+<h2>Sources</h2>
+<ul><li>- <a class="lnk" href="https://adapts.ai" target="_blank">https://adapts.ai</a> (product, customers)</li><li>- <a class="lnk" href="https://adapts.ai/contact/" target="_blank">https://adapts.ai/contact/</a> (hello@adapts.ai)</li><li>- linkedin.com/company/adaptsai (size, people, jobs-empty, HQ)</li><li>- markets.financialcontent.com abnewswire 2025-11-19 (GA launch PR)</li><li>- WebSearch: founders (Vivek Sheel Gupta ex-Amazon SDM, Sharad Agrawal ex-Microsoft), Sammamish WA</li></ul>
+<h2>Next actions</h2>
+<ul><li>⬜ Ask Rohit Khoja how well he knows Vivek Sheel; if solid → send Mode C intro request</li><li>⬜ Verify H1B/sponsorship stance before deeper investment (ask in the intro call, not in outreach)</li><li>⬜ Follow Adapts company page + Vivek (low-cost visibility)</li><li>⬜ Re-check jobs in ~6 weeks (hiring_heat has no ATS to sweep — manual recheck)</li></ul></div><script>
+document.querySelectorAll('.draft').forEach(d => {
+  const b = document.createElement('button'); b.className = 'copy'; b.textContent = 'copy';
+  b.onclick = () => { navigator.clipboard.writeText(d.dataset.raw)
+    .then(() => { b.textContent = 'copied!'; setTimeout(() => b.textContent = 'copy', 1200); }); };
+  d.appendChild(b);
+});
+</script></body></html>

@@ -1,4 +1,32 @@
 {
-  "_comment": "Networking pipeline tracker, maintained by the company-scout agent. status flow: scouted -> outreach_drafted -> contacted -> replied -> call_booked -> referred -> interviewing -> closed. 'people' mirrors the ranked list in the dossier; keep in sync.",
-  "companies": []
+  "_comment": "Networking pipeline tracker, maintained by the company-scout agent. status flow: scouted -> outreach_drafted -> contacted -> replied -> call_booked -> referred -> interviewing -> closed. Each person: {name, title, rwl: [R,W,L], hook, outreach: [{date, channel: dm|connect|email|intro, mode: A|B|C, touch_n: 1-3, outcome: none|replied|referred|declined}]}. The outreach log is the feedback loop — aggregate it to learn which persona/channel/mode gets replies. Keep 10-15 companies in flight; per-company reply odds with 3 well-chosen people ~30-40%.",
+  "companies": [
+    {
+      "name": "Adapts",
+      "website": "https://adapts.ai",
+      "dossier": "dossiers/adapts.md",
+      "status": "outreach_drafted",
+      "last_scouted": "2026-08-03",
+      "heat": "COOL",
+      "funding": "none public (bootstrapped or undisclosed)",
+      "open_roles": 0,
+      "fit": "agentic AI / LLM systems / SDE (not recsys); 11-50 ppl, sponsorship unknown",
+      "people": [
+        {
+          "name": "Vivek Sheel",
+          "title": "CEO (ex-Amazon SDM)",
+          "rwl": [2, 3, 3],
+          "hook": "HC3 agentic code-ontology + shared Amazon lineage; mutual: Rohit Khoja",
+          "outreach": []
+        },
+        {
+          "name": "Sharad Agrawal",
+          "title": "COO (ex-Microsoft)",
+          "rwl": [1, 1, 2],
+          "hook": "hold — only if Vivek thread opens",
+          "outreach": []
+        }
+      ]
+    }
+  ]
 }

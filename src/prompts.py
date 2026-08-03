@@ -55,8 +55,10 @@ overclaiming):
 + [one differentiating credential]. Lead with what THIS role cares about; it should \
 read as written for this job, not a generic profile.
 
-TECHNICAL_SKILLS (one line, ≤ {skills_max} words, keep the master's grouping style \
-such as "Languages: … | ML: …"):
+TECHNICAL_SKILLS (one line, ≤ {skills_max} words, EXACTLY 5 groups separated by " | ", \
+each "Group: item, item, …" — e.g. "Languages: … | ML: … | Retrieval: … | Systems: … | \
+Cloud: …"). Five full, keyword-dense groups (not 3-4) so the skills section is rich and \
+maximizes JD/ATS keyword coverage:
   Fixed core  ALWAYS include these regardless of JD, never drop them: \
 Languages must include Python, SQL, Kotlin. ML (when an ML/ML-adjacent group is present) \
 must include PyTorch, TensorFlow, scikit-learn, Koog. On top of that fixed core, add \
@@ -72,11 +74,11 @@ real work in the JD's language, not adding a new skill  still bound by HONESTY: 
 label a concept the candidate could defend explaining in an interview from what they \
 actually built. Never add a DIFFERENT tool/technique they did not use.
 
-TOP_BULLETS (2 to 5  the rewritten/reordered bullets of the chosen experience block):
+TOP_BULLETS (3 to 7  the rewritten/reordered bullets of the chosen experience block):
   These become the ENTIRE bullet list of the chosen block (it renders exactly these, in \
-order  everything else in that block is dropped for this JD); max 5  a 10-second \
-  skim rewards density, and more than 5 risks clipping the one-page render  when \
-  tempted to add a 6th, cut the weakest instead; every bullet must earn its line. The \
+order  everything else in that block is dropped for this JD). Give at least 3 and up to \
+7; aim for 4-5 strong, JD-anchored bullets. Every bullet must earn its line; the renderer \
+trims the weakest tail bullets first if the page overflows, but never below 3. The \
 first two are the whole game  a reviewer must think "this person has done exactly what \
 we need" in a 10-second skim. Pick the TRUE experience that best proves each priority \
 (mine the master resume's full bullet pool) and re-frame it in the JD's own vocabulary.
