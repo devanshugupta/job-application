@@ -68,14 +68,15 @@ Never fabricate; confirm before anything irreversible; commit messages short, no
 
 ## 3. Known failure modes (what I had to fix by hand)
 
-**A. Parallel agents cross-contaminate PDFs — ALWAYS verify.**
-Concurrent `tailor` runs share one intermediate resume file, so agents overwrite each
-other's bullets mid-render. Last run this corrupted 10/30 PDFs (correct data in the
-tracker, wrong bullets in the PDF, still 1 page so it looks fine). **Mandatory fix:**
-after any parallel batch, pdftotext each new PDF and confirm its own `top_bullets`
-(first 5 words of each) and last skills group are present; re-render offenders
-**sequentially** from `resume_diff`. Proper code fix pending: give each `tailor_job`
-run a per-job temp filename instead of the shared path.
+**A. Parallel PDF cross-contamination — FIXED IN CODE (keep a light verify anyway).**
+Root cause: `render_pdf` compiled to one shared path (`config.DATA_DIR/<pdf_name>`), so
+concurrent renders overwrote each other and each read the wrong bytes back into its own
+folder — 10/30 PDFs got the wrong bullets (still 1 page, so it looked fine). Fixed
+`bb195f0`: each render now uses a UNIQUE temp working dir (verified by a concurrency
+test). You no longer have to re-render by hand. Still cheap insurance after a big
+parallel batch: pdftotext each new PDF, confirm its own `top_bullets` (first ~5 words)
++ last skills group are present and it's 1 page; if anything is off, re-render that one
+from the tracker's `resume_diff`.
 
 **B. Subagents stall (`no progress 600s`) on long manual-brain loops.**
 Last big run 3–4 of 6 agents stalled. Mitigate: batches of ≤5, tell agents to keep
