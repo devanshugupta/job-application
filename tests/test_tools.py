@@ -52,17 +52,6 @@ def test_linkedin_dedupe_survives_missing_jd_text():
     assert len(out) == 2
 
 
-def test_cap_per_company():
-    from src.tools.discover import cap_per_company
-    jobs = [{"company": "TikTok", "role": "A"}, {"company": "TikTok, Inc.", "role": "B"},
-            {"company": "Stripe", "role": "C"}, {"company": "TikTok", "role": "D"}]
-    # default n=1 keeps only the best (first-ranked) per normalized company
-    assert [(j["company"], j["role"]) for j in cap_per_company(jobs, 1)] == \
-        [("TikTok", "A"), ("Stripe", "C")]
-    # n=2 allows two; "TikTok, Inc." collapses with "TikTok"
-    assert len(cap_per_company(jobs, 2)) == 3
-
-
 # --- ATS scoring ---------------------------------------------------------------
 
 def test_ats_score_basic():

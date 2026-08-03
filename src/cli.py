@@ -140,10 +140,6 @@ def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str | No
             jd = a.get("jd_text")
             a["_pregate"] = ats.jd_match(jd)["score"] if jd else -1
         backlog.sort(key=lambda a: a["_pregate"], reverse=True)
-        # Interview odds are per company, so keep only the best-ranked role(s) per
-        # employer before spending tailoring slots (default 1; settings.json
-        # tailor.max_per_company). Five roles at one company is one shot, not five.
-        backlog = discover.cap_per_company(backlog)
         jobs = backlog[:top]
         print(f"=== PIPELINE: {len(jobs)} previously found roles (pre-gate ranked) "
               "-> tailor+score ===")

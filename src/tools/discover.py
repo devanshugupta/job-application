@@ -25,33 +25,6 @@ from datetime import date
 from .. import config
 from . import ats, feeds, profiles, scoring, tracker
 
-
-def _company_key(job) -> str:
-    """Normalized employer identity for the per-company cap. Reuses tracker._job_key's
-    company normalization (strips Inc./LLC/punctuation) so 'Stripe' and 'Stripe, Inc.'
-    collapse. Accepts a job dict or a tracker row (both carry 'company')."""
-    return tracker._job_key({"company": job.get("company", ""), "role": ""})[0]
-
-
-def cap_per_company(jobs: list, n: int | None = None) -> list:
-    """Keep at most `n` jobs per company, preserving input order (so a fit-ranked list
-    keeps its best per employer). Interview odds are per company, not per posting  five
-    roles at one employer is one shot, so tailoring all five is wasted effort. Default
-    from settings.json `tailor.max_per_company` (fallback 1 = only the single best)."""
-    if n is None:
-        tj = config._settings().get("tailor")
-        n = int(tj.get("max_per_company", 1)) if isinstance(tj, dict) else 1
-    n = max(1, n)
-    seen: dict[str, int] = {}
-    out = []
-    for j in jobs:
-        k = _company_key(j)
-        if seen.get(k, 0) >= n:
-            continue
-        seen[k] = seen.get(k, 0) + 1
-        out.append(j)
-    return out
-
 # Titles that are never a fit for an entry-level SWE/ML/Data search, regardless
 # of source. Seniority gating only applies to board-API results (the new-grad
 # feed is already level-filtered).
@@ -440,11 +413,6 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
     if verbose and dropped:
         print(f"LLM gate: dropped {dropped} role(s) below {min_match}% JD-match or older "
               f"than {recency_days}d; {len(gated)} eligible.")
-    # Interview odds are per COMPANY, not per posting: five roles at one employer is one
-    # shot, not five. So before spending tailoring slots, keep only the best-ranked N per
-    # company (default 1) — the rest are redundant effort. Applied to the already
-    # fit-ranked list, so "best" = highest-ranked survivor per company.
-    gated = cap_per_company(gated)
     shortlist = gated[:top]
     if verbose:
         print(f"\nRe-ranked by BM25 relevance (corpus-aware); tailoring top "
