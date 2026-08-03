@@ -129,6 +129,34 @@ See **RUNBOOK.md** for the full daily flow and **CLAUDE.md** for the architectur
 
 ---
 
+## Networking layer (company scout)
+
+Applications alone convert poorly; referrals interview at 10-20x the rate. The
+networking layer researches a company, finds the right 2-3 people to approach,
+and drafts the outreach. You send everything yourself; nothing is automated on
+LinkedIn or email.
+
+- **`/scout <company>`** (Claude Code in this repo) runs the `company-scout`
+  agent: funding and stage, open matching roles (free ATS JSON APIs first),
+  a ranked people map (response-likelihood, warmth, leverage), and outreach
+  drafts grounded ONLY in your `resume/achievements.md`.
+- **`scripts/hiring_heat.py`** rates every watchlist company by real posting
+  velocity (new reqs in 30 days, acceleration, ghost-job share). Active hiring
+  is the strongest predictor that outreach gets answered.
+- **`scripts/network_dashboard.py`** renders one self-contained
+  `data/network/dashboard.html`: searchable pipeline, sortable hiring-heat
+  table, per-company pages with copy-ready drafts.
+- **`scripts/linkedin_probe.py`** (optional) measures what a logged-in
+  Playwright session can parse from LinkedIn before you build on it.
+
+Everything personal lives in **`config/network.json`** (gitignored). Copy
+`config/network.example.json`, fill in your name, schools, stack, target
+titles, role keywords, and outreach phrasing; the agent prompts resolve those
+as variables, so the same pipeline works for an ML profile or a robotics one.
+Pipeline data (`data/network/`) is per-user and gitignored too.
+
+---
+
 ## Extending it
 
 ### Add a LinkedIn integration
