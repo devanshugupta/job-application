@@ -267,7 +267,7 @@ def people_html(c: dict) -> str:
     return out
 
 
-def company_page(c: dict, heat_row: dict | None) -> str:
+def company_view(c: dict, heat_row: dict | None) -> str:
     name, slug = c["name"], slugify(c["name"])
     stage = c.get("status", "scouted")
     steps = "".join(
@@ -303,7 +303,8 @@ def company_page(c: dict, heat_row: dict | None) -> str:
                          + "".join(f"<li>⬜ {_inline(a.strip())}</li>" for a in acts)
                          + "</ul></div>")
         dossier_html = f'<div class="doss">{md_to_html(md)}</div>'
-    body = (f'<div class="crumb"><a class="lnk" href="../dashboard.html">← Back to pipeline</a></div>'
+    return (f'<section class="view hidden" id="co-{slug}">'
+            f'<div class="crumb"><a class="lnk" href="#">← Back to pipeline</a></div>'
             f'<h1>{esc(name)} {heat_chip(c.get("heat",""))}'
             f' <span class="date">scouted {esc(c.get("last_scouted","?"))}</span></h1>'
             f'<div class="mut" style="display:flex;gap:14px">{"".join(links)}</div>'
@@ -312,11 +313,24 @@ def company_page(c: dict, heat_row: dict | None) -> str:
             f'{acts_html}{stats}'
             f'<h2>People ({len(c.get("people", []))})</h2>'
             f'<div class="card">{people_html(c) or "<span class=mut>none mapped</span>"}</div>'
-            f'{dossier_html}')
-    return page(f"{name} scout report", body, COPY_JS)
+            f'{dossier_html}</section>')
 
 
 # ---------------------------------------------------------------------- index
+
+ROUTER_JS = """
+function route() {
+  const id = location.hash.slice(1);
+  const view = id && document.getElementById(id);
+  document.getElementById('home').classList.toggle('hidden', !!view);
+  document.querySelectorAll('section.view').forEach(v =>
+    v.classList.toggle('hidden', v !== view));
+  window.scrollTo(0, 0);
+}
+window.addEventListener('hashchange', route);
+route();
+"""
+
 
 def build_index(tracker: list[dict], heat: dict) -> str:
     heat_rows = heat.get("companies", [])
@@ -353,7 +367,7 @@ def build_index(tracker: list[dict], heat: dict) -> str:
         blob = " ".join([c["name"], c.get("fit", ""), c.get("funding", ""), stage, ppl]).lower()
         cards += (
             f'<a class="card" style="display:block;text-decoration:none" data-search="{esc(blob)}"'
-            f' href="companies/{slug}.html"><div class="chead">'
+            f' href="#co-{slug}"><div class="chead">'
             f'<div><b>{esc(c["name"])}</b> {heat_chip(c.get("heat",""))}'
             f' <span class="date">{esc(c.get("last_scouted","?"))}</span></div>'
             f'<div class="flow">{steps}<span class="mut">&nbsp;{esc(stage)}</span></div></div>'
@@ -365,7 +379,7 @@ def build_index(tracker: list[dict], heat: dict) -> str:
     heat_trs = ""
     for r in heat_rows:
         slug = slugify(r["company"])
-        name_cell = (f'<a class="lnk" href="companies/{slug}.html">{esc(r["company"])}</a>'
+        name_cell = (f'<a class="lnk" href="#co-{slug}">{esc(r["company"])}</a>'
                      if slug in by_slug else esc(r["company"]))
         fresh = "".join(
             f'<li><a class="lnk" href="{esc(j["url"])}" target="_blank">{esc(j["role"])}</a>'
@@ -381,8 +395,11 @@ def build_index(tracker: list[dict], heat: dict) -> str:
             f'<td class="n">{r["accel"]:.1f}x</td><td class="n">{r["ghost_share"]:.0%}</td>'
             f'<td class="n">{details}</td></tr>')
 
+    heat_by_slug = {slugify(r["company"]): r for r in heat_rows}
+    views = "".join(company_view(c, heat_by_slug.get(slugify(c["name"]))) for c in tracker)
+
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    body = (f'<h1>Networking Pipeline</h1>'
+    body = (f'<div id="home"><h1>Networking Pipeline</h1>'
             f'<div class="mut">Updated {now}. Heat sweep: {esc(computed) or "not run yet"}. '
             f'Refresh with <code>python scripts/network_dashboard.py</code></div>'
             f'<div class="tiles">{tiles}</div>'
@@ -404,8 +421,9 @@ def build_index(tracker: list[dict], heat: dict) -> str:
             f'<th class="n" data-col>Open roles</th><th class="n" data-col>New (30d)</th>'
             f'<th class="n" data-col>Speeding up</th><th class="n" data-col>Stale posts</th>'
             f'<th class="n" data-col>For you (30d)</th></tr>'
-            f'{heat_trs}</table>')
-    return page("Networking Pipeline — Devanshu", body, SEARCH_JS)
+            f'{heat_trs}</table></div>'
+            f'{views}')
+    return page("Networking Pipeline", body, SEARCH_JS + COPY_JS + ROUTER_JS)
 
 
 def main() -> None:
@@ -414,14 +432,8 @@ def main() -> None:
     args = ap.parse_args()
     tracker = load_json(NET / "companies.json").get("companies", [])
     heat = load_json(NET / "hiring_heat.json")
-    heat_by_name = {slugify(r["company"]): r for r in heat.get("companies", [])}
-
-    CO_DIR.mkdir(parents=True, exist_ok=True)
-    for c in tracker:
-        slug = slugify(c["name"])
-        (CO_DIR / f"{slug}.html").write_text(company_page(c, heat_by_name.get(slug)))
     OUT.write_text(build_index(tracker, heat))
-    print(f"-> {OUT}  (+{len(tracker)} company pages in {CO_DIR})")
+    print(f"-> {OUT}  (single file, {len(tracker)} company views embedded)")
     if args.open:
         webbrowser.open(OUT.as_uri())
 
