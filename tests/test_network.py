@@ -192,3 +192,14 @@ def test_configured_keywords_priority(tmp_path, monkeypatch):
     assert hiring_heat.configured_keywords() == ["from-settings"]
     (root / "config" / "settings.json").write_text("{}")
     assert hiring_heat.configured_keywords() == hiring_heat.DEFAULT_KEYWORDS
+
+
+def test_next_actions_not_duplicated_in_company_view(tmp_path, monkeypatch):
+    net = _tmp_net(tmp_path, monkeypatch)
+    (net / "dossiers" / "acme.md").write_text(
+        "# Acme\n\n## Next actions\n- [ ] ping Jane\n- [x] done\n")
+    c = {"name": "Acme", "dossier": "dossiers/acme.md", "status": "scouted",
+         "last_scouted": "2026-08-03", "heat": "HOT", "people": []}
+    html = dash.company_view(c, None)
+    assert html.count("Next actions") == 1
+    assert html.count("ping Jane") == 1

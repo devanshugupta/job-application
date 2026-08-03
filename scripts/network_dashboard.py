@@ -302,6 +302,9 @@ def company_view(c: dict, heat_row: dict | None) -> str:
             acts_html = ('<h2>Next actions</h2><div class="acts"><ul>'
                          + "".join(f"<li>⬜ {_inline(a.strip())}</li>" for a in acts)
                          + "</ul></div>")
+        # the actions section is promoted to the top of the page, so drop it
+        # from the rendered dossier to avoid showing it twice
+        md = re.sub(r"\n#{2,3} Next actions\n(?:\s*- \[[ x]\] .*\n?)*", "\n", md)
         dossier_html = f'<div class="doss">{md_to_html(md)}</div>'
     return (f'<section class="view hidden" id="co-{slug}">'
             f'<div class="crumb"><a class="lnk" href="#">← Back to pipeline</a></div>'
