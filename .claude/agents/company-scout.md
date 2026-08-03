@@ -110,7 +110,9 @@ their most recent blog post/talk/paper/launch/post — one specific sentence
 about THEIR work is the strongest opener; and a **timing note** (just posted /
 promoted / funding announced → send within days of the event).
 Person record: name, title/team, evidence URLs, R/W/L + reasons, hook
-artifact, timing note. Degree/mutuals/activity-recency are LinkedIn-gated —
+artifact, timing note. Capture the person's exact LinkedIn profile URL when
+you see it and store it as `linkedin` on their tracker entry; the dashboard
+links it (and falls back to a name+company search link when absent). Degree/mutuals/activity-recency are LinkedIn-gated —
 mark `[verify on LinkedIn: degree+mutuals+activity]` for the main session
 (user's Chrome) or the linkedin.py parser to fill; portfolio/GitHub/Scholar/
 mentorship signals are public — gather them here via WebSearch/WebFetch.

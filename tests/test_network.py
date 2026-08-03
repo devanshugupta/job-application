@@ -203,3 +203,22 @@ def test_next_actions_not_duplicated_in_company_view(tmp_path, monkeypatch):
     html = dash.company_view(c, None)
     assert html.count("Next actions") == 1
     assert html.count("ping Jane") == 1
+
+
+def test_bare_linkedin_paths_become_links():
+    h = dash.md_to_html("- linkedin.com/company/acme/people/ (size, people)")
+    assert 'href="https://linkedin.com/company/acme/people/"' in h
+    # already-schemed URLs are not double-wrapped
+    h2 = dash.md_to_html("https://www.linkedin.com/in/someone/")
+    assert h2.count("<a ") == 1
+
+
+def test_person_gets_linkedin_link():
+    c = {"name": "Acme", "people": [
+        {"name": "Jane Roe", "title": "EM", "rwl": [1, 1, 1], "hook": "x"},
+        {"name": "Bob", "title": "SDE", "rwl": [1, 1, 1], "hook": "y",
+         "linkedin": "https://www.linkedin.com/in/bob-exact/"}]}
+    h = dash.people_html(c)
+    assert "search/results/people/?keywords=Jane+Roe+Acme" in h
+    assert "find on LinkedIn" in h
+    assert 'href="https://www.linkedin.com/in/bob-exact/"' in h and ">profile</a>" in h

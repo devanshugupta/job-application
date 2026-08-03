@@ -194,6 +194,9 @@ def _inline(t: str) -> str:
                r'<a class="lnk" href="\2" target="_blank">\1</a>', t)
     t = re.sub(r"(?<![\"'>=])(https?://[^\s<)]+)",
                r'<a class="lnk" href="\1" target="_blank">\1</a>', t)
+    # bare linkedin.com/... paths (dossiers often cite them without a scheme)
+    t = re.sub(r"(?<![\w./\"'>=])((?:www\.)?linkedin\.com/[^\s<),]+)",
+               r'<a class="lnk" href="https://\1" target="_blank">\1</a>', t)
     return t
 
 
@@ -251,6 +254,7 @@ def md_to_html(md: str) -> str:
 # --------------------------------------------------------------- company page
 
 def people_html(c: dict) -> str:
+    from urllib.parse import quote_plus
     out = ""
     for p in c.get("people", []):
         r_, w_, l_ = (p.get("rwl") or [0, 0, 0])[:3]
@@ -258,8 +262,15 @@ def people_html(c: dict) -> str:
             f'<li>{esc(o.get("date",""))}: {esc(o.get("channel",""))}, mode {esc(o.get("mode",""))},'
             f' touch {esc(o.get("touch_n",""))}, outcome <b>{esc(o.get("outcome","none"))}</b></li>'
             for o in p.get("outreach", []))
+        # exact profile URL when the tracker has one; otherwise a name+company
+        # LinkedIn search, which lands on the right person in one click
+        clean = p["name"].split("[")[0].strip()
+        url = p.get("linkedin") or ("https://www.linkedin.com/search/results/people/?keywords="
+                                    + quote_plus(f'{clean} {c.get("name","")}'))
         out += (f'<div class="person"><div><b>{esc(p["name"])}</b>'
-                f' <span class="mut">{esc(p.get("title",""))}</span></div>'
+                f' <span class="mut">{esc(p.get("title",""))}</span>'
+                f' <a class="lnk" style="font-size:12px" href="{esc(url)}"'
+                f' target="_blank">{"profile" if p.get("linkedin") else "find on LinkedIn"}</a></div>'
                 f'<div class="rwl"><span title="response likelihood">R{r_}</span>'
                 f'<span title="warmth">W{w_}</span><span title="leverage">L{l_}</span></div>'
                 f'<div class="hook">{esc(p.get("hook",""))}</div>'
