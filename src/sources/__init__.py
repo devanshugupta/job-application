@@ -83,6 +83,11 @@ def resolve(selectors: list[str] | None) -> list[Source]:
     with no error; selection bypasses the availability gate so you can force one on).
     """
     _load_builtins()
+    # "all"/"*" is an explicit request for every available source  same as passing no
+    # selector. Without this, `--source all` matched a source literally named "all"
+    # (there is none) and silently returned zero, so a whole sweep found nothing.
+    if selectors is not None and any(s.strip().lower() in ("all", "*") for s in selectors):
+        selectors = None
     if selectors is None:
         cfg = config._settings().get("sources")
         if isinstance(cfg, list):
