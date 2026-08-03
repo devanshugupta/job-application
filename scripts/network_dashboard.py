@@ -255,8 +255,8 @@ def people_html(c: dict) -> str:
     for p in c.get("people", []):
         r_, w_, l_ = (p.get("rwl") or [0, 0, 0])[:3]
         log = "".join(
-            f'<li>{esc(o.get("date",""))} · {esc(o.get("channel",""))} · mode {esc(o.get("mode",""))}'
-            f' · touch {esc(o.get("touch_n",""))} → <b>{esc(o.get("outcome","none"))}</b></li>'
+            f'<li>{esc(o.get("date",""))}: {esc(o.get("channel",""))}, mode {esc(o.get("mode",""))},'
+            f' touch {esc(o.get("touch_n",""))}, outcome <b>{esc(o.get("outcome","none"))}</b></li>'
             for o in p.get("outreach", []))
         out += (f'<div class="person"><div><b>{esc(p["name"])}</b>'
                 f' <span class="mut">{esc(p.get("title",""))}</span></div>'
@@ -282,10 +282,10 @@ def company_page(c: dict, heat_row: dict | None) -> str:
         stats = ('<div class="stats">'
                  + "".join(f"<div><b>{v}</b><br><span>{k}</span></div>" for v, k in [
                      (heat_row["open_roles"], "open roles"),
-                     (heat_row["new_30d"], "new · 30d"),
-                     (f'{heat_row["accel"]:.1f}×', "accel"),
-                     (f'{heat_row["ghost_share"]:.0%}', "ghost"),
-                     (heat_row["match_new_30d"], "match · 30d")])
+                     (heat_row["new_30d"], "new (30d)"),
+                     (f'{heat_row["accel"]:.1f}x', "speeding up"),
+                     (f'{heat_row["ghost_share"]:.0%}', "stale posts"),
+                     (heat_row["match_new_30d"], "for you (30d)")])
                  + "</div>")
         fresh = "".join(
             f'<li><a class="lnk" href="{esc(j["url"])}" target="_blank">{esc(j["role"])}</a>'
@@ -303,17 +303,17 @@ def company_page(c: dict, heat_row: dict | None) -> str:
                          + "".join(f"<li>⬜ {_inline(a.strip())}</li>" for a in acts)
                          + "</ul></div>")
         dossier_html = f'<div class="doss">{md_to_html(md)}</div>'
-    body = (f'<div class="crumb"><a class="lnk" href="../dashboard.html">← pipeline</a></div>'
+    body = (f'<div class="crumb"><a class="lnk" href="../dashboard.html">← Back to pipeline</a></div>'
             f'<h1>{esc(name)} {heat_chip(c.get("heat",""))}'
             f' <span class="date">scouted {esc(c.get("last_scouted","?"))}</span></h1>'
-            f'<div class="mut">{" · ".join(links)}</div>'
+            f'<div class="mut" style="display:flex;gap:14px">{"".join(links)}</div>'
             f'<div class="flow" style="margin-top:8px">{steps}'
             f'<span class="mut">&nbsp;{esc(stage)}</span></div>'
             f'{acts_html}{stats}'
             f'<h2>People ({len(c.get("people", []))})</h2>'
             f'<div class="card">{people_html(c) or "<span class=mut>none mapped</span>"}</div>'
             f'{dossier_html}')
-    return page(f"{name} — scout", body, COPY_JS)
+    return page(f"{name} scout report", body, COPY_JS)
 
 
 # ---------------------------------------------------------------------- index
@@ -331,9 +331,9 @@ def build_index(tracker: list[dict], heat: dict) -> str:
 
     tiles = "".join(
         f'<div class="tile"><div class="v">{v}</div><div class="k">{k}</div></div>'
-        for v, k in [(len(tracker), "companies scouted"), (n_hot, "HOT on watchlist"),
-                     (match30, "matching reqs · 30d"), (n_people, "people mapped"),
-                     (len(touches), "touches sent"), (n_replies, "replies")])
+        for v, k in [(len(tracker), "companies scouted"), (n_hot, "hot right now"),
+                     (match30, "matching roles (30d)"), (n_people, "people mapped"),
+                     (len(touches), "messages sent"), (n_replies, "replies")])
 
     top = [r for r in heat_rows if r.get("match_new_30d", 0) > 0][:10]
     mx = max((r["match_new_30d"] for r in top), default=1)
@@ -378,28 +378,32 @@ def build_index(tracker: list[dict], heat: dict) -> str:
             f' data-heat="{esc(r["heat"])}">'
             f'<td>{name_cell}</td><td>{heat_chip(r["heat"])}</td>'
             f'<td class="n">{r["open_roles"]}</td><td class="n">{r["new_30d"]}</td>'
-            f'<td class="n">{r["accel"]:.1f}</td><td class="n">{r["ghost_share"]:.0%}</td>'
+            f'<td class="n">{r["accel"]:.1f}x</td><td class="n">{r["ghost_share"]:.0%}</td>'
             f'<td class="n">{details}</td></tr>')
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     body = (f'<h1>Networking Pipeline</h1>'
-            f'<div class="mut">generated {now} · heat sweep {esc(computed) or "not run"} · '
-            f'regenerate: <code>python scripts/network_dashboard.py</code></div>'
+            f'<div class="mut">Updated {now}. Heat sweep: {esc(computed) or "not run yet"}. '
+            f'Refresh with <code>python scripts/network_dashboard.py</code></div>'
             f'<div class="tiles">{tiles}</div>'
             f'<input id="q" class="search" type="search"'
-            f' placeholder="Search companies, people, status… (filters cards and table)">'
-            f'<h2>Companies in pipeline (newest first)</h2>{cards}'
-            f'<h2>Matching reqs opened · last 30 days</h2>'
+            f' placeholder="Search companies, people, or status">'
+            f'<h2>Companies in Pipeline</h2>'
+            f'<div class="mut" style="margin-bottom:8px">Newest first. Click a card for the full page.</div>'
+            f'{cards}'
+            f'<h2>Matching Roles Opened in the Last 30 Days</h2>'
             f'<div class="bchart">{bars or "<span class=mut>run scripts/hiring_heat.py first</span>"}</div>'
-            f'<h2>Hiring heat (posting velocity, {len(heat_rows)} companies)</h2>'
+            f'<h2>Hiring Heat ({len(heat_rows)} companies)</h2>'
+            f'<div class="mut" style="margin-bottom:4px">How actively each company is hiring, '
+            f'from real posting dates. Click a column to sort, a chip to filter.</div>'
             f'<div class="fchips">'
             + "".join(f'<button class="fchip" data-f="{h}">{h}</button>'
                       for h in ("HOT", "WARM", "COOL", "DEAD"))
             + f'</div>'
-            f'<table><tr><th data-col>company</th><th data-col>heat</th>'
-            f'<th class="n" data-col>open</th><th class="n" data-col>new 30d</th>'
-            f'<th class="n" data-col>accel</th><th class="n" data-col>ghost</th>'
-            f'<th class="n" data-col>match 30d</th></tr>'
+            f'<table><tr><th data-col>Company</th><th data-col>Heat</th>'
+            f'<th class="n" data-col>Open roles</th><th class="n" data-col>New (30d)</th>'
+            f'<th class="n" data-col>Speeding up</th><th class="n" data-col>Stale posts</th>'
+            f'<th class="n" data-col>For you (30d)</th></tr>'
             f'{heat_trs}</table>')
     return page("Networking Pipeline — Devanshu", body, SEARCH_JS)
 

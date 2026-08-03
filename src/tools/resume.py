@@ -43,7 +43,8 @@ BUDGETS = {
     "summary_max_lines": 2,             # 2 rendered lines max, one adjective max
     "summary_min_words": 18,
     "summary_max_words": 40,
-    "technical_skills_max_words": 35,   # don't dump every tool you've touched
+    "technical_skills_max_words": 50,   # 5 keyword-dense groups (~10 words each); still
+                                        # one rendered block, not an every-tool dump
     "bullet_min_words": 14,
     "bullet_max_words": 30,             # ~1.5 rendered lines in the PDF
 }

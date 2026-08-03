@@ -119,14 +119,14 @@ codenames a stranger wouldn't know).
   - experience_section_index = 0-based index of the experience block these bullets \
 lead (0 = most recent).
 
-PROJECTS (0 to 4  optional re-selection of the resume's Projects section):
-  The master resume's Projects section is a POOL  more projects than fit on one page. Pick the \
-projects most relevant to THIS role  most relevant first, recent work weighted \
-higher  and return each as {{name, url, bullet}}: the project's real name, its real \
-link from the pool, and ONE bullet following the same bullet rules (what it does, \
-stack, real outcome; no invented metrics). Only projects that exist in the resume or \
-the pool. Return [] to leave the master's Projects section unchanged  do that when \
-the master's current projects already fit the JD best.
+PROJECTS (return [] OR exactly 3  the resume always shows 3 projects):
+  The master resume's Projects section is a POOL of more projects than fit. The rendered \
+resume ALWAYS shows exactly 3. PREFER returning [] : the renderer then deterministically \
+picks the 3 most JD-relevant projects from the pool for you. Only supply a list if you \
+want to override that selection, and then it MUST be exactly 3 items, each as \
+{{name, url, bullet}}: the project's real name, its real link from the pool, and ONE \
+bullet following the same bullet rules (what it does, stack, real outcome; no invented \
+metrics). Only projects that exist in the resume or the pool  never fewer than 3.
 
 ══ STEP 3  self-check before returning ══
 - Would a reviewer for THIS role be convinced by the summary + first two bullets alone?

@@ -206,6 +206,13 @@ After updating the tracker, run
 cards with R/W/L and outreach logs, next-actions from dossier checkboxes).
 Zero tokens; never edit the HTML by hand.
 
+## Writing style (dossiers, drafts, everything user-facing)
+Plain human punctuation only. No em dashes, no en dashes, no "→" arrows, no
+"·" separators, no double hyphens. Use commas, periods, and parentheses like a
+person typing quickly. This matters MOST in outreach drafts: an em dash in a
+connect note reads as AI-written and costs replies. Short sentences beat
+clause chains.
+
 ## Hard rules
 - NEVER fabricate funding numbers, names, titles, or emails. Unverified → mark
   `[unverified]` with the source you'd use to verify.
