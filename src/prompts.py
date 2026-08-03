@@ -76,9 +76,12 @@ actually built. Never add a DIFFERENT tool/technique they did not use.
 
 TOP_BULLETS (3 to 7  the rewritten/reordered bullets of the chosen experience block):
   These become the ENTIRE bullet list of the chosen block (it renders exactly these, in \
-order  everything else in that block is dropped for this JD). Give at least 3 and up to \
-7; aim for 4-5 strong, JD-anchored bullets. Every bullet must earn its line; the renderer \
-trims the weakest tail bullets first if the page overflows, but never below 3. The \
+order  everything else in that block is dropped for this JD). ALWAYS give at least the \
+top 3, and give the top 5 when the candidate genuinely has 5 strong, JD-relevant bullets \
+for this block  never fewer than 3, and never pad to reach 5 with weak or generic lines \
+(a real 4 beats a padded 5). Draw the best-matching bullets from the block's full pool in \
+the master. Every bullet must earn its line; the renderer trims the weakest tail bullets \
+first if the page overflows, but never below 3. The \
 first two are the whole game  a reviewer must think "this person has done exactly what \
 we need" in a 10-second skim. Pick the TRUE experience that best proves each priority \
 (mine the master resume's full bullet pool) and re-frame it in the JD's own vocabulary.
