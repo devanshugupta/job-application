@@ -1,5 +1,8 @@
 """Unit tests for the deterministic tool logic (no API, no browser)."""
 
+import pathlib
+
+from src import config
 from src.tools import ats, feeds, final_check, finder, jd_fetch, latex, portals, usage as usage_mod
 from src.sources import linkedin
 
@@ -50,6 +53,50 @@ def test_linkedin_dedupe_survives_missing_jd_text():
     ]
     out = linkedin._dedupe_near_duplicates(jobs)
     assert len(out) == 2
+
+
+def test_render_pdf_concurrent_no_cross_contamination(tmp_path, monkeypatch):
+    """Two renders running at the same time must each keep their OWN content. Regression
+    for the shared-path race: render_pdf used one fixed compile target, so concurrent
+    calls overwrote each other and filed the wrong bytes into each job's folder. The fix
+    is a unique temp dir per call; this proves (a) each compile gets a distinct dest and
+    (b) each job's PDF holds only its own marker even under a widened race window."""
+    import concurrent.futures as cf
+    import threading
+    import time
+    from src.tools import resume, latex, artifacts
+
+    seen_dests = []
+    lock = threading.Lock()
+
+    def fake_compile(tex_source, out_pdf):
+        with lock:
+            seen_dests.append(str(out_pdf))
+        time.sleep(0.05)                      # widen the race window
+        pathlib.Path(out_pdf).write_text(tex_source)   # "PDF" = the edited tex (carries the marker)
+        return True, ""
+
+    monkeypatch.setattr(latex, "have_pdflatex", lambda: True)
+    monkeypatch.setattr(latex, "tex_master_path", lambda profile: tmp_path / "master.tex")
+    (tmp_path / "master.tex").write_text("MASTER")
+    monkeypatch.setattr(latex, "edit_tex", lambda tex, patch, **kw: patch["summary"])  # marker = summary
+    monkeypatch.setattr(latex, "compile_pdf", fake_compile)
+    monkeypatch.setattr(latex, "pdf_renders_complete", lambda dest, edited: True)
+    monkeypatch.setattr(artifacts, "folder",
+                        lambda company, role, url=None: (tmp_path / company).resolve())
+
+    def render(tag):
+        (tmp_path / f"ConcTest{tag}").mkdir(exist_ok=True)
+        resume.render_pdf(company=f"ConcTest{tag}", role="Engineer", url=f"http://x/{tag}",
+                          profile="ml_ai", patch={"summary": f"MARK-{tag}"}, jd_text="jd")
+        return (tmp_path / f"ConcTest{tag}" / config.resume_pdf_name()).read_text()
+
+    with cf.ThreadPoolExecutor(max_workers=2) as ex:
+        a, b = ex.submit(render, "A"), ex.submit(render, "B")
+        out_a, out_b = a.result(), b.result()
+
+    assert out_a == "MARK-A" and out_b == "MARK-B"        # each kept its own content
+    assert len(set(seen_dests)) == len(seen_dests)        # every compile got a distinct dest
 
 
 # --- ATS scoring ---------------------------------------------------------------
