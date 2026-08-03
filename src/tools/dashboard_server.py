@@ -212,6 +212,11 @@ class _Handler(BaseHTTPRequestHandler):
         if not path:
             dashboard.render(config.DASHBOARD_PATH)
             return self._send(200, config.DASHBOARD_PATH.read_bytes(), "text/html")
+        if path == "network":
+            net = config.DATA_DIR / "network" / "dashboard.html"
+            if net.is_file():
+                return self._send(200, net.read_bytes(), "text/html")
+            return self._json(404, {"error": "no networking dashboard yet; run scripts/network_dashboard.py"})
         target = (config.DATA_DIR / path).resolve()
         if config.DATA_DIR.resolve() in target.parents and target.is_file():
             ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"

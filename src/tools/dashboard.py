@@ -460,7 +460,7 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .pager button:disabled {{ opacity:.4; cursor:default; }}
   #pgLabel {{ font-size:12.5px; min-width:110px; text-align:center; }}
 </style></head><body>
-<h1>Job Pipeline Dashboard</h1>
+<h1>Job Pipeline Dashboard <a href="/network" style="font-size:13px;font-weight:500;margin-left:10px">Networking pipeline →</a></h1>
 <div class="sub">generated {generated} · Master ATS = deterministic keyword match of the JD against your UNCHANGED master resume (no LLM, no reviewer blended in) · Tailored ATS = same match against the resume actually sent · Reviewer /10 = senior-hiring-manager LLM judgment, a separate signal</div>
 
 <div class="grid">

@@ -399,7 +399,9 @@ def build_index(tracker: list[dict], heat: dict) -> str:
     views = "".join(company_view(c, heat_by_slug.get(slugify(c["name"]))) for c in tracker)
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    body = (f'<div id="home"><h1>Networking Pipeline</h1>'
+    body = (f'<div id="home"><h1>Networking Pipeline'
+            f' <a class="lnk" href="http://localhost:8765/" style="font-size:13px;font-weight:500;'
+            f'margin-left:10px">Applications dashboard</a></h1>'
             f'<div class="mut">Updated {now}. Heat sweep: {esc(computed) or "not run yet"}. '
             f'Refresh with <code>python scripts/network_dashboard.py</code></div>'
             f'<div class="tiles">{tiles}</div>'
