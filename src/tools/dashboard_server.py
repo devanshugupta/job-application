@@ -250,6 +250,12 @@ class _Handler(BaseHTTPRequestHandler):
             if self.path.startswith("/api/restore"):
                 tracker.update_application(url, removed=False)
                 return self._json(200, {"removed": False})
+            if self.path.startswith("/api/unstale"):
+                tracker.update_application(url, stale=False)
+                return self._json(200, {"stale": False})
+            if self.path.startswith("/api/stale"):
+                tracker.update_application(url, stale=True)
+                return self._json(200, {"stale": True})
             if self.path.startswith("/api/reveal"):
                 pdf = resume_path(rec)
                 reveal(pdf)

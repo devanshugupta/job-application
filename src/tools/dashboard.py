@@ -225,6 +225,16 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
                       f"onclick='removeJob(this)'>−</button>")
         else:
             rm_btn = ""
+        # Stale tick: user ticks a job whose link is dead/expired so we can learn which
+        # SOURCE produces bad links. Toggles the row's `stale` flag via the backend.
+        stale = bool(a.get("stale"))
+        if url:
+            u = html.escape(url, quote=True)
+            stale_btn = (f"<button class='ic ic-stale{' on' if stale else ''}' "
+                         f"title='mark link dead/stale' data-url=\"{u}\" "
+                         f"onclick='markStale(this)'>{'☑' if stale else '☐'}</button>")
+        else:
+            stale_btn = ""
 
         def cell(v, dash=""):
             return html.escape(str(v)) if v not in (None, "") else f"<span class='mut'>{dash}</span>"
@@ -243,7 +253,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             f"data-profile='{html.escape(prof)}' data-removed='{1 if removed else 0}' "
             f"data-source='{html.escape(str(a.get('source') or '?'))}' "
             f"data-tailored='{1 if is_tailored else 0}' data-ready='{1 if ready else 0}' "
-            f"data-highfit='{1 if high_fit else 0}'>"
+            f"data-highfit='{1 if high_fit else 0}' data-stale='{1 if stale else 0}'>"
             f"<td class='rmcell'>{rm_btn}</td>"
             f"{date_cell(a.get('date'))}"
             f"<td class='co'>{cell(a.get('company'))}</td>"
@@ -256,6 +266,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
             f"{cell(a.get('resume_score'))}</td>"
             f"{date_cell(a.get('posted_date'))}"
             f"<td class='mut'>{cell(a.get('source'))}</td>"
+            f"<td class='stalecell'>{stale_btn}</td>"
             f"<td>{' · '.join(links) or ''}</td>"
             "</tr>"
         )
@@ -335,6 +346,10 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     if removed_count:
         status_chips += (f"<button class='chip chip-rm' onclick='toggleRemoved(this)'>"
                          f"🗑 removed ({removed_count})</button>")
+    stale_count = sum(1 for a in apps if a.get("stale") and not a.get("removed"))
+    if stale_count:
+        status_chips += (f"<button class='chip chip-stale' onclick='toggleStale(this)'>"
+                         f"⚠ stale ({stale_count})</button>")
     profile_opts = "".join(f"<option>{html.escape(p)}</option>"
                            for p in sorted(profiles_seen))
 
@@ -444,6 +459,12 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .ic-rm:hover {{ color:#fff; background:var(--bad); border-color:var(--bad); }}
   .ic:hover {{ border-color:var(--acc); }}
   .rmcell {{ width:28px; text-align:center; padding-left:6px; padding-right:2px; }}
+  .stalecell {{ width:28px; text-align:center; }}
+  .ic-stale {{ background:none; border:none; cursor:pointer; font-size:15px; opacity:.5; }}
+  .ic-stale.on {{ opacity:1; color:#c0392b; }}
+  tr[data-stale='1'] {{ background:rgba(192,57,43,.06); }}
+  body.only-stale tbody tr:not([data-stale='1']) {{ display:none !important; }}
+  .chip-stale.on {{ background:#c0392b; color:#fff; }}
   .chip-rm.on {{ color:var(--bad); border-color:var(--bad); background:#fee2e2; font-weight:600; }}
   .runrow {{ display:flex; align-items:center; gap:10px; margin-top:12px;
             padding-top:10px; border-top:1px solid var(--line); }}
@@ -513,7 +534,8 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   <th onclick="sortBy(6)" title="deterministic keyword match of the JD vs your unmodified master resume">Master ATS</th>
   <th onclick="sortBy(7)" title="deterministic keyword match of the JD vs the resume actually tailored/sent">Tailored ATS</th>
   <th onclick="sortBy(8)" title="senior-hiring-manager LLM judgment of the tailored resume">Reviewer /10</th>
-  <th onclick="sortBy(9)">Posted</th><th onclick="sortBy(10)">Source</th><th>Actions</th>
+  <th onclick="sortBy(9)">Posted</th><th onclick="sortBy(10)">Source</th>
+  <th title="tick if the job link is dead/expired">Stale</th><th>Actions</th>
 </tr></thead><tbody>{rows}</tbody></table>
 
 <div class="pager" id="pager">
@@ -626,10 +648,24 @@ function restoreJob(btn) {{
   }}).catch(function(e) {{ toast(e.noBackend ? 'Restoring needs the backend. ' + HINT
                                              : 'Could not restore: ' + e.message, true); }});
 }}
+function markStale(btn) {{
+  var on = btn.closest('tr').dataset.stale === '1';
+  post(on ? '/api/unstale' : '/api/stale', btn.dataset.url).then(function() {{
+    btn.closest('tr').dataset.stale = on ? '0' : '1';
+    btn.classList.toggle('on', !on); btn.textContent = on ? '☐' : '☑';
+    toast(on ? 'Unmarked stale.' : 'Marked stale (dead link).');
+  }}).catch(function(e) {{ toast(e.noBackend ? 'Needs the backend. ' + HINT
+                                             : 'Could not update: ' + e.message, true); }});
+}}
 function toggleRemoved(el) {{
   document.body.classList.toggle('show-removed');
   el.classList.toggle('on');
   apply();  // removed-state is now part of the filter below; re-derive the page
+}}
+function toggleStale(el) {{
+  document.body.classList.toggle('only-stale');
+  el.classList.toggle('on');
+  apply();
 }}
 // Run the full pipeline (find -> score -> tailor >70) via the backend, and surface the
 // current/last run's progress in the funnel. State persists server-side, so the last
