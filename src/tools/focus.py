@@ -284,6 +284,7 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .bar b a { color:var(--ink); text-decoration:none; font-weight:650 }
 .bar a { color:var(--mut); text-decoration:none } .bar a.on, .bar a:hover { color:var(--ink) }
 .bar .right { margin-left:auto } .bar .right a { font-size:13.5px }
+.bar .mid { position:absolute; left:50%; transform:translateX(-50%); display:flex; gap:30px }
 .wrap { max-width:1440px; margin:0 auto; padding:26px 40px 60px }
 .serif { font-family:Georgia,serif; font-weight:600; letter-spacing:-.5px }
 .heroblock { min-height:calc(96vh - 50px); display:flex; flex-direction:column; align-items:center;
@@ -361,7 +362,9 @@ a.row:hover .ract { opacity:1 }
 .sech { display:flex; align-items:baseline; gap:10px; margin:26px 0 10px }
 .sech h2 { font-family:Georgia,serif; font-size:24px; font-weight:600 }
 .sech .n { color:var(--mut); font-size:14.5px }
-.more { text-align:center; padding:12px; color:var(--accent); font-size:14.5px; cursor:pointer; border-top:1px solid var(--line) }
+.more { text-align:center; padding:12px 12px 8px; color:var(--accent); font-size:14.5px; cursor:pointer; border-top:1px solid var(--line) }
+.more::after { content:"v"; display:block; font-size:12px; line-height:1;
+  animation:bob 3s ease-in-out infinite }
 .hidden { display:none }
 .storyline { color:var(--mut); font-size:16.5px; margin:4px 0 8px } .storyline b { color:var(--ink) }
 .glance { max-width:780px; margin:0 auto; padding:26px 24px }
@@ -897,7 +900,8 @@ def _page(title: str, body: str, active: str = "") -> str:
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{esc(title)}</title>'f'<script>if(!matchMedia("(prefers-reduced-motion: reduce)").matches)'f'document.documentElement.classList.add("anim");</script>'f'<style>{CSS}</style></head>'
             f'<body{" data-lane=1" if active else ""}>'
-            f'<div class="bar"><b><a href="/">vouch.</a></b>{nav}'
+            f'<div class="bar"><b><a href="/">vouch.</a></b>'
+            f'<span class="mid">{nav}</span>'
             f'<span class="right">'
             f'<button class="theme" title="theme"></button></span></div>'
             f'{body}{foot}<script>{JS}</script></body></html>')
