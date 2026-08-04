@@ -311,10 +311,10 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .door h3 { font-family:Georgia,serif; font-size:25px; font-weight:600; margin-bottom:3px }
 .door p { color:var(--mut); font-size:15.5px }
 .door .cue { margin-top:18px; font-size:14.5px; font-weight:700; color:var(--accent) }
-.hint { text-align:center; color:var(--mut); padding-bottom:20px; animation:bob 2.2s infinite }
+.hint { text-align:center; color:var(--mut); padding-bottom:20px; animation:bob 3s ease-in-out infinite }
 .hint svg { display:inline-block }
 a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline:none }
-@keyframes bob { 50% { transform:translateY(4px) } }
+@keyframes bob { 50% { transform:translateY(2px) } }
 .rows { background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 4px 18px rgba(30,20,0,.04) }
 .row { display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid var(--line); color:inherit; text-decoration:none }
 .row:last-child { border-bottom:none }
