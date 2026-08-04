@@ -218,6 +218,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200, focus.render_apply().encode(), "text/html")
         if path == "network":
             return self._send(200, focus.render_network().encode(), "text/html")
+        if path == "about":
+            return self._send(200, focus.render_about().encode(), "text/html")
         if path.startswith("company/"):
             page = focus.render_company(path.split("/", 1)[1])
             if page:

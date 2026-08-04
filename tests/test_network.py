@@ -261,3 +261,14 @@ def test_focus_company_page():
     assert "Copy message" in page          # dossier draft surfaced
     assert "ranked by reachability" in page
     assert focus.render_company("not-a-company") is None
+
+def test_focus_about_and_footer():
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from src.tools import focus
+    about = focus.render_about()
+    assert "interviews come from people" in about
+    assert "config/network.json" in about
+    # every page carries the footer with the about link
+    for page in (focus.render_entry(), focus.render_apply(), focus.render_network(), about):
+        assert 'class="foot"' in page and 'href="/about"' in page

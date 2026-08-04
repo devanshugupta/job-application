@@ -1,27 +1,48 @@
 {
   "_comment": "Personal constants for the networking agent (company-scout, hiring_heat, dashboard). Copy to config/network.json and fill in YOUR details. Everything candidate-specific lives here: the scout agent reads this file instead of hardcoding anyone's profile, so an ML person and a robotics person can share the repo. config/network.json is gitignored.",
-
   "candidate": {
     "first_name": "Jane",
     "headline": "Robotics Engineer at Acme Dynamics",
-    "schools": ["Carnegie Mellon University"],
-    "past_employers": ["Acme Dynamics", "Bosch"],
-    "stack": ["ROS2", "SLAM", "C++", "motion planning", "perception"],
-    "role_families": ["robotics", "perception", "controls"],
-    "target_titles": ["Robotics Engineer", "Perception Engineer", "Motion Planning Engineer"],
+    "schools": [
+      "Carnegie Mellon University"
+    ],
+    "past_employers": [
+      "Acme Dynamics",
+      "Bosch"
+    ],
+    "stack": [
+      "ROS2",
+      "SLAM",
+      "C++",
+      "motion planning",
+      "perception"
+    ],
+    "role_families": [
+      "robotics",
+      "perception",
+      "controls"
+    ],
+    "target_titles": [
+      "Robotics Engineer",
+      "Perception Engineer",
+      "Motion Planning Engineer"
+    ],
     "visa_note": "needs H1B sponsorship (set to \"\" if not applicable)",
-    "one_liner": "Jane is a robotics engineer at Acme Dynamics. She shipped the SLAM stack on 500+ deployed robots and holds two patents in visual odometry."
+    "one_liner": "Jane is a robotics engineer at Acme Dynamics. She shipped the SLAM stack on 500+ deployed robots and holds two patents in visual odometry.",
+    "email": ""
   },
-
   "keywords": [
-    "robotics", "perception", "slam", "motion planning", "controls",
-    "autonomy", "embedded", "software engineer"
+    "robotics",
+    "perception",
+    "slam",
+    "motion planning",
+    "controls",
+    "autonomy",
+    "embedded",
+    "software engineer"
   ],
-
   "linkedin_school_slug": "carnegie-mellon-university",
-
   "resume_core": "Languages must include C++, Python. Robotics (when that group is present) must include ROS2, SLAM, motion planning.",
-
   "outreach": {
     "ask_role": "Would you be open to referring me for it?",
     "ask_general": "I'd love to be considered as the team grows. Open to a quick 15-minute chat?",

@@ -380,13 +380,8 @@ a.row:hover .ract { opacity:1 }
 .pbtn:hover { color:var(--accent); border-color:var(--accent) }
 .scene { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden }
 .scene svg.wave { position:absolute; bottom:-8vh; left:-5%; width:110%; height:54vh; will-change:transform }
-.scene .ship { position:absolute; left:7%; bottom:5.5vh; width:84px; will-change:transform }
-.trail { position:fixed; pointer-events:none; z-index:9; border-radius:50%;
-  background:radial-gradient(circle, rgba(42,120,214,.8), rgba(42,120,214,0) 70%);
-  animation:tr .55s ease-out forwards }
-@keyframes tr { to { opacity:0; transform:scale(.1) } }
-.trail.spark { border-radius:0; background:none; animation:trs 1s ease-out forwards }
-@keyframes trs { to { opacity:0; transform:translate(var(--dx,0), -30px) rotate(var(--rot,20deg)) scale(.3) } }
+.scene .ship { position:absolute; left:7%; bottom:5.5vh; width:60px; will-change:transform }
+.wake { position:fixed; inset:0; pointer-events:none; z-index:8 }
 [data-theme="dark"] .scene { opacity:.55 }
 .metapills { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px }
 .v-hi { color:var(--go) !important } .v-mid { color:var(--hold) !important } .v-lo { color:var(--mut) !important }
@@ -414,6 +409,9 @@ a.row:hover .ract { opacity:1 }
 [data-theme="dark"] .cal .l1 { background:#1e3b1e } [data-theme="dark"] .cal .l2 { background:#2c5c2c }
 [data-theme="dark"] .cal .l3 { background:#3f8a3f } [data-theme="dark"] .cal .l4 { background:#57c957 }
 .sech .coname { text-decoration:none; color:inherit } .sech .coname:hover h2 { color:var(--accent) }
+.foot { max-width:1440px; margin:44px auto 0; padding:18px 40px 34px; display:flex; justify-content:space-between;
+  align-items:baseline; gap:14px; flex-wrap:wrap; color:var(--mut); font-size:13.5px; border-top:1px solid var(--line) }
+.foot a { color:var(--mut); text-decoration:none; margin-left:18px } .foot a:hover { color:var(--accent) }
 .rise { opacity:0; transform:translateY(44px);
   transition:opacity 1.2s ease, transform 2.6s cubic-bezier(.28,1.9,.42,1) }
 .rise.up { opacity:1; transform:none }
@@ -497,28 +495,34 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     if (ship) ship.style.transform = 'translateX(' + Math.min(scrollY * 0.55, innerWidth * 0.72) + 'px) translateY(' +
       (dip(0) + Math.sin(scrollY / 55) * 5) + 'px) rotate(' + Math.sin(scrollY / 70) * 4 + 'deg)';
   }, { passive: true });
-  let lastDrop = 0, nDrops = 0;
-  addEventListener('mousemove', e => {
+  const wake = document.createElement('canvas');
+  wake.className = 'wake';
+  document.body.appendChild(wake);
+  const wctx = wake.getContext('2d');
+  const fit = () => { wake.width = innerWidth * devicePixelRatio; wake.height = innerHeight * devicePixelRatio;
+    wctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0); };
+  fit(); addEventListener('resize', fit);
+  const pts = [];
+  addEventListener('mousemove', e => pts.push({ x: e.clientX, y: e.clientY, t: performance.now() }), { passive: true });
+  (function draw() {
+    requestAnimationFrame(draw);
+    wctx.clearRect(0, 0, innerWidth, innerHeight);
     const now = performance.now();
-    if (now - lastDrop < 16) return;
-    lastDrop = now;
-    const t = document.createElement('span');
-    if (++nDrops % 14 === 0) {
-      t.className = 'trail spark';
-      t.textContent = '\\u2728';
-      t.style.fontSize = (12 + Math.random() * 7) + 'px';
-      t.style.setProperty('--dx', ((Math.random() - 0.5) * 40) + 'px');
-      t.style.setProperty('--rot', ((Math.random() - 0.5) * 120) + 'deg');
-      t.style.left = (e.clientX + 6) + 'px'; t.style.top = (e.clientY + 8) + 'px';
-    } else {
-      t.className = 'trail';
-      const d = 7 + Math.random() * 5;
-      t.style.width = t.style.height = d + 'px';
-      t.style.left = (e.clientX - d / 2) + 'px'; t.style.top = (e.clientY - d / 2) + 'px';
+    while (pts.length && now - pts[0].t > 500) pts.shift();
+    if (pts.length < 2) return;
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#2a78d6';
+    wctx.strokeStyle = accent; wctx.lineCap = 'round'; wctx.lineJoin = 'round';
+    for (let i = 1; i < pts.length; i++) {
+      const age = (now - pts[i].t) / 500;
+      wctx.globalAlpha = 0.4 * (1 - age);
+      wctx.lineWidth = 6.5 * (1 - age) + 0.4;
+      wctx.beginPath();
+      wctx.moveTo(pts[i - 1].x, pts[i - 1].y);
+      wctx.lineTo(pts[i].x, pts[i].y);
+      wctx.stroke();
     }
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 1050);
-  }, { passive: true });
+    wctx.globalAlpha = 1;
+  })();
   const hero = document.querySelector('.heroblock');
   if (hero) {
     const els = [...hero.querySelectorAll(':scope > *:not(.aurora)'), document.querySelector('.hint')];
@@ -537,9 +541,9 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
 SCENE = """<div class="scene">
 <svg class="wave" viewBox="0 0 1440 420" preserveAspectRatio="none">
   <circle cx="1150" cy="80" r="64" fill="rgba(201,133,0,.20)"/>
-  <path d="M950,310 L1120,130 L1230,250 L1290,190 L1440,310 Z" fill="rgba(90,107,128,.22)"/>
-  <path d="M1100,310 L1290,90 L1370,180 L1440,140 L1440,310 Z" fill="rgba(90,107,128,.32)"/>
-  <path d="M1262,122 L1290,90 L1318,122 L1290,138 Z" fill="rgba(250,247,241,.85)"/>
+  <path d="M1060,310 L1185,205 L1258,268 L1302,230 L1440,310 Z" fill="rgba(90,107,128,.22)"/>
+  <path d="M1180,310 L1312,168 L1372,232 L1440,204 L1440,310 Z" fill="rgba(90,107,128,.32)"/>
+  <path d="M1292,190 L1312,168 L1332,190 L1312,201 Z" fill="rgba(250,247,241,.85)"/>
   <path d="M0,300 C240,258 430,342 720,310 C1010,278 1210,332 1440,288 L1440,420 L0,420 Z" fill="rgba(42,120,214,.13)"/>
 </svg>
 <svg class="ship" viewBox="0 0 84 64" fill="none">
@@ -644,10 +648,21 @@ def _network_charts(companies: list[dict]) -> str:
             f'</div>')
 
 
+def _candidate() -> dict:
+    try:
+        return json.loads((config.ROOT / "config" / "network.json").read_text()).get("candidate", {})
+    except Exception:
+        return {}
+
+
 def _page(title: str, body: str, active: str = "") -> str:
     nav = "".join(
         f'<a href="{h}" class="{"on" if active == k else ""}">{t}</a>'
         for k, h, t in [("apply", "/apply", "Applications"), ("net", "/network", "Networking")])
+    email = _candidate().get("email")
+    contact = (f'<a href="mailto:{esc(email)}">contact</a>' if email else "")
+    foot = (f'<div class="foot"><span>pipeline. referrals first, applications second.</span>'
+            f'<span><a href="/about">about</a>{contact}</span></div>')
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{esc(title)}</title><style>{CSS}</style></head>'
@@ -655,7 +670,7 @@ def _page(title: str, body: str, active: str = "") -> str:
             f'<div class="bar"><b><a href="/">pipeline.</a></b>{nav}'
             f'<span class="right">'
             f'<button class="theme" title="theme"></button></span></div>'
-            f'{body}<script>{JS}</script></body></html>')
+            f'{body}{foot}<script>{JS}</script></body></html>')
 
 
 def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool) -> str:
@@ -968,3 +983,29 @@ def render_company(slug: str) -> str | None:
   <div class="rows">{arows}</div>
 </div>"""
     return _page(c["name"], body, "net")
+
+def render_about() -> str:
+    email = _candidate().get("email")
+    contact = (f'<div class="sech"><h2>Contact</h2></div>'
+               f'<div class="rows"><a class="row" href="mailto:{esc(email)}">'
+               f'<span class="who" style="width:auto"><b>Say hello</b>'
+               f'<div class="r">{esc(email)}</div></span>'
+               f'<span class="pill p-nav">email</span></a></div>' if email else "")
+    body = f"""<div class="wrap" style="max-width:820px">
+  <h1 class="serif" style="font-size:36px">About</h1>
+  <div class="storyline">A job pipeline built on one belief: interviews come from people, not portals.</div>
+  <div class="sech"><h2>What it does</h2></div>
+  <div class="rows">
+    <div class="row"><span class="why">Finds fresh roles every night from free ATS feeds and scores the fit deterministically.</span></div>
+    <div class="row"><span class="why">Tailors and verifies a resume for every role worth the effort, grounded in real achievements.</span></div>
+    <div class="row"><span class="why">Scouts each company for the two or three people who can actually open the door.</span></div>
+    <div class="row"><span class="why">Holds the application until the referral ask lands. Referral first, always.</span></div>
+  </div>
+  <div class="sech"><h2>Make it yours</h2></div>
+  <div class="rows">
+    <div class="row"><span class="why">Every personal detail lives in config/network.json. Change the candidate block and the whole
+      pipeline, prompts included, works for you, whatever your field.</span></div>
+  </div>
+  {contact}
+</div>"""
+    return _page("About", body)
