@@ -748,7 +748,8 @@ def render_entry() -> str:
                       if (a.get("applied_date") or "")[:10] == today_iso and not a.get("removed"))
     open_loops = n_send + min(n_ready, 3)
     hour = datetime.now().hour
-    greet = "Morning" if hour < 12 else "Afternoon" if hour < 18 else "Evening"
+    greet = ("Morning" if 5 <= hour < 14 else "Afternoon" if 14 <= hour < 17
+             else "Evening" if 17 <= hour < 20 else "Late night")
     first = "there"
     try:
         net_cfg = json.loads((config.ROOT / "config" / "network.json").read_text())
