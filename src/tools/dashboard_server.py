@@ -256,6 +256,15 @@ class _Handler(BaseHTTPRequestHandler):
             if self.path.startswith("/api/stale"):
                 tracker.update_application(url, stale=True)
                 return self._json(200, {"stale": True})
+            if self.path.startswith("/api/deadcheck"):
+                # On-demand liveness probe: re-fetch the JD (deterministic, no LLM) and
+                # decide dead = the page carries no real posting body. Persist the result
+                # as `stale` so the pipeline skips it, and return it so the button updates.
+                from . import jd_fetch
+                r = jd_fetch.fetch_jd(url, allow_browser=True)
+                dead = not r["looks_complete"]
+                tracker.update_application(url, stale=dead)
+                return self._json(200, {"dead": dead, "chars": len(r["text"].strip())})
             if self.path.startswith("/api/reveal"):
                 pdf = resume_path(rec)
                 reveal(pdf)

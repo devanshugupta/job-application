@@ -35,6 +35,32 @@ def _looks_like_login_wall(text: str) -> bool:
     return sum(m in low for m in _LOGIN_WALL_MARKERS) >= 2
 
 
+# The signal that a page carries a REAL posting body (not just company boilerplate) is a
+# JD-STRUCTURE marker: the phrases that introduce an actual job's sections. This set is
+# DATA-DRIVEN: over our corpus of 402 captured JDs, 99.8% contain at least ONE of these,
+# while a dead/expired posting that degrades to a company-blurb / careers-nav page (e.g.
+# Genentech's expired page: title + "Who we are… invested in R&D… join our talent
+# network", but no responsibilities/qualifications) contains NONE. Generic words like
+# "experience/team/apply" were rejected  they also appear in that boilerplate.
+_JD_SIGNAL_MARKERS = (
+    "responsibilit", "qualificat", "requirement", "what you", "you will", "you'll",
+    "minimum", "preferred", "in this role", "who you are", "you have", "you bring",
+    "the role", "your role", "we're looking", "we are looking", "day-to-day",
+    "what we look", "basic qualif", "proficien",
+)
+MIN_JD_MARKERS = 1  # 99.8% of real JDs clear >=1; dead/boilerplate pages have 0.
+
+
+def has_jd_content(text: str, min_hits: int = MIN_JD_MARKERS) -> bool:
+    """True if `text` carries a real job-description BODY, i.e. contains >= min_hits
+    JD-structure markers (responsibilities / qualifications / requirements / "you will"…).
+    Catches long-but-empty pages that clear the length bar: careers-nav shells and
+    dead/expired postings that degrade to company boilerplate. Calibrated from our JD
+    corpus (see _JD_SIGNAL_MARKERS)."""
+    low = (text or "").lower()
+    return sum(m in low for m in _JD_SIGNAL_MARKERS) >= min_hits
+
+
 def _get(url: str) -> str:
     req = urllib.request.Request(url, headers=_UA)
     with urllib.request.urlopen(req, timeout=TIMEOUT) as r:  # noqa: S310
@@ -186,27 +212,32 @@ def _fetch_jd_cached(url: str, max_chars: int, allow_browser: bool) -> tuple[str
     fetched over the network at most once per process/run  repeated calls (e.g. a
     batch script re-fetching the same JD for logging and then again for tailoring)
     hit this cache instead of re-hitting the network or the browser."""
+    # A capture is "complete" only if it is long enough, is NOT a login-wall shell, AND
+    # actually reads like a JD (has_jd_content)  the last clause is what catches a
+    # dead/expired posting or careers-nav page that is long but carries no real content.
+    def _complete(t: str) -> bool:
+        return (len(t) >= MIN_COMPLETE_CHARS and not _looks_like_login_wall(t)
+                and has_jd_content(t))
+
     for api_fn, src in ((_greenhouse_api, "greenhouse-api"), (_lever_api, "lever-api"),
                         (_ashby_api, "ashby-api"), (_workday_api, "workday-api")):
         text = api_fn(url)
-        if text and len(text) >= MIN_COMPLETE_CHARS:
+        if text and _complete(text):
             return text[:max_chars], src, True
     try:
         http_text = _strip_html(_get(url))
     except Exception:
         http_text = ""
-    if len(http_text) >= MIN_COMPLETE_CHARS:
+    if _complete(http_text):
         return http_text[:max_chars], "http", True
 
     if allow_browser:
         rendered = _browser_fetch(url)
-        if len(rendered) >= MIN_COMPLETE_CHARS and not _looks_like_login_wall(rendered):
+        if _complete(rendered):
             return rendered[:max_chars], "browser", True
         http_text = rendered or http_text  # keep whatever's longer/available
 
-    complete = (len(http_text) >= MIN_COMPLETE_CHARS
-               and not _looks_like_login_wall(http_text))
-    return http_text[:max_chars], "http", complete
+    return http_text[:max_chars], "http", _complete(http_text)
 
 
 def fetch_jd(url: str, max_chars: int = 12000, *, allow_browser: bool = True) -> dict:

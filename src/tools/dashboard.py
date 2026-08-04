@@ -225,14 +225,17 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
                       f"onclick='removeJob(this)'>−</button>")
         else:
             rm_btn = ""
-        # Stale tick: user ticks a job whose link is dead/expired so we can learn which
-        # SOURCE produces bad links. Toggles the row's `stale` flag via the backend.
+        # Dead-check button: click before applying to re-fetch the JD and verify the link
+        # is still live. If the page has no real posting body, it flips to "dead" (and the
+        # row is marked stale so the pipeline skips it). Re-click to re-check (refresh)
+        # useful for flaky CDN sites that sometimes serve a shell.
         stale = bool(a.get("stale"))
         if url:
             u = html.escape(url, quote=True)
-            stale_btn = (f"<button class='ic ic-stale{' on' if stale else ''}' "
-                         f"title='mark link dead/stale' data-url=\"{u}\" "
-                         f"onclick='markStale(this)'>{'☑' if stale else '☐'}</button>")
+            label = "💀 dead" if stale else "⟳ check"
+            cls = "dead" if stale else ""
+            stale_btn = (f"<button class='deadbtn {cls}' title='re-check if this link is live' "
+                         f"data-url=\"{u}\" onclick='deadCheck(this)'>{label}</button>")
         else:
             stale_btn = ""
 
@@ -459,9 +462,12 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   .ic-rm:hover {{ color:#fff; background:var(--bad); border-color:var(--bad); }}
   .ic:hover {{ border-color:var(--acc); }}
   .rmcell {{ width:28px; text-align:center; padding-left:6px; padding-right:2px; }}
-  .stalecell {{ width:28px; text-align:center; }}
-  .ic-stale {{ background:none; border:none; cursor:pointer; font-size:15px; opacity:.5; }}
-  .ic-stale.on {{ opacity:1; color:#c0392b; }}
+  .stalecell {{ width:64px; text-align:center; }}
+  .deadbtn {{ font-size:11px; padding:2px 6px; border:1px solid #cbd5e1; border-radius:5px;
+              background:#f8fafc; cursor:pointer; white-space:nowrap; }}
+  .deadbtn:hover {{ border-color:#94a3b8; }}
+  .deadbtn.dead {{ background:#fde8e8; border-color:#c0392b; color:#c0392b; }}
+  .deadbtn.live {{ background:#e7f6ec; border-color:#2e7d32; color:#2e7d32; }}
   tr[data-stale='1'] {{ background:rgba(192,57,43,.06); }}
   body.only-stale tbody tr:not([data-stale='1']) {{ display:none !important; }}
   .chip-stale.on {{ background:#c0392b; color:#fff; }}
@@ -535,7 +541,7 @@ _TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
   <th onclick="sortBy(7)" title="deterministic keyword match of the JD vs the resume actually tailored/sent">Tailored ATS</th>
   <th onclick="sortBy(8)" title="senior-hiring-manager LLM judgment of the tailored resume">Reviewer /10</th>
   <th onclick="sortBy(9)">Posted</th><th onclick="sortBy(10)">Source</th>
-  <th title="tick if the job link is dead/expired">Stale</th><th>Actions</th>
+  <th title="click to re-fetch and check if the link is still live">Live?</th><th>Actions</th>
 </tr></thead><tbody>{rows}</tbody></table>
 
 <div class="pager" id="pager">
@@ -648,14 +654,20 @@ function restoreJob(btn) {{
   }}).catch(function(e) {{ toast(e.noBackend ? 'Restoring needs the backend. ' + HINT
                                              : 'Could not restore: ' + e.message, true); }});
 }}
-function markStale(btn) {{
-  var on = btn.closest('tr').dataset.stale === '1';
-  post(on ? '/api/unstale' : '/api/stale', btn.dataset.url).then(function() {{
-    btn.closest('tr').dataset.stale = on ? '0' : '1';
-    btn.classList.toggle('on', !on); btn.textContent = on ? '☐' : '☑';
-    toast(on ? 'Unmarked stale.' : 'Marked stale (dead link).');
-  }}).catch(function(e) {{ toast(e.noBackend ? 'Needs the backend. ' + HINT
-                                             : 'Could not update: ' + e.message, true); }});
+function deadCheck(btn) {{
+  var old = btn.textContent;
+  btn.disabled = true; btn.textContent = '⟳ …'; btn.classList.remove('dead','live');
+  post('/api/deadcheck', btn.dataset.url).then(function(res) {{
+    btn.disabled = false;
+    var dead = res && res.dead;
+    btn.closest('tr').dataset.stale = dead ? '1' : '0';
+    btn.classList.toggle('dead', dead); btn.classList.toggle('live', !dead);
+    btn.textContent = dead ? '💀 dead' : '✓ live';
+    toast(dead ? 'Link is DEAD (' + (res.chars||0) + ' chars) — pipeline will skip it.'
+               : 'Link is live (' + (res.chars||0) + ' chars).');
+  }}).catch(function(e) {{ btn.disabled = false; btn.textContent = old;
+    toast(e.noBackend ? 'Dead-check needs the backend. ' + HINT
+                      : 'Could not check: ' + e.message, true); }});
 }}
 function toggleRemoved(el) {{
   document.body.classList.toggle('show-removed');
