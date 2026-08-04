@@ -384,6 +384,10 @@ a.row:hover .ract { opacity:1 }
 [data-theme="dark"] .cal .l1 { background:#1e3b1e } [data-theme="dark"] .cal .l2 { background:#2c5c2c }
 [data-theme="dark"] .cal .l3 { background:#3f8a3f } [data-theme="dark"] .cal .l4 { background:#57c957 }
 .sech .coname { text-decoration:none; color:inherit } .sech .coname:hover h2 { color:var(--accent) }
+.rise { opacity:0; transform:translateY(26px);
+  transition:opacity .55s ease, transform .65s cubic-bezier(.34,1.45,.64,1) }
+.rise.up { opacity:1; transform:none }
+@media (prefers-reduced-motion: reduce) { .rise { opacity:1; transform:none; transition:none } }
 """
 
 JS = """
@@ -444,6 +448,14 @@ if (document.body.dataset.lane && document.documentElement.dataset.theme !== 'da
     const k = Math.min(scrollY / 260, 1);
     document.body.style.background = 'rgb(' + from.map((f, i) => Math.round(f + (to[i] - f) * k)).join(',') + ')';
   }, { passive: true });
+}
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const ob = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('up'); ob.unobserve(e.target); }
+  }), { rootMargin: '0px 0px -10% 0px' });
+  document.querySelectorAll('.sech, .rows, .panel, .glance, .lastcall, .draftbox').forEach(el => {
+    if (el.getBoundingClientRect().top > innerHeight * 0.92) { el.classList.add('rise'); ob.observe(el); }
+  });
 }
 const scene = document.querySelector('.scene');
 if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
