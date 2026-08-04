@@ -245,3 +245,35 @@ def test_job_status_and_row_endpoints(server, job):
     with pytest.raises(urllib.error.HTTPError) as e:
         urllib.request.urlopen(server + "/api/job-status?url=https%3A%2F%2Fnope")
     assert e.value.code == 404
+
+
+def test_settings_candidate_save(server, tmp_data, monkeypatch):
+    root = tmp_data / "root"
+    (root / "config").mkdir(parents=True)
+    (root / "config" / "network.json").write_text('{"candidate": {"first_name": "Old"}, "keywords": []}')
+    monkeypatch.setattr(dashboard_server.config, "ROOT", root)
+    req = urllib.request.Request(server + "/api/settings",
+                                 data=json.dumps({"section": "candidate",
+                                                  "data": {"first_name": "New", "schools": "ASU, RGPV",
+                                                           "keywords": "robotics, slam"}}).encode(),
+                                 headers={"Content-Type": "application/json"})
+    assert urllib.request.urlopen(req).status == 200
+    cfg = json.loads((root / "config" / "network.json").read_text())
+    assert cfg["candidate"]["first_name"] == "New"
+    assert cfg["candidate"]["schools"] == ["ASU", "RGPV"]
+    assert cfg["keywords"] == ["robotics", "slam"]
+
+
+def test_settings_brain_and_keys(server, tmp_data, monkeypatch):
+    root = tmp_data / "root2"
+    (root / "config").mkdir(parents=True)
+    monkeypatch.setattr(dashboard_server.config, "ROOT", root)
+    req = urllib.request.Request(server + "/api/settings",
+                                 data=json.dumps({"section": "brain",
+                                                  "data": {"brain": "api", "ANTHROPIC_API_KEY": "sk-test-123",
+                                                           "OPENAI_API_KEY": ""}}).encode(),
+                                 headers={"Content-Type": "application/json"})
+    assert urllib.request.urlopen(req).status == 200
+    assert json.loads((root / "config" / "settings.json").read_text())["brain"] == "api"
+    env = (root / ".env").read_text()
+    assert "ANTHROPIC_API_KEY=sk-test-123" in env and "OPENAI_API_KEY" not in env

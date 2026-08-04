@@ -272,3 +272,25 @@ def test_focus_about_and_footer():
     # every page carries the footer with the about link
     for page in (focus.render_entry(), focus.render_apply(), focus.render_network(), about):
         assert 'class="foot"' in page and 'href="/about"' in page
+
+
+def test_entry_empty_state_copy(monkeypatch):
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from src.tools import focus, tracker
+    monkeypatch.setattr(tracker, "list_applications", lambda: [])
+    monkeypatch.setattr(focus, "_net_companies", lambda: [])
+    page = focus.render_entry()
+    assert "No open doors right now" in page
+    assert "sweep runs tonight" in page and "scout a company" in page
+    assert "0 doors" not in page
+
+
+def test_settings_page_masks_keys():
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from src.tools import focus
+    page = focus.render_settings()
+    assert "Brain and API keys" in page and "Setup checklist" in page
+    # never render a real key value into the page
+    assert "sk-ant-api" not in page

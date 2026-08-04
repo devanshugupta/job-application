@@ -308,10 +308,31 @@ def ats_score(job_description: str, resume_text: str,
         missing = [c for c in jd_concepts if c not in resume_concepts]
         total_w = sum(jd_concepts.values())
         match_w = sum(jd_concepts[c] for c in matched)
-        score = round(100 * match_w / total_w) if total_w else 0
-        # order by JD emphasis so the top gaps/matches lead
+        concept_score = round(100 * match_w / total_w) if total_w else 0
+        # Concept coverage alone saturates: the combined master spans ML+SDE+DE, so
+        # broad concepts ("machine-learning", "api") match almost any tech JD and
+        # 60% of the tracker scored a flat 100  useless for ranking. Blend in the
+        # JD's specific prominent terms (Rust, Go, Kafka, IPMI, ...) so postings whose
+        # named stack the resume lacks separate from true fits. 70/30 keeps concepts
+        # primary (recruiter-style skill fit) while restoring discrimination.
+        ranked = [w for w, _ in weights.most_common()]
+        important = ranked[:top_n] if top_n else ranked
+        resume_norm = _normalize(resume_text)
+        resume_uni = set(_tokens(resume_text))
+
+        def _hit(term: str) -> bool:
+            return (term in resume_norm) if " " in term else (term in resume_uni)
+
+        t_total = sum(weights[w] for w in important)
+        t_match = sum(weights[w] for w in important if _hit(w))
+        term_score = round(100 * t_match / t_total) if t_total else concept_score
+        score = round(0.7 * concept_score + 0.3 * term_score)
+        # order by JD emphasis so the top gaps/matches lead; surface missing TERMS
+        # too when concepts are all covered (they are the actual gaps then)
         matched.sort(key=lambda c: -jd_concepts[c])
         missing.sort(key=lambda c: -jd_concepts[c])
+        if not missing:
+            missing = [w for w in important if not _hit(w)][:8]
     else:
         ranked = [w for w, _ in weights.most_common()]
         important = ranked[:top_n] if top_n else ranked

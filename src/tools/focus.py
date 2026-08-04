@@ -439,6 +439,17 @@ a.row:hover .ract { opacity:1 }
 .ccard:hover { transform:translateY(-2px); box-shadow:0 10px 26px rgba(30,20,0,.08) }
 .ccard b { font-family:Georgia,serif; font-size:19px }
 .ccard div { color:var(--mut); font-size:14.5px; margin:4px 0 10px }
+.fgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px 18px }
+.fld { display:flex; flex-direction:column; gap:5px }
+.fld label { font-size:12.5px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--mut) }
+.fld input, .fld select, .fld textarea { font:inherit; font-size:14.5px; color:var(--ink); background:var(--panel);
+  border:1px solid var(--line); border-radius:10px; padding:9px 12px }
+.fld input:focus, .fld select:focus, .fld textarea:focus { outline:none; border-color:var(--accent) }
+.fld .hint2 { font-size:12px; color:var(--mut) }
+.savebtn { font:inherit; font-size:14.5px; font-weight:650; background:var(--accent); color:#fff; border:none;
+  border-radius:999px; padding:9px 26px; cursor:pointer; margin-top:14px }
+.savebtn:disabled { opacity:.5 }
+.ok-dot { color:var(--go); font-weight:750 } .bad-dot { color:#d03b3b; font-weight:750 }
 .ccard span { color:var(--accent); font-size:14.5px; font-weight:650 }
 html.anim .wrap > h1, html.anim .storyline, html.anim .search, html.anim .sech, html.anim .rows,
 html.anim .panel, html.anim .charts, html.anim .glance, html.anim .lastcall, html.anim .draftbox, html.anim .doors,
@@ -516,6 +527,30 @@ document.querySelectorAll('button[data-touch]').forEach(b => b.addEventListener(
     }
     b.textContent = 'logged'; setTimeout(() => b.remove(), 900); })
   .catch(() => { b.textContent = 'needs server'; });
+}));
+function saveForm(formId, section, msgId) {
+  const f = document.getElementById(formId);
+  if (!f) return;
+  f.addEventListener('submit', e => {
+    e.preventDefault();
+    const data = {};
+    f.querySelectorAll('input, select').forEach(el => { if (el.name) data[el.name] = el.value; });
+    fetch('/api/settings', { method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ section, data }) })
+    .then(r => { if (!r.ok) throw 0;
+      document.getElementById(msgId).textContent = 'saved';
+      setTimeout(() => document.getElementById(msgId).textContent = '', 2500); })
+    .catch(() => document.getElementById(msgId).textContent = 'needs the server running');
+  });
+}
+saveForm('candform', 'candidate', 'candmsg');
+saveForm('brainform', 'brain', 'brainmsg');
+document.querySelectorAll('button[data-boot]').forEach(b => b.addEventListener('click', e => {
+  e.preventDefault();
+  fetch('/api/settings', { method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ section: 'bootstrap', data: { path: b.dataset.boot } }) })
+  .then(r => { if (!r.ok) throw 0; b.textContent = 'created, refresh'; })
+  .catch(() => b.textContent = 'needs server');
 }));
 const addForm = document.getElementById('addjob');
 if (addForm) addForm.addEventListener('submit', e => {
@@ -739,9 +774,11 @@ def _apply_charts() -> str:
     for v in mats:
         buckets[min(9, v // 10)] += 1
     bmax = max(buckets) or 1
+    # sqrt scale: the 90-100 bucket dwarfs the rest linearly; counts stay printed
     hist = "".join(
         f'<div class="hcol" title="fit {i * 10} to {i * 10 + 9}: {n} roles">'
-        f'<span class="hn">{n or ""}</span><div class="hbar" style="height:{round(84 * n / bmax)}%"></div>'
+        f'<span class="hn">{n or ""}</span>'
+        f'<div class="hbar" style="height:{max(4, round(84 * (n / bmax) ** 0.5)) if n else 0}%"></div>'
         f'<span class="hx">{i * 10}</span></div>' for i, n in enumerate(buckets))
     prof_t, prof_a = Counter(), Counter()
     for a in live:
@@ -789,7 +826,8 @@ def _page(title: str, body: str, active: str = "") -> str:
         f'<a href="{h}" class="{"on" if active == k else ""}">{t}</a>'
         for k, h, t in [("apply", "/apply", "Applications"), ("net", "/network", "Networking")])
     foot = ('<div class="foot"><span>vouch. referrals first, applications second.</span>'
-            '<span><a href="/about">about</a><a href="/about#contact">contact</a></span></div>')
+            '<span><a href="/about">about</a><a href="/about#contact">contact</a>'
+            '<a href="/settings">settings</a></span></div>')
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{esc(title)}</title>'f'<script>if(!matchMedia("(prefers-reduced-motion: reduce)").matches)'f'document.documentElement.classList.add("anim");</script>'f'<style>{CSS}</style></head>'
@@ -879,6 +917,8 @@ def render_entry() -> str:
         pass
     greet_line = f"Damn. {first}" if greet == "Damn." else f"{greet}, {first}"
 
+    headline = (f"{open_loops} doors are open. <em>Pick a lane.</em>" if open_loops
+                else "No open doors right now. <em>Tonight's sweep finds more.</em>")
     glance_rows = ""
     for item in (people["replies"] + people["sends"])[:2]:
         glance_rows += _person_row(item, "go", "2 min", "p-go",
@@ -891,14 +931,14 @@ def render_entry() -> str:
 <div class="heroblock">
   <div class="aurora"></div>
   <div class="count">{esc(greet_line)}</div>
-  <h1>{open_loops} doors are open. <em>Pick a lane.</em></h1>
+  <h1>{headline}</h1>
   <div class="sub">{esc(story['teaser'])}</div>
-  {f'<div class="progress"><b>{done_today} done today.</b> {open_loops} to go.</div>' if done_today else ''}
+  {f'<div class="progress"><b>{done_today} done today.</b> {f"{open_loops} to go." if open_loops else "Clean slate."}</div>' if done_today else ''}
   <div class="doors">
     <a class="door" href="/apply"><h3>Applications</h3>
-      <p>tailored, verified, ready to send</p><div class="cue">{n_ready} ready</div></a>
+      <p>tailored, verified, ready to send</p><div class="cue">{f"{n_ready} ready" if n_ready else "sweep runs tonight"}</div></a>
     <a class="door" href="/network"><h3>Networking</h3>
-      <p>people who can open doors for you</p><div class="cue">{n_send} waiting</div></a>
+      <p>people who can open doors for you</p><div class="cue">{f"{n_send} waiting" if n_send else "scout a company"}</div></a>
   </div>
 </div>
 <div class="hint">v</div>
@@ -963,8 +1003,12 @@ def _catalog_section() -> str:
         for b, label in [("applied", "applied"), ("hidden", "hidden"), ("dead", "stale"),
                          ("skipped", "skipped"), ("open", "open"), ("all", "all")])
     return (f'<div class="sech"><h2>Catalog</h2>'
-            f'<span class="n">every job ever tracked, pick a filter or just search</span></div>'
-            f'<div class="seg">{seg}</div>'
+            f'<span class="n">every job ever tracked, pick a filter, search, or paste a posting</span></div>'
+            f'<div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:12px">'
+            f'<div class="seg" style="margin-bottom:0">{seg}</div>'
+            f'<form id="addjob" class="addbar" style="margin:0; flex:1; min-width:320px">'
+            f'<input id="addurl" type="url" required placeholder="Paste a job posting URL, get a tailored resume">'
+            f'<button class="runbtn" style="margin-left:0">add + tailor</button></form></div>'
             f'<div class="rows" id="catalog">{THEAD}{rows}</div>')
 
 
@@ -989,9 +1033,6 @@ def render_apply() -> str:
   <h1 class="serif" style="font-size:36px">Applications</h1>
   <div class="storyline">{story}Send the referral ask the same day, from Networking.</div>
   {_applied_panel()}
-  <form id="addjob" class="addbar"><input id="addurl" type="url" required
-    placeholder="Paste a job posting URL, get a tailored resume">
-    <button class="runbtn" style="margin-left:0">add + tailor</button></form>
   <input id="q" class="search" type="search" placeholder="Search company, role, track">
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
   <div class="rows" id="readybox"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Note</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
@@ -1210,3 +1251,86 @@ def render_about() -> str:
   <div class="cards">{cards}</div>
 </div>"""
     return _page("About", body)
+
+def _mask_key(env_text: str, name: str) -> str:
+    for line in env_text.splitlines():
+        if line.startswith(name + "=") and len(line.split("=", 1)[1].strip()) > 8:
+            v = line.split("=", 1)[1].strip()
+            return "set, ends " + v[-4:]
+    return ""
+
+
+def render_settings() -> str:
+    cand = _candidate()
+    try:
+        net_cfg = json.loads((config.ROOT / "config" / "network.json").read_text())
+    except Exception:
+        net_cfg = {}
+    keywords = ", ".join(net_cfg.get("keywords", []))
+    try:
+        env_text = (config.ROOT / ".env").read_text()
+    except OSError:
+        env_text = ""
+    try:
+        st = json.loads((config.ROOT / "config" / "settings.json").read_text())
+    except Exception:
+        st = {}
+    brain = st.get("brain") or ("api" if "ANTHROPIC_API_KEY=" in env_text or "OPENAI_API_KEY=" in env_text else "manual")
+
+    def fld(key, label, hint=""):
+        v = cand.get(key)
+        v = ", ".join(v) if isinstance(v, list) else (v or "")
+        h = f'<span class="hint2">{esc(hint)}</span>' if hint else ""
+        return (f'<div class="fld"><label>{esc(label)}</label>'
+                f'<input name="{esc(key)}" value="{esc(v)}">{h}</div>')
+
+    checklist = ""
+    for path, label, example in [
+        ("config/profile.json", "Application profile", "config/profile.example.json"),
+        ("config/network.json", "Candidate constants", "config/network.example.json"),
+        ("resume/achievements.md", "Achievements (grounds every draft)", "resume/achievements.example.md"),
+        ("config/watchlist.json", "Company watchlist", None),
+    ]:
+        exists = (config.ROOT / path).exists()
+        dot = '<span class="ok-dot">set up</span>' if exists else '<span class="bad-dot">missing</span>'
+        btn = ("" if exists or not example else
+               f' <button class="pbtn" data-boot="{esc(path)}">create from example</button>')
+        checklist += (f'<div class="row"><span class="who" style="width:auto;flex:1"><b>{esc(label)}</b>'
+                      f'<div class="r">{esc(path)}</div></span>{dot}{btn}</div>')
+
+    body = f"""<div class="wrap" style="max-width:900px">
+  <h1 class="serif" style="font-size:36px">Settings</h1>
+  <div class="storyline">Everything saves to your local config files. Nothing leaves this machine.</div>
+
+  <div class="sech"><h2>You</h2><span class="n">powers the resumes, drafts, and greetings</span></div>
+  <form id="candform" class="panel"><div class="fgrid">
+    {fld("first_name", "First name")}{fld("email", "Email", "shown on the contact card")}
+    {fld("headline", "Headline")}{fld("one_liner", "One-liner", "the forwardable intro sentence")}
+    {fld("schools", "Schools", "comma separated")}{fld("past_employers", "Past employers", "comma separated")}
+    {fld("stack", "Stack", "comma separated")}{fld("role_families", "Role families", "comma separated")}
+    {fld("target_titles", "Target titles", "comma separated")}{fld("visa_note", "Visa note")}
+    {fld("linkedin", "LinkedIn URL")}{fld("github", "GitHub URL")}
+    <div class="fld" style="grid-column:1/-1"><label>Job-search keywords</label>
+      <input name="keywords" value="{esc(keywords)}">
+      <span class="hint2">comma separated, drives discovery and the hiring-heat sweep</span></div>
+  </div><button class="savebtn">Save</button> <span class="n" id="candmsg"></span></form>
+
+  <div class="sech"><h2>Brain and API keys</h2><span class="n">manual mode needs no key at all</span></div>
+  <form id="brainform" class="panel"><div class="fgrid">
+    <div class="fld"><label>Brain mode</label>
+      <select name="brain">
+        <option value="manual"{" selected" if brain == "manual" else ""}>manual, an LLM answers packets</option>
+        <option value="api"{" selected" if brain == "api" else ""}>api, fully automatic</option>
+      </select><span class="hint2">api mode makes paste-to-tailor fully hands free</span></div>
+    <div class="fld"><label>Anthropic API key</label>
+      <input name="ANTHROPIC_API_KEY" type="password" placeholder="{esc(_mask_key(env_text, "ANTHROPIC_API_KEY") or "sk-ant-...")}" autocomplete="off">
+      <span class="hint2">{esc(_mask_key(env_text, "ANTHROPIC_API_KEY") or "not set")} · stored in .env, gitignored</span></div>
+    <div class="fld"><label>OpenAI API key</label>
+      <input name="OPENAI_API_KEY" type="password" placeholder="{esc(_mask_key(env_text, "OPENAI_API_KEY") or "sk-...")}" autocomplete="off">
+      <span class="hint2">{esc(_mask_key(env_text, "OPENAI_API_KEY") or "not set")} · optional, for per-task routing</span></div>
+  </div><button class="savebtn">Save</button> <span class="n" id="brainmsg"></span></form>
+
+  <div class="sech"><h2>Setup checklist</h2><span class="n">what the pipeline needs before it can work for you</span></div>
+  <div class="rows">{checklist}</div>
+</div>"""
+    return _page("Settings", body)

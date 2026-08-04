@@ -247,6 +247,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200, focus.render_network().encode(), "text/html")
         if path == "about":
             return self._send(200, focus.render_about().encode(), "text/html")
+        if path == "settings":
+            return self._send(200, focus.render_settings().encode(), "text/html")
         if path.startswith("company/"):
             page = focus.render_company(path.split("/", 1)[1])
             if page:
@@ -283,6 +285,61 @@ class _Handler(BaseHTTPRequestHandler):
             # run-pipeline takes no job url  handle before the record lookup
             if self.path.startswith("/api/run-pipeline"):
                 return self._json(200, start_pipeline())
+            if self.path.startswith("/api/settings"):
+                section = payload.get("section")
+                data = payload.get("data") or {}
+                if section == "candidate":
+                    f = config.ROOT / "config" / "network.json"
+                    cfg = json.loads(f.read_text()) if f.exists() else {}
+                    cand = cfg.setdefault("candidate", {})
+                    list_keys = {"schools", "past_employers", "stack", "role_families", "target_titles"}
+                    for k, v in data.items():
+                        if k == "keywords":
+                            cfg["keywords"] = [x.strip() for x in str(v).split(",") if x.strip()]
+                        elif k in list_keys:
+                            cand[k] = [x.strip() for x in str(v).split(",") if x.strip()]
+                        else:
+                            cand[k] = str(v).strip()
+                    tmp = f.with_suffix(".tmp")
+                    tmp.write_text(json.dumps(cfg, indent=2) + "\n")
+                    os.replace(tmp, f)
+                    return self._json(200, {"saved": "candidate"})
+                if section == "brain":
+                    sf = config.ROOT / "config" / "settings.json"
+                    st = json.loads(sf.read_text()) if sf.exists() else {}
+                    if data.get("brain") in ("api", "manual"):
+                        st["brain"] = data["brain"]
+                    tmp = sf.with_suffix(".tmp")
+                    tmp.write_text(json.dumps(st, indent=2) + "\n")
+                    os.replace(tmp, sf)
+                    envf = config.ROOT / ".env"
+                    lines = envf.read_text().splitlines() if envf.exists() else []
+                    for name in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+                        val = (data.get(name) or "").strip()
+                        if not val:
+                            continue  # blank = keep whatever is there
+                        lines = [ln for ln in lines if not ln.startswith(name + "=")]
+                        lines.append(f"{name}={val}")
+                    envf.write_text("\n".join(lines) + ("\n" if lines else ""))
+                    return self._json(200, {"saved": "brain"})
+                if section == "bootstrap":
+                    allowed = {
+                        "config/profile.json": "config/profile.example.json",
+                        "config/network.json": "config/network.example.json",
+                        "resume/achievements.md": "resume/achievements.example.md",
+                    }
+                    target = data.get("path")
+                    if target not in allowed:
+                        return self._json(400, {"error": "unknown setup target"})
+                    dst = config.ROOT / target
+                    if dst.exists():
+                        return self._json(200, {"saved": "already exists"})
+                    src = config.ROOT / allowed[target]
+                    if not src.exists():
+                        return self._json(404, {"error": "example file missing"})
+                    dst.write_bytes(src.read_bytes())
+                    return self._json(200, {"saved": target})
+                return self._json(400, {"error": "unknown settings section"})
             if self.path.startswith("/api/add-job"):
                 url = (payload.get("url") or "").strip()
                 if not url.startswith(("http://", "https://")):
