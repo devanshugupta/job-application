@@ -435,7 +435,7 @@ a.row:hover .ract { opacity:1 }
 .ccard span { color:var(--accent); font-size:14.5px; font-weight:650 }
 .rise { opacity:0; transform:translateY(44px);
   transition:opacity 1.4s ease, transform 3s cubic-bezier(.28,1.9,.42,1) }
-.rise.far { transform:translateY(170px); transition-duration:2.5s, 5s }
+.rise.far { transform:translateY(170px); transition-duration:2s, 4s }
 .rise.up { opacity:1; transform:none }
 @media (prefers-reduced-motion: reduce) { .rise { opacity:1; transform:none; transition:none } }
 """
@@ -522,9 +522,20 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const ob = new IntersectionObserver(es => es.forEach(e => {
     if (e.isIntersecting) { e.target.classList.add('up'); ob.unobserve(e.target); }
   }), { rootMargin: '0px 0px -10% 0px' });
-  document.querySelectorAll('.sech, .rows, .panel, .glance, .lastcall, .draftbox, .doors, .momentum, .storyline, .metapills').forEach(el => {
+  const landing = [];
+  new Set([
+    ...document.querySelectorAll('.heroblock > *:not(.aurora):not(.count), .hint'),
+    ...document.querySelectorAll('.wrap > h1, .storyline, .search, .sech, .rows, .panel, .charts, .glance, .lastcall, .draftbox, .doors, .momentum, .metapills'),
+  ]).forEach(el => {
     if (el.getBoundingClientRect().top > innerHeight * 0.92) { el.classList.add('rise'); ob.observe(el); }
+    else landing.push(el);
   });
+  landing.forEach(el => el.classList.add('rise', 'far'));
+  requestAnimationFrame(() => requestAnimationFrame(() => landing.forEach((el, i) => {
+    el.style.transitionDelay = (i * 90) + 'ms';
+    el.classList.add('up');
+    setTimeout(() => el.style.transitionDelay = '', 4200 + i * 90);
+  })));
 }
 const scene = document.querySelector('.scene');
 if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -550,17 +561,6 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 900);
   }, { passive: true });
-  const hero = document.querySelector('.heroblock');
-  if (hero) {
-    const els = [...hero.querySelectorAll(':scope > *:not(.aurora):not(.count)'), document.querySelector('.hint')];
-    els.forEach(el => el && el.classList.add('rise', 'far'));
-    requestAnimationFrame(() => requestAnimationFrame(() => els.forEach((el, i) => {
-      if (!el) return;
-      el.style.transitionDelay = (i * 90) + 'ms';
-      el.classList.add('up');
-      setTimeout(() => el.style.transitionDelay = '', 5300 + i * 90);
-    })));
-  }
 }
 """
 
@@ -806,12 +806,12 @@ def render_entry() -> str:
 <div class="glance">
   <h2>It is working.</h2>
   <div class="momentum">
-    <div><b>{rate}</b><span>warm replies</span></div>
+    <div><b>{rate}</b><span>reply rate</span></div>
     <div><b>{replies}</b><span>replies</span></div>
     <div><b>{applied}</b><span>applied</span></div>
   </div>
 </div>
-<div class="lastcall"><a class="cta" href="{esc(story['lane'])}">Start in {esc(story['lane_name'])}</a></div>"""
+<div class="lastcall"><a class="cta" href="{esc(story['lane'])}">Open {esc(story['lane_name'])}</a></div>"""
     return _page("Pipeline", body)
 
 
