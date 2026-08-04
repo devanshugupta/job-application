@@ -435,10 +435,10 @@ def render_entry() -> str:
   <div class="sub">{esc(story['teaser'])}</div>
   {f'<div class="progress"><b>{done_today} done today.</b> {open_loops} to go.</div>' if done_today else ''}
   <div class="doors">
-    <a class="door" href="/network"><h3>Networking</h3>
-      <p>people who can open doors for you</p><div class="cue">{n_send} waiting</div></a>
     <a class="door" href="/apply"><h3>Applications</h3>
       <p>tailored, verified, ready to send</p><div class="cue">{n_ready} ready</div></a>
+    <a class="door" href="/network"><h3>Networking</h3>
+      <p>people who can open doors for you</p><div class="cue">{n_send} waiting</div></a>
   </div>
 </div>
 <div class="hint">v</div>
