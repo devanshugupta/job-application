@@ -267,7 +267,7 @@ def test_focus_about_and_footer():
     sys.path.insert(0, str(ROOT))
     from src.tools import focus
     about = focus.render_about()
-    assert "interviews come from people" in about.lower()
+    assert "Interviews come from" in about and "not portals" in about
     assert "config/network.json" in about
     # every page carries the footer with the about link
     for page in (focus.render_entry(), focus.render_apply(), focus.render_network(), about):
