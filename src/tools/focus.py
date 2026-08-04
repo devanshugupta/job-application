@@ -594,9 +594,9 @@ if (addCo) addCo.addEventListener('submit', e => {
     if (!ok) { alert(d.error || 'could not add'); return; }
     if (d.already) { alert(d.company + ' is already tracked. Find it below.'); return; }
     inp.value = ''; inp.placeholder = d.company + ' added, scouting people. Refresh in a minute.';
-    btn.textContent = 'added'; setTimeout(() => btn.textContent = 'find people', 2500);
+    btn.textContent = 'added'; setTimeout(() => btn.textContent = 'add + tailor', 2500);
   })
-  .catch(() => { btn.textContent = 'needs server'; setTimeout(() => btn.textContent = 'find people', 1500); });
+  .catch(() => { btn.textContent = 'needs server'; setTimeout(() => btn.textContent = 'add + tailor', 1500); });
 });
 const addForm = document.getElementById('addjob');
 if (addForm) addForm.addEventListener('submit', e => {
@@ -1296,7 +1296,7 @@ def render_network() -> str:
     <input id="q" class="search" type="search" placeholder="Search companies and people" style="flex:1; min-width:260px">
     <form id="addco" class="addbar" style="margin:14px 0 18px auto; min-width:220px">
       <input id="addcourl" type="url" required placeholder="random company url" style="width:170px">
-      <button class="runbtn" style="margin-left:0">find people</button></form>
+      <button class="runbtn" style="margin-left:0">add + tailor</button></form>
   </div>
   {blocks}
   {_network_charts(companies)}
