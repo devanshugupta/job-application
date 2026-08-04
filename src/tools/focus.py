@@ -429,9 +429,14 @@ a.row:hover .ract { opacity:1 }
 .ccard b { font-family:Georgia,serif; font-size:19px }
 .ccard div { color:var(--mut); font-size:14.5px; margin:4px 0 10px }
 .ccard span { color:var(--accent); font-size:14.5px; font-weight:650 }
-.rise { opacity:0; transform:translateY(170px);
-  transition:opacity 2s ease, transform 4s cubic-bezier(.28,1.9,.42,1) }
-.rise.up { opacity:1; transform:none }
+html.anim .wrap > h1, html.anim .storyline, html.anim .search, html.anim .sech, html.anim .rows,
+html.anim .panel, html.anim .charts, html.anim .glance, html.anim .lastcall, html.anim .draftbox, html.anim .doors,
+html.anim .momentum, html.anim .metapills, html.anim .heroblock > *:not(.aurora):not(.count), html.anim .hint { opacity:0 }
+.rise { opacity:0 !important }
+.rise.up { opacity:1 !important }
+.rise { transform:translateY(120px);
+  transition:opacity .55s ease-out, transform 1.9s cubic-bezier(.22,1.35,.36,1) }
+.rise.up { transform:none }
 @media (prefers-reduced-motion: reduce) { .rise { opacity:1; transform:none; transition:none } }
 """
 
@@ -544,9 +549,9 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   });
   landing.forEach(el => el.classList.add('rise', 'far'));
   requestAnimationFrame(() => requestAnimationFrame(() => landing.forEach((el, i) => {
-    el.style.transitionDelay = (i * 90) + 'ms';
+    el.style.transitionDelay = (i * 150) + 'ms';
     el.classList.add('up');
-    setTimeout(() => el.style.transitionDelay = '', 4200 + i * 90);
+    setTimeout(() => el.style.transitionDelay = '', 2200 + i * 150);
   })));
 }
 const scene = document.querySelector('.scene');
@@ -702,7 +707,7 @@ def _page(title: str, body: str, active: str = "") -> str:
             '<span><a href="/about">about</a><a href="/about#contact">contact</a></span></div>')
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>{esc(title)}</title><style>{CSS}</style></head>'
+            f'<title>{esc(title)}</title>'f'<script>if(!matchMedia("(prefers-reduced-motion: reduce)").matches)'f'document.documentElement.classList.add("anim");</script>'f'<style>{CSS}</style></head>'
             f'<body{" data-lane=1" if active else ""}>'
             f'<div class="bar"><b><a href="/">vouch.</a></b>{nav}'
             f'<span class="right">'
