@@ -226,18 +226,22 @@ def test_person_gets_linkedin_link():
 
 # ------------------------------------------------------------- focus UI
 
-def test_focus_pages_render_and_follow_design_laws():
+def test_focus_pages_render_and_follow_design_laws(monkeypatch):
     import sys
     sys.path.insert(0, str(ROOT))
-    from src.tools import focus
-    entry, apply_, net = focus.render_entry(), focus.render_apply(), focus.render_network()
-    for page in (entry, apply_, net):
-        # design laws: no emojis (except the sanctioned theme-toggle glyphs),
-        # no em dashes, no arrows in chrome
-        import re
+    from src.tools import focus, tracker
+    # glyph laws apply to OUR chrome, not to source data (ATS job titles may
+    # legally contain em dashes) -- so audit pure-chrome renders (empty data)
+    monkeypatch.setattr(tracker, "list_applications", lambda: [])
+    monkeypatch.setattr(focus, "_net_companies", lambda: [])
+    import re
+    for page in (focus.render_entry(), focus.render_apply(), focus.render_network()):
         stripped = page.replace("\U0001F319", "").replace("☀️", "")
         assert not re.search(r"[\U0001F300-\U0001FAFF]", stripped)
         assert "—" not in page and "→" not in page
+    monkeypatch.undo()
+    entry, apply_, net = focus.render_entry(), focus.render_apply(), focus.render_network()
+    for page in (entry, apply_, net):
         # one blue accent defined once; nav present
         assert page.count("--accent:#2a78d6") == 1
         assert 'href="/apply"' in page and 'href="/network"' in page

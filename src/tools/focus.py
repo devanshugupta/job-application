@@ -253,6 +253,8 @@ a.row:hover, .row.click:hover { background:var(--panel-hov); cursor:pointer }
 .thead .h-prof { width:74px } .thead .h-why { flex:1 } .thead .h-st { width:70px; text-align:right }
 .cell { flex-shrink:0; font-size:12.5px; color:var(--mut); font-variant-numeric:tabular-nums }
 .c-date { width:66px } .c-prof { width:74px; overflow:hidden; text-overflow:ellipsis }
+.sortable { cursor:pointer } .sortable:hover { color:var(--ink) }
+.sortable.asc::after { content:" \2191" } .sortable.desc::after { content:" \2193" }
 .sech { display:flex; align-items:baseline; gap:10px; margin:26px 0 10px }
 .sech h2 { font-family:Georgia,serif; font-size:20px; font-weight:600 }
 .sech .n { color:var(--mut); font-size:13px }
@@ -281,8 +283,26 @@ JS = """
 function copyText(btn, txt) { navigator.clipboard.writeText(txt).then(() => {
   btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy message', 1400); }); }
 document.querySelectorAll('.more[data-for]').forEach(m => m.addEventListener('click', () => {
-  document.querySelectorAll('.hidden[data-grp="' + m.dataset.for + '"]').forEach(r => r.classList.remove('hidden'));
-  m.remove(); }));
+  const hid = [...document.querySelectorAll('.hidden[data-grp="' + m.dataset.for + '"]')];
+  hid.slice(0, 20).forEach(r => r.classList.remove('hidden'));
+  const left = Math.max(hid.length - 20, 0);
+  if (left) m.textContent = 'show 20 more (' + left + ' hidden)'; else m.remove(); }));
+document.querySelectorAll('.sortable').forEach(hcell => hcell.addEventListener('click', () => {
+  const box = hcell.closest('.rows'), key = hcell.dataset.key;
+  const dir = hcell.classList.contains('asc') ? -1 : 1;
+  box.querySelectorAll('.sortable').forEach(x => x.classList.remove('asc', 'desc'));
+  hcell.classList.add(dir === 1 ? 'asc' : 'desc');
+  const rows = [...box.querySelectorAll('a.row')];
+  const visible = rows.filter(r => !r.classList.contains('hidden')).length;
+  rows.sort((a, b) => {
+    const av = a.dataset[key] || '', bv = b.dataset[key] || '';
+    const an = parseFloat(av), bn = parseFloat(bv);
+    return (!isNaN(an) && !isNaN(bn)) ? (an - bn) * dir : av.localeCompare(bv) * dir;
+  });
+  const more = box.querySelector('.more[data-for]');
+  rows.forEach((r, i) => { r.classList.toggle('hidden', i >= visible);
+    if (more) box.insertBefore(r, more); else box.appendChild(r); });
+}));
 const saved = localStorage.getItem('theme');
 if (saved === 'dark') document.documentElement.dataset.theme = 'dark';
 const tbtn = document.querySelector('.theme');
@@ -322,9 +342,13 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool) -
     grp = f' data-grp="{cap}"' if cap else ""
     hide = " hidden" if cap else ""
     url = esc(a.get("url") or "#")
-    posted = esc((a.get("posted_date") or a.get("date") or "")[:10][5:])  # MM-DD
+    posted_full = esc((a.get("posted_date") or a.get("date") or "")[:10])
+    posted = posted_full[5:]  # MM-DD display
+    data = (f' data-co="{esc(a.get("company", ""))}"'
+            f' data-fit="{mats if isinstance(mats, (int, float)) else -1}"'
+            f' data-posted="{posted_full}" data-prof="{esc(a.get("profile") or "")}"')
     prof = esc((a.get("profile") or "").replace("_", " "))
-    return (f'<a class="row {cls}{hide}"{grp} href="{url}" target="_blank">'
+    return (f'<a class="row {cls}{hide}"{grp}{data} href="{url}" target="_blank">'
             f'<span class="mono">{esc(_monogram(a.get("company", "?")))}</span>'
             f'<span class="who"><b>{esc(a.get("company"))}</b><div class="r">{esc(a.get("role"))}</div></span>'
             f'{fit}<span class="cell c-date">{posted}</span>'
@@ -425,21 +449,21 @@ def render_apply() -> str:
         rows += _app_row(a, "hold", "hold", "p-hold",
                          "outreach in flight, applying now burns the referral", "")
     if len(ready) > 5:
-        rows += f'<div class="more" data-for="ready">show all {len(ready)} ready</div>'
+        rows += f'<div class="more" data-for="ready">show 20 more ({len(ready) - 5} hidden)</div>'
     frows = ""
-    for i, a in enumerate(fresh[:20]):
+    for i, a in enumerate(fresh):
         frows += _app_row(a, "", "tailor", "p-mut", "fresh today, strong keyword fit",
                           "fresh" if i >= 5 else "")
     if len(fresh) > 5:
-        frows += f'<div class="more" data-for="fresh">show all {min(len(fresh), 20)} fresh</div>'
+        frows += f'<div class="more" data-for="fresh">show 20 more ({len(fresh) - 5} hidden)</div>'
 
     body = f"""<div class="wrap">
   <h1 class="serif" style="font-size:30px">Applications</h1>
   <div class="storyline">{story}Referral holds are marked. Everything green is safe to send.</div>
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
-  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who">Company / Role</span><span class="h-fit">Fit</span><span class="h-date">Posted</span><span class="h-prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
+  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
   <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span></div>
-  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who">Company / Role</span><span class="h-fit">Fit</span><span class="h-date">Posted</span><span class="h-prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
+  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
   <div class="rows" style="margin-top:26px"><a class="row" href="/network" style="justify-content:space-between">
     <span class="who" style="width:auto"><b>Done applying?</b><div class="r">people are waiting in Networking</div></span>
     <span class="pill p-nav">Networking</span></a></div>
