@@ -168,9 +168,13 @@ def _story(people: dict, apps: dict) -> dict:
 CSS = """
 * { box-sizing:border-box; margin:0 }
 :root { --ink:#1c1b18; --mut:#8d8a80; --line:#eee7d9; --accent:#2a78d6;
-  --go:#0ca30c; --go-bg:#f0faf0; --hold:#b98a00; --hold-bg:#fbf6e7; --cream:#faf7f1 }
+  --go:#0ca30c; --go-bg:#f0faf0; --hold:#b98a00; --hold-bg:#fbf6e7; --cream:#faf7f1;
+  --panel:#ffffff; --panel-hov:#fdfbf6 }
+[data-theme="dark"] { --ink:#f2f1ec; --mut:#98968c; --line:#2c2c2a; --accent:#3987e5;
+  --go:#3fbf3f; --go-bg:rgba(12,163,12,.14); --hold:#d9a520; --hold-bg:rgba(201,133,0,.13);
+  --cream:#141413; --panel:#1c1c1b; --panel-hov:#232322 }
 html { scroll-behavior:smooth }
-body { background:var(--cream); color:var(--ink); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; min-height:100vh }
+body { background:var(--cream); transition:background .4s; color:var(--ink); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; min-height:100vh }
 body::before, body::after { content:""; position:fixed; inset:-20%; pointer-events:none; z-index:-1 }
 body::before { background:radial-gradient(640px 420px at 50% 8%, rgba(42,120,214,.08), transparent 70%); animation:d1 38s ease-in-out infinite alternate }
 body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,.05), transparent 70%); animation:d2 47s ease-in-out infinite alternate }
@@ -178,7 +182,7 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 @keyframes d2 { to { transform:translate(-5%,-4%) scale(1.08) } }
 @media (prefers-reduced-motion: reduce) { body::before, body::after { animation:none } }
 .bar { position:sticky; top:0; display:flex; align-items:center; gap:20px; padding:14px 28px; font-size:13px;
-  background:rgba(250,247,241,.9); backdrop-filter:blur(8px); z-index:5 }
+  background:color-mix(in srgb, var(--cream) 88%, transparent); backdrop-filter:blur(8px); z-index:5 }
 .bar b a { color:var(--ink); text-decoration:none; font-weight:650 }
 .bar a { color:var(--mut); text-decoration:none } .bar a.on, .bar a:hover { color:var(--ink) }
 .bar .right { margin-left:auto } .bar .right a { font-size:12px }
@@ -203,7 +207,7 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
   border-radius:999px; cursor:pointer; border:none; text-decoration:none; box-shadow:0 6px 20px rgba(42,120,214,.25) }
 .cta:hover { transform:translateY(-2px) }
 .doors { display:flex; gap:16px; justify-content:center; margin-top:34px; flex-wrap:wrap }
-.door { width:250px; background:#fff; border:1px solid var(--line); border-radius:18px; padding:24px; cursor:pointer;
+.door { width:250px; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:24px; cursor:pointer;
   text-align:left; transition:.15s; box-shadow:0 4px 18px rgba(30,20,0,.04); text-decoration:none; color:var(--ink); display:block }
 .door:hover { transform:translateY(-3px); border-color:var(--accent) }
 .door h3 { font-family:Georgia,serif; font-size:19px; font-weight:600; margin-bottom:3px }
@@ -211,27 +215,27 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .door .cue { margin-top:14px; font-size:12.5px; font-weight:700; color:var(--accent) }
 .hint { text-align:center; color:var(--mut); font-size:14px; padding-bottom:20px; animation:bob 2.2s infinite }
 @keyframes bob { 50% { transform:translateY(4px) } }
-.rows { background:#fff; border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 4px 18px rgba(30,20,0,.04) }
-.row { display:flex; align-items:center; gap:14px; padding:12px 18px; border-bottom:1px solid #f5f0e6; color:inherit; text-decoration:none }
+.rows { background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 4px 18px rgba(30,20,0,.04) }
+.row { display:flex; align-items:center; gap:14px; padding:12px 18px; border-bottom:1px solid var(--line); color:inherit; text-decoration:none }
 .row:last-child { border-bottom:none }
-a.row:hover, .row.click:hover { background:#fdfbf6; cursor:pointer }
+a.row:hover, .row.click:hover { background:var(--panel-hov); cursor:pointer }
 .row.go { box-shadow:inset 3px 0 0 var(--go) } .row.hold { box-shadow:inset 3px 0 0 var(--hold) }
-.mono { width:34px; height:34px; border-radius:9px; background:#eef2f7; color:#5a6b80; font-weight:750; font-size:12.5px;
+.mono { width:34px; height:34px; border-radius:9px; background:rgba(90,107,128,.14); color:#7a8aa0; font-weight:750; font-size:12.5px;
   display:grid; place-items:center; flex-shrink:0 }
 .who { width:230px; flex-shrink:0 } .who b { font-size:14px }
 .who .r { color:var(--mut); font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:215px }
 .fit { display:flex; align-items:center; gap:8px; width:105px; flex-shrink:0 }
-.fit .t { height:5px; border-radius:3px; background:#efe9db; width:56px; overflow:hidden }
+.fit .t { height:5px; border-radius:3px; background:rgba(140,130,100,.2); width:56px; overflow:hidden }
 .fit .t i { display:block; height:100%; background:var(--accent) }
 .fit b { font-size:12.5px; font-variant-numeric:tabular-nums }
 .why { flex:1; color:var(--mut); font-size:13px; min-width:0 }
 .pill { font-size:11px; font-weight:750; padding:3px 11px; border-radius:999px; flex-shrink:0 }
 .p-go { background:var(--go-bg); color:var(--go) } .p-hold { background:var(--hold-bg); color:var(--hold) }
-.p-mut { background:#f1ede3; color:var(--mut) }
+.p-mut { background:rgba(140,130,100,.14); color:var(--mut) }
 .sech { display:flex; align-items:baseline; gap:10px; margin:26px 0 10px }
 .sech h2 { font-family:Georgia,serif; font-size:20px; font-weight:600 }
 .sech .n { color:var(--mut); font-size:13px }
-.more { text-align:center; padding:12px; color:var(--accent); font-size:13px; cursor:pointer; border-top:1px solid #f5f0e6 }
+.more { text-align:center; padding:12px; color:var(--accent); font-size:13px; cursor:pointer; border-top:1px solid var(--line) }
 .hidden { display:none }
 .storyline { color:var(--mut); font-size:14.5px; margin:4px 0 8px } .storyline b { color:var(--ink) }
 .glance { max-width:680px; margin:0 auto; padding:26px 24px }
@@ -244,9 +248,10 @@ a.row:hover, .row.click:hover { background:#fdfbf6; cursor:pointer }
 .cohead .mono { width:44px; height:44px; font-size:15px }
 .cohead h1 { font-size:30px }
 .meta { color:var(--mut); font-size:13.5px; margin-bottom:20px } .meta b { color:var(--ink) }
-.draftbox { background:#fff; border:1px solid var(--line); border-left:3px solid var(--accent);
+.draftbox { background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
   border-radius:0 12px 12px 0; padding:14px 18px; margin:10px 0; font-size:14px }
 .draftbox .lab { font-size:12px; color:var(--mut); margin-bottom:6px }
+.theme { margin-left:14px; cursor:pointer; border:none; background:none; font-size:15px; line-height:1 }
 .copybtn { font:inherit; font-size:12.5px; font-weight:650; border:none; border-radius:8px; padding:6px 14px;
   cursor:pointer; background:var(--ink); color:#fff; margin-top:10px }
 """
@@ -257,6 +262,21 @@ function copyText(btn, txt) { navigator.clipboard.writeText(txt).then(() => {
 document.querySelectorAll('.more[data-for]').forEach(m => m.addEventListener('click', () => {
   document.querySelectorAll('.hidden[data-grp="' + m.dataset.for + '"]').forEach(r => r.classList.remove('hidden'));
   m.remove(); }));
+const saved = localStorage.getItem('theme');
+if (saved === 'dark') document.documentElement.dataset.theme = 'dark';
+const tbtn = document.querySelector('.theme');
+function paintTheme() { tbtn.textContent = document.documentElement.dataset.theme === 'dark' ? '☀️' : '🌙'; }
+if (tbtn) { paintTheme(); tbtn.addEventListener('click', () => {
+  const d = document.documentElement.dataset.theme === 'dark';
+  if (d) delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = 'dark';
+  localStorage.setItem('theme', d ? 'light' : 'dark'); paintTheme(); }); }
+if (document.body.dataset.lane && document.documentElement.dataset.theme !== 'dark') {
+  const from = [250, 247, 241], to = [255, 255, 255];
+  addEventListener('scroll', () => {
+    const k = Math.min(scrollY / 260, 1);
+    document.body.style.background = 'rgb(' + from.map((f, i) => Math.round(f + (to[i] - f) * k)).join(',') + ')';
+  }, { passive: true });
+}
 """
 
 
@@ -266,9 +286,11 @@ def _page(title: str, body: str, active: str = "") -> str:
         for k, h, t in [("apply", "/apply", "Applications"), ("net", "/network", "Networking")])
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>{esc(title)}</title><style>{CSS}</style></head><body>'
+            f'<title>{esc(title)}</title><style>{CSS}</style></head>'
+            f'<body{" data-lane=1" if active else ""}>'
             f'<div class="bar"><b><a href="/">pipeline.</a></b>{nav}'
-            f'<span class="right"><a href="/classic">classic view</a></span></div>'
+            f'<span class="right"><a href="/classic">classic view</a>'
+            f'<button class="theme" title="theme"></button></span></div>'
             f'{body}<script>{JS}</script></body></html>')
 
 
@@ -276,9 +298,10 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool) -
     mats = a.get("master_ats")
     fit = (f'<span class="fit"><span class="t"><i style="width:{min(int(mats), 100)}%"></i></span>'
            f'<b>{mats}</b></span>') if isinstance(mats, (int, float)) else '<span class="fit"></span>'
-    hidden = ' hidden" data-grp="' + cap if cap else '"'
+    grp = f' data-grp="{cap}"' if cap else ""
+    hide = " hidden" if cap else ""
     url = esc(a.get("url") or "#")
-    return (f'<a class="row {cls}{hidden} href="{url}" target="_blank">'
+    return (f'<a class="row {cls}{hide}"{grp} href="{url}" target="_blank">'
             f'<span class="mono">{esc(_monogram(a.get("company", "?")))}</span>'
             f'<span class="who"><b>{esc(a.get("company"))}</b><div class="r">{esc(a.get("role"))}</div></span>'
             f'{fit}<span class="why">{esc(why)}</span>'

@@ -232,9 +232,11 @@ def test_focus_pages_render_and_follow_design_laws():
     from src.tools import focus
     entry, apply_, net = focus.render_entry(), focus.render_apply(), focus.render_network()
     for page in (entry, apply_, net):
-        # design laws: no emojis, no em dashes, no arrows in chrome
+        # design laws: no emojis (except the sanctioned theme-toggle glyphs),
+        # no em dashes, no arrows in chrome
         import re
-        assert not re.search(r"[\U0001F300-\U0001FAFF]", page)
+        stripped = page.replace("\U0001F319", "").replace("☀️", "")
+        assert not re.search(r"[\U0001F300-\U0001FAFF]", stripped)
         assert "—" not in page and "→" not in page
         # one blue accent defined once; nav present
         assert page.count("--accent:#2a78d6") == 1
