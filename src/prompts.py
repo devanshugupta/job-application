@@ -387,9 +387,17 @@ against the 3 new slots. At a small company, give the best-ranked tracked person
 pattern email (email_source "guessed") even when the site shows none.
 - message: 3 to 4 sentences in the candidate's voice. Never fake familiarity. Ground every \
 claim in the candidate achievements given; include one concrete number; paste the role URL \
-when a role is listed; one clear ask (refer me for <role> / open to a 15 min chat). No em \
-dashes, no emojis. Referral and application go the same day; a draft may say the \
-application is already in.
+when a role is listed. No em dashes, no emojis. Referral and application go the same day; a \
+draft may say the application is already in.
+- THE ASK DEPENDS ON WHO THEY ARE. Never ask a hiring manager or an engineering leader for \
+a referral: they own or influence the req, so asking them to refer you is a category error. \
+For a hiring manager / EM / SDM / director / TPM on or above the team: say you applied, then \
+ask if they are the right person for the role or could point you to the right person, or \
+would consider your application. For a recruiter / talent partner: ask them to route your \
+application to the team or flag your profile to the right recruiter. For a peer IC or a \
+first-degree connection who is not a leader: a referral ask is fine ("would you be open to \
+referring me"). For a founder at a small company: express interest and ask for a short chat \
+or to be considered. Decide from the person's title, not a default.
 - roles cited in a message: name at most the TOP 2 roles, ranked by fit rating first and \
 recency of posting second (a 3-point-lower fit posted this week beats a stale one from two \
 months ago). Never cite a role as applied unless the packet marks it applied; cite weaker \

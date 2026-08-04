@@ -110,6 +110,18 @@ def _sign(draft: str) -> str:
     return f"{draft}\n\n{s}"
 
 
+def _pretty_date(iso: str) -> str:
+    """2026-08-06 -> '6th Aug'. Empty or unparseable input passes through."""
+    iso = (iso or "")[:10]
+    try:
+        d = datetime.strptime(iso, "%Y-%m-%d")
+    except ValueError:
+        return iso
+    n = d.day
+    suf = "th" if 11 <= n % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suf} {d.strftime('%b')}"
+
+
 _COPY_ICON = ('<svg width="13" height="13" viewBox="0 0 24 24" fill="none" '
               'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
               '<rect x="9" y="9" width="12" height="12" rx="2"/>'
@@ -375,12 +387,12 @@ a.row:hover, .row.click:hover { background:var(--panel-hov); cursor:pointer }
 .p-dead { background:rgba(208,59,59,.12); color:#d03b3b }
 .thead { display:flex; gap:14px; padding:9px 20px 7px; font-size:11.5px; font-weight:700;
   letter-spacing:.6px; text-transform:uppercase; color:var(--mut); border-bottom:1px solid var(--line) }
-.thead .h-who { width:265px } .thead .h-fit { width:105px } .thead .h-date { width:66px }
+.thead .h-who { width:265px } .thead .h-fit { width:105px } .thead .h-date { width:72px }
 .thead .h-prof { width:74px } .thead .h-tats { width:64px } .thead .h-score { width:58px }
 .thead .h-why { flex:1 } .thead .h-st { width:70px; text-align:right; margin-left:auto }
 .c-tats { width:64px } .c-score { width:58px; font-weight:650; color:var(--ink) }
 .cell { flex-shrink:0; font-size:13.5px; color:var(--mut); font-variant-numeric:tabular-nums }
-.c-date { width:66px } .c-prof { width:74px; overflow:hidden; text-overflow:ellipsis }
+.c-date { width:72px } .c-prof { width:74px; overflow:hidden; text-overflow:ellipsis }
 .ract { display:inline-flex; gap:6px; flex-shrink:0; opacity:.55; margin-left:auto }
 .ract.rml { margin-left:0; margin-right:0; width:28px; flex-shrink:0; justify-content:center }
 .rml button { padding:3px 8px }
@@ -539,7 +551,6 @@ document.addEventListener('click', e => {
     body: JSON.stringify({ url: row.href }) })
   .then(r => { if (!r.ok) throw 0;
     if (api === 'applied' && !undo) {
-      window.open(row.href, '_blank');
       row.classList.add('rowdone'); row.querySelector('.pill').textContent = 'applied';
       b.textContent = 'undo';
     } else if (undo) {
@@ -984,7 +995,7 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
     hide = " hidden" if (cap or grp) else ""
     url = esc(a.get("url") or "#")
     posted_full = esc((a.get("posted_date") or a.get("date") or "")[:10])
-    posted = posted_full[5:]  # MM-DD display
+    posted = esc(_pretty_date(a.get("posted_date") or a.get("date") or ""))
     tats = a.get("match_score") if _dash._has_resume(a) else None
     score = a.get("resume_score")
     data = (f' data-co="{esc(a.get("company", ""))}"'
@@ -1414,7 +1425,7 @@ def render_company(slug: str) -> str | None:
         fresh_links = "".join(
             f'<a class="row" href="{esc(j["url"])}" target="_blank">'
             f'<span class="mono">-</span>'
-            f'<span class="who"><b>{esc(j["role"])}</b><div class="r">posted {esc(j["posted"])}</div></span>'
+            f'<span class="who"><b>{esc(j["role"])}</b><div class="r">posted {esc(_pretty_date(j["posted"]))}</div></span>'
             f'{_heat_pill(j)}</a>'
             for j in hr.get("freshest_matches", [])[:5])
         stats_html = (
