@@ -73,6 +73,11 @@ heat instead — careers-site search for the target org's posting count/recency
   "pre-posting" networking target — say so.
 
 ### 4. People map — who to approach
+**Zero-login sources first:** `theorg.com/org/<slug>` (public org charts:
+named people + titles, covers startups too) and the LinkedIn content search
+`<Company> "my team is hiring"` sorted by date (posters have opted into
+contact — the single highest-response target type; run it in the USER'S
+browser, never automated). Then:
 **Highest-value single page: `linkedin.com/company/<slug>/people/`** — one load
 gives headcount + geo split, every employee, AND connection degree + named
 mutual connections for all of them at once (this is how the Rohit Khoja mutual

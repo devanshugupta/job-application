@@ -146,6 +146,11 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     src_total: dict[str, int] = {}       # roles per source (scoutbetter / linkedin / ...)
     src_applied: dict[str, int] = {}     # of those, how many applied
     removed_count = 0
+    # sub-51 keyword-fit rows are noise: drop them from the dashboard entirely unless
+    # they were tailored or applied (those always render, whatever the score)
+    ordered = [a for a in ordered
+               if not (isinstance(a.get("master_ats"), (int, float)) and a["master_ats"] < 51
+                       and not _has_resume(a) and a.get("status") not in _SUBMITTED)]
     for a in ordered:
         # Rows you removed are kept in the tracker (never deleted) but hidden by default
         # and excluded from every stat/KPI; a "show removed" toggle can reveal them to

@@ -17,6 +17,8 @@ python -m src.cli apply "<url>"  [--profile X]     # agentic browser apply + hum
 python -m src.cli fill  "<url>"                    # deterministic Greenhouse form fill (no key)
 python -m src.cli score "<url>"                    # agent scores one URL (key)
 python -m src.cli find  "<query>" [--days 3]       # agent crawls boards (key; fallback discovery)
+python -m src.cli add "<job-url>"                  # paste one job: fetch JD, track, tailor
+python -m src.cli people [--company X] [--force]   # who to contact per company (no LinkedIn login)
 python -m src.cli status [--verbose] | dashboard | usage | report | watchlist
 python -m src.cli feed | run                       # legacy (run = alias of pipeline)
 ```
@@ -382,14 +384,37 @@ The scout agent prompt (`.claude/agents/company-scout.md`) references these as
 `{candidate.*}` / `{outreach.*}` variables and refuses to run without
 `config/network.json`.
 
-## Focus UI (the official interface, adopted Aug 2026)
+## Focus UI — "vouch." (the official interface, adopted Aug 2026)
 
-`src/tools/focus.py` renders the user-facing UI on demand at localhost:8765:
-`/` entry (greeting, story of the day, two doors, scroll funnel), `/apply`,
-`/network`, `/company/<slug>`. Old dashboards remain at `/classic` and
-`/network-classic`. Design laws live in focus.py's docstring; the reference
-test for every UI decision is "would Apple / The Browser Company / IDEO have
-done this?" (one story per screen, one CTA, cream + ink + one blue accent,
-green only on do-now rows, amber only on waiting, 3-5 rows per section,
-no emojis, no em dashes). The story of the day is ranked deterministically:
-replied person > unsent warm draft > follow-up due > best ready apply.
+`src/tools/focus.py` renders the user-facing UI on demand at localhost:8765,
+branded **vouch.** (interlocked double-V mark: favicon via `_mark()`/PNG asset,
+hero scroll hint, footer home link). Pages: `/` (greeting, typewriter headline,
+two doors, glance), `/apply` (ready/fresh lanes, daily heatmap, catalog with
+segmented filter + paste-a-job-url background tailor, auto dead-link check of
+ready rows per refresh), `/network` (5 most actionable companies + show-more
+fold, paste-a-company-url "find people" box, per-person Copy message/email
+buttons, hiring-posts pills), `/company/<slug>` (people ranked by reachability,
+Find more people source buttons incl. TheOrg org chart and the LinkedIn
+hiring-posts search, re-scout button), `/about`, `/settings` (candidate editor,
+masked API keys -> .env: ANTHROPIC/OPENAI/SERPER/HUNTER). Old dashboards at
+`/classic` and `/network-classic`. The server hot-reloads focus.py per request;
+**changes to dashboard_server.py or cli.py still need a server restart.**
+Design laws live in focus.py's docstring ("would Apple / The Browser Company /
+IDEO have done this?"): one story per screen, cream + ink + one blue accent
+(tested: defined exactly once per page), green only on do-now, amber only on
+waiting, no emojis, no em dashes. Tab titles: `Page | vouch.` except home.
+
+## People finder (`src/tools/people.py`, Aug 2026)
+
+Free-signal networking scout, no LinkedIn automation ever: company-site crawl
+(emails + name::title lines), theorg.com public org charts (best free source of
+named people; `theorg_slug` overrides mismatches), JD reporting-line mining,
+MX-gated pattern email guesses (small companies only, labeled). Optional seams
+activate via Settings keys: Serper (LinkedIn-profile snippets + weekly
+hiring-posts radar via Google) and Hunter (observed emails with confidence ->
+"(verified)" label; Email Finder upgrade pass, 2 lookups/run). One brain call
+per company (candidate+achievements ride as prompt-cache blocks), 30-day cache
+(`people_scouted`), never invents people. LinkedIn "my team is hiring" posts
+are the highest-response signal; the per-company button opens the field-tested
+query `<Company> "my team is hiring"` date-sorted in the user's own session.
+Policy: referral AND application the same day; never reintroduce holds.

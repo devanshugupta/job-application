@@ -1162,7 +1162,7 @@ def render_apply() -> str:
         frows += '<div class="more" data-for="fresh">show more</div>'
 
     body = f"""<div class="wrap">
-  <h1 class="serif" style="font-size:36px">Applications</h1>
+  <h1 class="serif" style="font-size:36px">applications.</h1>
   <div class="storyline">{story}Send the referral ask the same day, from Networking.</div>
   {_applied_panel()}
   <input id="q" class="search" type="search" placeholder="Search company, role, track">
@@ -1290,7 +1290,7 @@ def render_network() -> str:
                   'scouted yet. Paste one above to start.</span></div></div>')
 
     body = f"""<div class="wrap">
-  <h1 class="serif" style="font-size:36px">Networking</h1>
+  <h1 class="serif" style="font-size:36px">networking.</h1>
   <div class="storyline">{story_line} Green rows have a message ready to copy.</div>
   <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap">
     <input id="q" class="search" type="search" placeholder="Search companies and people" style="flex:1; min-width:260px">
@@ -1418,7 +1418,7 @@ def render_company(slug: str) -> str | None:
 
     body = f"""<div class="wrap">
   <div class="cohead"><span class="mono">{esc(_monogram(c["name"]))}</span>
-    <h1 class="serif">{esc(c["name"])}</h1></div>
+    <h1 class="serif">{esc(c["name"])}.</h1></div>
   <div class="metapills"><span class="pill {HEAT_PILL.get((c.get("heat") or "").upper(), "p-mut")}">{esc((c.get("heat") or "?").upper())}</span>
     <span class="pill p-mut">scouted {esc(c.get("last_scouted", "?"))}</span>
     {f'<a class="pbtn" href="{esc(c.get("website"))}" target="_blank">website</a>' if c.get("website") else ''}
@@ -1453,7 +1453,7 @@ def render_about() -> str:
         '<div>Add email, linkedin, or github to the candidate block in config/network.json '
         'and they appear here.</div></div>')
     body = f"""<div class="wrap" style="max-width:900px">
-  <div class="count" style="margin-top:26px">About</div>
+  <div class="count" style="margin-top:26px">about.</div>
   <h1 class="statement">Interviews come from <em>people</em>, not portals.</h1>
   <p class="prose">That is the whole belief. Every night this pipeline finds fresh roles from public
     ATS feeds and scores the fit deterministically, so effort only goes where it counts. Anything worth
@@ -1520,7 +1520,7 @@ def render_settings() -> str:
                       f'<div class="r">{esc(path)}, {note}</div></span>{btn}{dot}</div>')
 
     body = f"""<div class="wrap" style="max-width:900px">
-  <h1 class="serif" style="font-size:36px">Settings</h1>
+  <h1 class="serif" style="font-size:36px">settings.</h1>
   <div class="storyline">Everything saves to your local config files. Nothing leaves this machine.</div>
 
   <div class="sech"><h2>You</h2><span class="n">powers the resumes, drafts, and greetings</span></div>

@@ -13,6 +13,13 @@ either on the Anthropic/OpenAI APIs (`--brain api`) or with **no API key at all*
 (`--brain manual`  prompt packets on disk that any LLM, including Claude Code
 driving this repo, can answer).
 
+The user-facing product is **vouch.** — a local web UI (`dashboard --serve`,
+localhost:8765) with two lanes: **Applications** (ready-to-apply rows with
+tailored PDFs, paste-a-job-URL background tailoring, dead-link checks) and
+**Networking** (per-company people maps with copy-ready outreach drafts, found
+from free signals: company sites, TheOrg org charts, LinkedIn hiring posts —
+never LinkedIn automation). Referral and application go out the same day.
+
 > ⚠️ **Read the [Responsible use](#responsible-use) section first.** Auto-submitting
 > applications and automating LinkedIn can violate site Terms of Service and get
 > accounts restricted. This repo defaults to **human-in-the-loop** (it pauses for
