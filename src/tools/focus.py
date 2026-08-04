@@ -381,7 +381,7 @@ a.row:hover .ract { opacity:1 }
 .scene { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden }
 .scene svg.wave { position:absolute; bottom:-8vh; left:-5%; width:110%; height:54vh; will-change:transform }
 .scene .ship { position:absolute; left:7%; bottom:5.5vh; width:60px; will-change:transform }
-.itrail { position:fixed; pointer-events:none; z-index:8; width:64px;
+.itrail { position:fixed; pointer-events:none; z-index:8; width:70px;
   animation:it .85s cubic-bezier(.2,.7,.4,1) forwards }
 .itrail img { width:100%; height:auto; display:block; border-radius:9px;
   border:2.5px solid #fff; box-shadow:0 6px 18px rgba(30,20,0,.18) }
@@ -523,7 +523,7 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     t.className = 'itrail';
     t.innerHTML = '<img src="' + minis[nImg++ % minis.length] + '" alt="">';
     t.style.setProperty('--rot', ((Math.random() - 0.5) * 28) + 'deg');
-    t.style.left = (e.clientX - 32) + 'px'; t.style.top = (e.clientY - 24) + 'px';
+    t.style.left = (e.clientX - 35) + 'px'; t.style.top = (e.clientY - 26) + 'px';
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 900);
   }, { passive: true });
