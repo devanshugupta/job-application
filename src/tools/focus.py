@@ -4,7 +4,10 @@ Design laws (decided 2026-08-03, reference test: "would Apple / The Browser
 Company / IDEO have done this?"):
   - One story per screen, centered. Radical word economy.
   - Exactly one saturated CTA per view; cream + ink + one blue.
-  - Green appears ONLY on do-now rows, amber ONLY on waiting rows.
+  - Color semantics, one meaning each: GREEN = act now / good to send.
+    AMBER = waiting / held, do nothing yet. BLUE = information + navigation
+    (fit bars, links, nav pills). RED = stopped / dead only. GRAY = identity
+    and neutral states. A color never decorates; it always means.
   - 3-5 rows per section, best first, counts visible, "show all" expands.
   - No emojis, no em dashes, no icon where a word fits.
   - Ambient drifting background, slow enough to never catch moving.
@@ -186,7 +189,7 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .bar b a { color:var(--ink); text-decoration:none; font-weight:650 }
 .bar a { color:var(--mut); text-decoration:none } .bar a.on, .bar a:hover { color:var(--ink) }
 .bar .right { margin-left:auto } .bar .right a { font-size:12px }
-.wrap { max-width:1160px; margin:0 auto; padding:26px 32px 60px }
+.wrap { max-width:1440px; margin:0 auto; padding:26px 40px 60px }
 .serif { font-family:Georgia,serif; font-weight:600; letter-spacing:-.5px }
 .heroblock { min-height:calc(88vh - 50px); display:flex; flex-direction:column; align-items:center;
   justify-content:center; text-align:center; padding:20px; margin:0 auto; max-width:760px; position:relative }
@@ -232,6 +235,14 @@ a.row:hover, .row.click:hover { background:var(--panel-hov); cursor:pointer }
 .pill { font-size:11px; font-weight:750; padding:3px 11px; border-radius:999px; flex-shrink:0 }
 .p-go { background:var(--go-bg); color:var(--go) } .p-hold { background:var(--hold-bg); color:var(--hold) }
 .p-mut { background:rgba(140,130,100,.14); color:var(--mut) }
+.p-nav { background:rgba(42,120,214,.12); color:var(--accent) }
+.p-dead { background:rgba(208,59,59,.12); color:#d03b3b }
+.thead { display:flex; gap:14px; padding:8px 18px 6px; font-size:10.5px; font-weight:700;
+  letter-spacing:.6px; text-transform:uppercase; color:var(--mut); border-bottom:1px solid var(--line) }
+.thead .h-who { width:230px } .thead .h-fit { width:105px } .thead .h-date { width:66px }
+.thead .h-prof { width:74px } .thead .h-why { flex:1 } .thead .h-st { width:70px; text-align:right }
+.cell { flex-shrink:0; font-size:12.5px; color:var(--mut); font-variant-numeric:tabular-nums }
+.c-date { width:66px } .c-prof { width:74px; overflow:hidden; text-overflow:ellipsis }
 .sech { display:flex; align-items:baseline; gap:10px; margin:26px 0 10px }
 .sech h2 { font-family:Georgia,serif; font-size:20px; font-weight:600 }
 .sech .n { color:var(--mut); font-size:13px }
@@ -301,10 +312,14 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool) -
     grp = f' data-grp="{cap}"' if cap else ""
     hide = " hidden" if cap else ""
     url = esc(a.get("url") or "#")
+    posted = esc((a.get("posted_date") or a.get("date") or "")[:10][5:])  # MM-DD
+    prof = esc((a.get("profile") or "").replace("_", " "))
     return (f'<a class="row {cls}{hide}"{grp} href="{url}" target="_blank">'
             f'<span class="mono">{esc(_monogram(a.get("company", "?")))}</span>'
             f'<span class="who"><b>{esc(a.get("company"))}</b><div class="r">{esc(a.get("role"))}</div></span>'
-            f'{fit}<span class="why">{esc(why)}</span>'
+            f'{fit}<span class="cell c-date">{posted}</span>'
+            f'<span class="cell c-prof">{prof}</span>'
+            f'<span class="why">{esc(why)}</span>'
             f'<span class="pill {pill_cls}">{esc(pill)}</span></a>')
 
 
@@ -413,12 +428,12 @@ def render_apply() -> str:
   <h1 class="serif" style="font-size:30px">Applications</h1>
   <div class="storyline">{story}Referral holds are marked. Everything green is safe to send.</div>
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
-  <div class="rows">{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
+  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who">Company / Role</span><span class="h-fit">Fit</span><span class="h-date">Posted</span><span class="h-prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
   <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span></div>
-  <div class="rows">{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
+  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who">Company / Role</span><span class="h-fit">Fit</span><span class="h-date">Posted</span><span class="h-prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
   <div class="rows" style="margin-top:26px"><a class="row" href="/network" style="justify-content:space-between">
     <span class="who" style="width:auto"><b>Done applying?</b><div class="r">people are waiting in Networking</div></span>
-    <span class="pill p-mut">Networking</span></a></div>
+    <span class="pill p-nav">Networking</span></a></div>
 </div>"""
     return _page("Applications", body, "apply")
 
@@ -456,7 +471,7 @@ def render_network() -> str:
   <div class="rows">{crows}</div>
   <div class="rows" style="margin-top:26px"><a class="row" href="/apply" style="justify-content:space-between">
     <span class="who" style="width:auto"><b>Messages sent?</b><div class="r">roles are ready in Applications</div></span>
-    <span class="pill p-mut">Applications</span></a></div>
+    <span class="pill p-nav">Applications</span></a></div>
 </div>"""
     return _page("Networking", body, "net")
 
