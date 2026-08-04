@@ -30,7 +30,10 @@ from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote
 
+import importlib
+
 from .. import config
+from . import focus, jd_fetch, latex
 from . import artifacts, dashboard, tracker
 
 
@@ -82,7 +85,7 @@ def unmark_applied(url: str) -> str:
 def recompile_resume(rec: dict) -> pathlib.Path:
     """Re-render this job's tailored_resume.tex into its PDF, overwriting it  so editing
     the .tex and clicking 'recompile' picks up the changes. Returns the PDF path."""
-    from . import latex
+
     # Derive the folder/PDF name from the stored path WITHOUT requiring the PDF to exist
     # yet  recompiling is exactly how a missing/edited PDF gets (re)generated.
     stored = pathlib.Path(rec["tailored_pdf"]) if rec.get("tailored_pdf") else None
@@ -213,14 +216,12 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json(200, pipeline_status())
         # Focus UI (the official interface): /, /apply, /network, /company/<slug>.
         # Old dashboards remain at /classic and /network-classic.
-        from . import focus
         # hot-reload the focus module when its source changes, so UI edits
         # show up on refresh without restarting the server
         global _FOCUS_MTIME
         _m = os.path.getmtime(focus.__file__)
         if _FOCUS_MTIME is not None and _m != _FOCUS_MTIME:
-            import importlib
-            focus = importlib.reload(focus)
+            importlib.reload(focus)
         _FOCUS_MTIME = _m
         if not path:
             return self._send(200, focus.render_entry().encode(), "text/html")
@@ -293,8 +294,6 @@ class _Handler(BaseHTTPRequestHandler):
                 # On-demand liveness probe: re-fetch the JD (deterministic, no LLM) and
                 # decide dead = the page carries no real posting body. Persist the result
                 # as `stale` so the pipeline skips it, and return it so the button updates.
-                from datetime import datetime
-                from . import jd_fetch
                 r = jd_fetch.fetch_jd(url, allow_browser=True)
                 dead = not r["looks_complete"]
                 chars = len(r["text"].strip())

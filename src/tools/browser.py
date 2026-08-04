@@ -18,9 +18,12 @@ import pathlib
 import random
 import re
 import time
+from datetime import datetime, timedelta
 from typing import Any
 
 from playwright.sync_api import Page, sync_playwright
+
+from .. import config
 
 # Anti-flagging: pace actions like a human and present a real browser identity.
 # Tunable via env so unattended runs can go slower/faster.
@@ -66,7 +69,6 @@ def _resolve_relative(text: str, today: str | None) -> str | None:
     m = re.search(r"(\d+)\s+(day|week|month|hour|minute)s?\s+ago", text, re.I)
     if not m:
         return None
-    from datetime import datetime, timedelta
 
     n, unit = int(m.group(1)), m.group(2).lower()
     try:
@@ -251,7 +253,6 @@ class Browser:
         return f"Uploaded {path.name} to {ref}.\n\n{self.snapshot()}"
 
     def screenshot(self, label: str = "screenshot") -> str:
-        from .. import config
         out_dir = config.SCREENSHOTS_DIR
         out_dir.mkdir(parents=True, exist_ok=True)
         safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in label)

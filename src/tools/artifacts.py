@@ -25,6 +25,7 @@ import pathlib
 import re
 
 from .. import config
+from . import tracker
 
 BASE = config.APPLICATIONS_DIR
 
@@ -132,7 +133,6 @@ def migrate_layout(apply: bool = True) -> list[tuple[str, str]]:
     untracked nested ones are left alone. Returns the (old, new) path pairs; pass
     apply=False for a dry run.
     """
-    from . import tracker
 
     db = tracker._load_applications()
     rows = db["applications"]

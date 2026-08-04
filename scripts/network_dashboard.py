@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+from urllib.parse import quote_plus
 import re
 import webbrowser
 from datetime import datetime, timezone
@@ -254,7 +255,6 @@ def md_to_html(md: str) -> str:
 # --------------------------------------------------------------- company page
 
 def people_html(c: dict) -> str:
-    from urllib.parse import quote_plus
     out = ""
     for p in c.get("people", []):
         r_, w_, l_ = (p.get("rwl") or [0, 0, 0])[:3]

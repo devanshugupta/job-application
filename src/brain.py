@@ -29,6 +29,7 @@ import json
 import re
 
 from . import config
+from .tools import llm
 
 
 class BrainPending(Exception):
@@ -48,7 +49,6 @@ class ApiBrain:
 
     def structured(self, name: str, *, system: str, user: str, schema: dict,
                    max_tokens: int = 3000, cache_blocks: list[str] | None = None) -> dict:
-        from .tools import llm
         provider = llm.provider_for(name)
         model = llm.model_for(provider)
         parsed, _usage = llm.structured(provider=provider, model=model, system=system,

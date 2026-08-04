@@ -950,7 +950,6 @@ def render_company(slug: str) -> str | None:
         state = ("replied" if t_ and t_[-1].get("outcome") in ("replied", "referred")
                  else "contacted" if t_ else "send")
         cls, pcls = ("go", "p-go") if state != "contacted" else ("hold", "p-hold")
-        from urllib.parse import quote_plus
         url = p.get("linkedin") or ("https://www.linkedin.com/search/results/people/?keywords="
                                     + quote_plus(f"{name} {c['name']}"))
         log = "; ".join(f'{o.get("date","")} {o.get("channel","")} touch {o.get("touch_n","")}'

@@ -19,11 +19,12 @@ returned ``errors`` list, never raised  one bad token must not kill a run.
 
 from __future__ import annotations
 
+import html as _html
 import json
 import re
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .. import config
 
@@ -70,7 +71,6 @@ def _strip_html(html: str) -> str:
     """Cheap HTML→text for JDs the ATS APIs return as HTML (Greenhouse/Ashby).
     Not a full parser  unescape entities, drop tags, collapse whitespace. Good
     enough for keyword matching and the tailor prompt; no browser, no deps."""
-    import html as _html
     if not html:
         return ""
     # Greenhouse returns `content` entity-encoded (&lt;div&gt;…), so unescape first,
@@ -188,7 +188,6 @@ def fetch_workable(company: str, token: str) -> list[dict]:
 def _workday_posted_iso(text: str) -> str:
     """Workday gives 'Posted Today' / 'Posted Yesterday' / 'Posted N Days Ago' / 'Posted
     30+ Days Ago'. Map to an ISO date relative to now ('' if unknown)."""
-    from datetime import timedelta
     t = (text or "").lower()
     now = datetime.now(timezone.utc)
     if "today" in t:
@@ -211,7 +210,6 @@ def fetch_workday(company: str, host: str, site: str,
     window  Workday returns newest-first, so once a couple of pages are entirely older
     than the window we stop early instead of dragging the whole 2000-job board.
     """
-    from datetime import timedelta
     tenant = host.split(".")[0]
     api = f"https://{host}/wday/cxs/{tenant}/{site}/jobs"
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=within_hours)).date().isoformat() \

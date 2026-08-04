@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import date
 import pathlib
 import re
 import sys
@@ -67,7 +68,6 @@ def _dedupe(roles: list[dict]) -> list[dict]:
 
 
 def stage_shortlist(days: int, refresh: bool) -> None:
-    from datetime import date
     today = date.today().isoformat()
     cache_key = f"feed-{days}-auto"
     roles = None if refresh else finder.get_cached(cache_key, None, today)
@@ -114,7 +114,7 @@ def stage_shortlist(days: int, refresh: bool) -> None:
 # Stage 1  fetch JD text for the whole pool
 # --------------------------------------------------------------------------- #
 def stage_fetch(headless: bool, limit: int | None) -> None:
-    from datetime import date
+    # lazy: pulls in playwright, keep script startup light
     from src.tools.browser import Browser
     if not SHORTLIST_PATH.exists():
         sys.exit("No data/_shortlist.json  run `--stage shortlist` first.")

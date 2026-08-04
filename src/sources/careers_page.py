@@ -102,6 +102,7 @@ def _title_and_location(link_text: str, ctx: str) -> tuple[str, str]:
 
 def scrape_careers(company: str, cfg: dict, verbose: bool = True) -> list[dict]:
     """Open one careers URL, dwell ~human-like, and extract job cards. Never raises."""
+    # lazy: playwright is an optional dependency
     from playwright.sync_api import sync_playwright
 
     url = cfg["url"]

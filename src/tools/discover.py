@@ -20,10 +20,14 @@ from __future__ import annotations
 
 import re
 import time
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
 from .. import config
-from . import ats, feeds, profiles, scoring, tracker
+from .. import sources as source_registry
+from . import ats, feeds, finder, jd_fetch, profiles, scoring, tracker
+from .tailor import _NO_SPONSOR, _requires_sponsorship
 
 # Titles that are never a fit for an entry-level SWE/ML/Data search, regardless
 # of source. Seniority gating only applies to board-API results (the new-grad
@@ -100,7 +104,6 @@ def gather(hours: int, *, profile: str | None = None, sources: list[str] | None 
     profile gates and ranking below apply identically to all of them  so a new source
     (LinkedIn, ScoutBetter, a new ATS) needs no changes here.
     """
-    from .. import sources as source_registry
 
     now = now_ts or int(time.time())
     cutoff_ts = now - hours * 3600
@@ -164,7 +167,6 @@ def gather(hours: int, *, profile: str | None = None, sources: list[str] | None 
 
     # Per-company coverage: how many we PULLED from each portal vs how many survived the
     # freshness/US/title/seniority filter  so you can verify nothing is silently dropped.
-    from collections import Counter
     pulled = Counter(j["company"] for j in raw)
     kept = Counter(j["company"] for j in jobs)
     stats["coverage"] = {co: {"pulled": pulled[co], "kept": kept.get(co, 0)}
@@ -185,9 +187,7 @@ def _ensure_jd_text(jobs: list[dict], *, verbose: bool = True) -> None:
     with an inline JD already have it; for the rest we fetch the posting now  cheap ATS
     API/HTTP paths, with a browser render only for Simplify/LinkedIn/careers/github links.
     Day-cached per URL and run concurrently. Never raises."""
-    from concurrent.futures import ThreadPoolExecutor
 
-    from . import finder, jd_fetch
     today = date.today().isoformat()
     todo = []
     for j in jobs:
@@ -234,7 +234,6 @@ def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
     re-run  e.g. after a mid-pipeline failure  reuses it instead of re-sweeping every
     source. Pass refresh=True to force a fresh sweep.
     """
-    from . import finder
 
     src_key = "+".join(sorted(sources)) if sources else "all"
     cache_key = f"discover-{hours}-{profile or 'auto'}-{src_key}"
@@ -313,10 +312,7 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
     job["jd_text"] so the tailor step doesn't fetch it again; jobs whose JD needs a
     browser keep their title-based match and rank by it (they're fetched with the
     browser fallback at tailor time)."""
-    from concurrent.futures import ThreadPoolExecutor
 
-    from . import finder, jd_fetch
-    from .tailor import _NO_SPONSOR, _requires_sponsorship
 
     needs_sponsor = _requires_sponsorship()
     today = date.today().isoformat()

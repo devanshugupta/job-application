@@ -28,7 +28,7 @@ import re
 
 from .. import config, prompts
 from ..brain import BrainPending
-from . import artifacts, ats, final_check, jd_fetch, profiles, resume, scorer, tracker
+from . import artifacts, ats, final_check, jd_fetch, latex, profiles, resume, scorer, tracker
 
 PATCH_SCHEMA = {
     "type": "object",
@@ -92,7 +92,6 @@ def _tailor_system() -> str:
 
 
 def _validate_patch(patch: dict) -> list[str]:
-    from . import latex
     problems = []
     bullets = patch.get("top_bullets") or []
     lo, hi = latex.MIN_BULLETS_PER_BLOCK, latex.MAX_BULLETS_PER_BLOCK

@@ -21,6 +21,7 @@ import shutil
 import subprocess
 
 from .. import config
+from . import ats
 
 MASTERS_DIR = config.MASTERS_DIR
 
@@ -319,7 +320,6 @@ def _render_experience_selected(tex: str, chosen_idx: int, top_bullets: list[str
         of fixed defaults.
 
     This is what lets the master hold ALL points without every resume ballooning."""
-    from . import ats
 
     spans: list[tuple[int, int]] = []
     i = 0
@@ -382,7 +382,6 @@ def _select_projects_in_tex(tex: str, jd_text: str, k: int) -> str:
     r"""When the patch didn't re-select projects, keep the ``k`` most JD-relevant from the
     .tex pool (deterministic) so the section stays 1-page without dropping to fixed
     document order."""
-    from . import ats
 
     pool = _parse_projects(tex)
     if len(pool) <= k:
@@ -629,7 +628,6 @@ def pdf_renders_complete(pdf_path: pathlib.Path, edited_tex: str) -> bool:
     page, silently dropping the last skills row(s). We verify the last meaningful
     words of the edited source appear in the extracted PDF text; on failure the
     caller re-edits with fewer secondary bullets/projects and recompiles."""
-    import subprocess
     try:
         out = subprocess.run(["pdftotext", str(pdf_path), "-"],
                              capture_output=True, text=True, timeout=30)

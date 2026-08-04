@@ -26,10 +26,12 @@ LinkedIn-sourced URLs as DISCOVERY pointers  the apply step opens the real compa
 
 from __future__ import annotations
 
+import html as _h
 import json
 import re
 import time
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -55,7 +57,6 @@ def _strip(html: str) -> str:
     html = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", html or "")
     html = re.sub(r"(?i)<(br|/p|/div|/li|/h[1-6]|/ul)[^>]*>", "\n", html)
     html = re.sub(r"<[^>]+>", " ", html)
-    import html as _h
     html = _h.unescape(html)
     html = re.sub(r"[ \t]+", " ", html)
     return re.sub(r"\n\s*\n+", "\n\n", html).strip()
@@ -193,7 +194,6 @@ class LinkedInSource(Source):
 
 def _attach_jds(jobs: list[dict]) -> None:
     """Fill jd_text (in place) for each card from the guest JD endpoint, concurrently."""
-    from concurrent.futures import ThreadPoolExecutor
     todo = [j for j in jobs if not (j.get("jd_text") or "").strip()]
     if not todo:
         return

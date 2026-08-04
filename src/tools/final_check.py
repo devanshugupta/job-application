@@ -13,7 +13,7 @@ from __future__ import annotations
 import pathlib
 import re
 
-from . import resume
+from . import ats, resume
 
 # Template/placeholder tokens that must never survive into a real resume.
 _PLACEHOLDERS = re.compile(
@@ -82,7 +82,6 @@ def check_resume(*, tailored_md: str | None = None, pdf_path: str | None = None,
     # 5. JD-alignment heuristic: at least one of the JD's top terms should appear in the
     #    first two bullets (only a warning  the LLM scorer is the real judge).
     if jd_text and focus_bullets:
-        from . import ats
         jd_terms = [w for w, _ in ats._keywords(jd_text).most_common(15)]
         top = " ".join(focus_bullets).lower()
         if not any(t in top for t in jd_terms):

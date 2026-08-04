@@ -390,6 +390,7 @@ def _render_pdf_to(dest: pathlib.Path, pdf_name: str, *, markdown: str | None,
                       if config.TAILORED_MD_PATH.exists() else read_master())
     html = _md_to_html(md)
 
+    # lazy: playwright is an optional dependency
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as pw:

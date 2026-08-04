@@ -16,7 +16,9 @@ config/settings.json {"scoutbetter": {...}}; sensible defaults need no config.
 
 from __future__ import annotations
 
+import html as _html
 import json
+import re
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -48,8 +50,6 @@ def _iso_ts(s: str) -> tuple[str, int]:
 
 
 def _strip_html(raw: str) -> str:
-    import html as _html
-    import re
     raw = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", raw or "")
     raw = re.sub(r"(?i)<(br|/p|/div|/li|/h[1-6])[^>]*>", "\n", raw)
     raw = re.sub(r"<[^>]+>", " ", raw)

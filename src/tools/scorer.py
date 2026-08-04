@@ -103,7 +103,6 @@ def score_resume(
     Routed via the LLM shim  the scorer runs on whichever provider JOB_AGENT_SCORE_PROVIDER
     (or JOB_AGENT_PROVIDER) selects, so it can use OpenAI even when tailoring uses Claude.
     """
-    from . import llm
     provider = llm.provider_for("score")
     model = model or llm.model_for(provider)
     user = (

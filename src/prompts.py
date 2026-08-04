@@ -18,6 +18,11 @@ needs to change. Keep the HONESTY rule intact in both creation and scoring.
 
 from __future__ import annotations
 
+import json
+
+from . import config
+from .tools import resume
+
 # ---------------------------------------------------------------------------
 # 1. RESUME CREATION
 # ---------------------------------------------------------------------------
@@ -157,8 +162,6 @@ def _fixed_core() -> str:
     """Candidate-specific always-on skills, from config/network.json
     resume_core (e.g. {"resume_core": "Languages must include C++, Python.
     Robotics group must include ROS2, SLAM."}). Falls back to the default."""
-    import json
-    from . import config
     try:
         net = json.loads((config.ROOT / "config" / "network.json").read_text())
         core = net.get("resume_core")
@@ -171,7 +174,6 @@ def _fixed_core() -> str:
 
 def render_tailor_system() -> str:
     """TAILOR_SYSTEM with the live section budgets from resume.BUDGETS filled in."""
-    from .tools import resume
     b = resume.BUDGETS
     return TAILOR_SYSTEM.format(
         summary_min=b["summary_min_words"], summary_max=b["summary_max_words"],

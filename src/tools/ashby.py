@@ -18,7 +18,7 @@ import pathlib
 import shutil
 import time
 
-from . import greenhouse as gh
+from . import forms, greenhouse as gh
 from .browser import Browser
 
 
@@ -204,7 +204,6 @@ def _fill_ashby_questions(page, profile: dict) -> list[str]:
     """Answer every question the profile/question-bank knows, via Ashby's real controls
     (button pairs, radios, type-ahead comboboxes, plain inputs). Unknown questions and all
     consent/agreement checkboxes are left untouched for the human. Returns answered labels."""
-    from . import forms
     bank = forms.load_bank()
     ctx = forms.build_context(profile)
     answered: list[str] = []

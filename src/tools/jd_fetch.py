@@ -15,6 +15,8 @@ import json
 import re
 import urllib.request
 
+from . import boards
+
 _UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
 TIMEOUT = 25
@@ -108,7 +110,6 @@ def _greenhouse_api(url: str) -> str | None:
     label = host.split(".")[0]
     candidates = [label]
     try:
-        from . import boards
         for c in boards.watchlist_companies():
             tok = c.get("token")
             if tok and (tok in host or c["name"].lower().replace(" ", "") in host):
@@ -185,6 +186,7 @@ def _browser_fetch(url: str) -> str:
     read its visible text. Handles JS-only portals (Ashby SPA, Workday, company sites
     that embed an ATS) that return almost nothing over plain HTTP. Never raises."""
     try:
+        # lazy: playwright is an optional dependency
         from playwright.sync_api import sync_playwright
     except Exception:
         return ""

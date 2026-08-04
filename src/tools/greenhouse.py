@@ -19,6 +19,8 @@ import pathlib
 import shutil
 import time
 
+from .. import config
+from . import forms
 from .browser import Browser
 
 
@@ -27,7 +29,6 @@ from .browser import Browser
 # ---------------------------------------------------------------------------
 
 def _load_profile(path: str | None = None) -> dict:
-    from .. import config
     return json.loads(pathlib.Path(path or config.PROFILE_PATH).read_text())
 
 
@@ -264,7 +265,6 @@ def _fill_labeled_questions(target, profile: dict) -> None:
     against the profile by forms.py)  nothing employer-specific is hardcoded here.
     Unmatched and "skip" questions are left for the human to review.
     """
-    from . import forms
 
     bank = forms.load_bank()
     ctx = forms.build_context(profile)

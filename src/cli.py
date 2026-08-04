@@ -14,9 +14,10 @@ pipeline), watchlist.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 
 from dotenv import load_dotenv
 
@@ -24,7 +25,9 @@ from . import config
 from .agent import DEFAULT_MODEL, _FINDER_SYSTEM, run_agent
 from .brain import BrainPending, get_brain, pending_packets
 from .tools import dashboard as dash
-from .tools import ats, discover, feeds, finder, profiles, runlog, tailor, tracker, usage
+from .sources import scoutbetter
+from .tools import (artifacts, ashby, ats, dashboard_server, discover, feeds, finder,
+                    lever, profiles, runlog, scoring, tailor, tracker, usage)
 from .tools.browser import Browser
 from .tools import greenhouse as gh
 
@@ -276,7 +279,6 @@ def cmd_apply(url: str, model: str, headless: bool, profile: str | None) -> None
 
 def _feed_shortlist(days: int, profile: str | None, limit: int, refresh: bool) -> list[dict]:
     """Legacy curated-feed funnel (kept for back-compat; `discover` supersedes it)."""
-    import json as _json
 
     cache_key = f"feed-{days}-{profile or 'auto'}"
     today = _today()
@@ -294,7 +296,7 @@ def _feed_shortlist(days: int, profile: str | None, limit: int, refresh: bool) -
     watch = set()
     if config.WATCHLIST_PATH.exists():
         watch = {c["name"].lower()
-                 for c in _json.loads(config.WATCHLIST_PATH.read_text()).get("companies", [])}
+                 for c in json.loads(config.WATCHLIST_PATH.read_text()).get("companies", [])}
     masters = {p: profiles.read_master_for(p) for p in {r["profile"] for r in roles}}
     for r in roles:
         text = f"{r['role']} {r.get('locations', '')}"
@@ -325,7 +327,6 @@ def cmd_feed(days: int, profile: str | None, limit: int, refresh: bool) -> None:
 
 
 def cmd_watchlist() -> None:
-    import json
     if not config.WATCHLIST_PATH.exists():
         print("No config/watchlist.json found.")
         return
@@ -348,8 +349,6 @@ def cmd_scout(query: str, hours: int, h1b: bool, limit: int, save: bool) -> None
 
     Prints newest-first matches with the real apply URL + JD already resolved; --h1b
     filters to sponsorship-friendly postings, --save records them as 'found' rows."""
-    from datetime import datetime, timezone
-    from .sources import scoutbetter
     jobs = scoutbetter.search(query, hours=hours, h1b=h1b, limit=limit)
     tag = " [H1B sponsorship only]" if h1b else ""
     print(f"=== ScoutBetter: '{query}'  {len(jobs)} roles, past {hours}h{tag} ===\n")
@@ -364,7 +363,6 @@ def cmd_scout(query: str, hours: int, h1b: bool, limit: int, save: bool) -> None
               f"{(j.get('locations') or '')[:16]:<16} yoe={j.get('yoe','?')} {sal}")
         print(f"        {j.get('url','')}")
     if save and jobs:
-        from .tools import discover
         discover.discover(hours=hours, target=limit, sources=["scoutbetter"], verbose=False)
         print(f"\nSaved to tracker. Tailor with: python -m src.cli pipeline --from-tracker")
 
@@ -374,7 +372,6 @@ def cmd_status(verbose: bool = False) -> None:
     if not apps:
         print("No applications recorded yet.")
         return
-    from .tools import scoring
 
     today = _today()
     cols = (f"{'ID':<4}{'DATE':<12}{'STATUS':<10}{'AQS':<6}{'REV/10':<8}{'MUST%':<7}"
@@ -410,7 +407,6 @@ def _print_results_hint() -> None:
 
 def cmd_fill(url: str, headless: bool) -> None:
     """Deterministic Greenhouse form fill  no LLM needed."""
-    import json as _json
 
     apps = tracker.list_applications()
     existing = next(
@@ -420,7 +416,7 @@ def cmd_fill(url: str, headless: bool) -> None:
 
     pdf_path = (existing or {}).get("tailored_pdf") or str(
         config.RESUME_DIR / "MyResume.pdf")
-    _p = _json.loads(config.PROFILE_PATH.read_text())
+    _p = json.loads(config.PROFILE_PATH.read_text())
     _per, _lnk, _wa = _p["personal"], _p["links"], _p["work_authorization"]
 
     print("\n" + "=" * 55)
@@ -450,10 +446,8 @@ def cmd_fill(url: str, headless: bool) -> None:
     browser = _browser(headless)
     try:
         if "ashbyhq.com" in url.lower() or "ashby" in url.lower():
-            from .tools import ashby
             result = ashby.fill_ashby_form(browser, url, pdf_path)
         elif "lever.co" in url.lower():
-            from .tools import lever
             result = lever.fill_lever_form(browser, url, pdf_path)
         else:
             result = gh.fill_greenhouse_form(browser, url, pdf_path)
@@ -481,11 +475,9 @@ def cmd_fill(url: str, headless: bool) -> None:
 
 def cmd_dashboard(serve: bool = False, port: int = 8765, migrate: bool = False) -> None:
     if migrate:
-        from .tools import artifacts
         moves = artifacts.migrate_layout()
         print(f"Refiled {len(moves)} application folder(s) as <Company>/<job-id>/")
     if serve:
-        from .tools import dashboard_server
         return dashboard_server.serve(port)
     print(dash.render())
     print(f"Open it with:  open {config.DASHBOARD_PATH.resolve()}")
