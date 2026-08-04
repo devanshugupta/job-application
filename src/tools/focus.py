@@ -294,8 +294,12 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .count b { color:var(--accent) }
 .progress { margin-top:16px; font-size:15px; color:var(--mut) }
 .progress b { color:var(--ink) }
-.heroblock h1 { font-family:Georgia,serif; font-weight:600; font-size:54px; line-height:1.14; letter-spacing:-.5px; margin-bottom:12px }
+.heroblock h1 { font-family:Georgia,serif; font-weight:600; font-size:clamp(30px,3.4vw,48px); line-height:1.2; letter-spacing:-.5px; margin-bottom:12px; white-space:nowrap; min-height:1.25em }
 .heroblock h1 em { font-style:italic; color:var(--accent) }
+.caret { display:inline-block; width:3px; height:.85em; background:var(--accent); margin-left:5px;
+  vertical-align:-.08em; animation:blink 1s steps(1) infinite }
+@keyframes blink { 50% { opacity:0 } }
+.caret.done { animation:none; transition:opacity 1s; opacity:0 }
 .heroblock .sub { color:var(--mut); font-size:19px; margin-bottom:30px; max-width:580px }
 .cta { display:inline-flex; background:var(--accent); color:#fff; font-size:17px; font-weight:650; padding:14px 34px;
   border-radius:999px; cursor:pointer; border:none; text-decoration:none; box-shadow:0 6px 20px rgba(42,120,214,.25) }
@@ -661,6 +665,23 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const ob = new IntersectionObserver(es => es.forEach(e => {
     if (e.isIntersecting) { e.target.classList.add('up'); ob.unobserve(e.target); }
   }), { rootMargin: '0px 0px -10% 0px' });
+  const typer = document.getElementById('typer');
+  if (typer) {
+    const a = typer.dataset.a, b = typer.dataset.b;
+    typer.textContent = '';
+    const caret = document.createElement('span');
+    caret.className = 'caret';
+    const tn = document.createTextNode('');
+    const em = document.createElement('em');
+    typer.append(tn, em, caret);
+    let i = 0;
+    setTimeout(function tick() {
+      if (i < a.length) tn.textContent = a.slice(0, ++i);
+      else if (i < a.length + b.length) em.textContent = b.slice(0, ++i - a.length);
+      else { setTimeout(() => caret.classList.add('done'), 1200); return; }
+      setTimeout(tick, 26 + Math.random() * 34);
+    }, 700);
+  }
   const landing = [];
   new Set([
     ...document.querySelectorAll('.heroblock > *:not(.aurora):not(.count), .hint'),
@@ -919,8 +940,15 @@ def render_entry() -> str:
         pass
     greet_line = f"Damn. {first}" if greet == "Damn." else f"{greet}, {first}"
 
-    headline = (f"{open_loops} doors are open. <em>Pick a lane.</em>" if open_loops
-                else "No open doors right now. <em>Tonight's sweep finds more.</em>")
+    if open_loops:
+        head_a, head_b = random.choice([
+            (f"{open_loops} doors are open. ", "Pick a lane."),
+            (f"{open_loops} doors today. ", "One is yours."),
+            (f"{open_loops} ways in. ", "Start with one."),
+            (f"Doors open right now: {open_loops}. ", "Knock."),
+        ])
+    else:
+        head_a, head_b = "No open doors right now. ", "Tonight's sweep finds more."
     glance_rows = ""
     for item in (people["replies"] + people["sends"])[:2]:
         glance_rows += _person_row(item, "go", "2 min", "p-go",
@@ -933,7 +961,7 @@ def render_entry() -> str:
 <div class="heroblock">
   <div class="aurora"></div>
   <div class="count">{esc(greet_line)}</div>
-  <h1>{headline}</h1>
+  <h1 id="typer" data-a="{esc(head_a)}" data-b="{esc(head_b)}">{esc(head_a)}<em>{esc(head_b)}</em></h1>
   <div class="sub">{esc(story['teaser'])}</div>
   {f'<div class="progress"><b>{done_today} done today.</b> {f"{open_loops} to go." if open_loops else "Clean slate."}</div>' if done_today else ''}
   <div class="doors">
