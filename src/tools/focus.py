@@ -110,6 +110,12 @@ def _sign(draft: str) -> str:
     return f"{draft}\n\n{s}"
 
 
+_COPY_ICON = ('<svg width="13" height="13" viewBox="0 0 24 24" fill="none" '
+              'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+              '<rect x="9" y="9" width="12" height="12" rx="2"/>'
+              '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>')
+
+
 def _first_draft(c: dict) -> str:
     """First blockquote in the dossier = the primary outreach draft."""
     md = _dossier_text(c)
@@ -412,6 +418,12 @@ a.row:hover .ract { opacity:1 }
 .copybtn { font:inherit; font-size:14px; font-weight:650; border:none; border-radius:8px; padding:6px 14px;
   cursor:pointer; background:var(--ink); color:#fff; margin-top:10px }
 .copybtn.sm { margin-top:0; padding:4px 12px; font-size:12.5px; border-radius:7px }
+.copybtn svg { vertical-align:-2px; margin-right:5px }
+.msgedit { padding:12px 20px 16px 72px; border-bottom:1px solid var(--line) }
+.msgedit textarea { width:100%; box-sizing:border-box; font:inherit; font-size:14px; line-height:1.55;
+  color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:10px;
+  padding:12px 14px; resize:vertical }
+.msgedit textarea:focus { outline:none; border-color:var(--accent) }
 .pbtn { font-size:12.5px; font-weight:650; border:1px solid var(--line); border-radius:7px; padding:3px 10px;
   background:var(--panel); color:var(--mut); text-decoration:none; flex-shrink:0 }
 .pbtn:hover { color:var(--accent); border-color:var(--accent) }
@@ -505,8 +517,13 @@ html.anim .momentum, html.anim .metapills, html.anim .heroblock > *:not(.aurora)
 
 JS = """
 function copyText(btn, txt) { navigator.clipboard.writeText(txt).then(() => {
-  const was = btn.textContent;
-  btn.textContent = 'Copied'; setTimeout(() => btn.textContent = was, 1400); }); }
+  const was = btn.innerHTML;
+  btn.textContent = 'Copied'; setTimeout(() => btn.innerHTML = was, 1400); }); }
+function toggleMsg(btn, id) {
+  const box = document.getElementById(id);
+  const open = box.style.display !== 'none';
+  box.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? 'show message' : 'hide message'; }
 document.querySelectorAll('.more[data-for]').forEach(m => m.addEventListener('click', () => {
   const hid = [...document.querySelectorAll('.hidden[data-grp="' + m.dataset.for + '"]')];
   hid.slice(0, 5).forEach(r => r.classList.remove('hidden'));
@@ -1431,18 +1448,25 @@ def render_company(slug: str) -> str | None:
                           f'onclick="event.preventDefault();event.stopPropagation();'
                           f'copyText(this, \'{esc(ejs)}\')">{esc(email)}{email_note}</button>')
         copy_html = ""
+        editor_html = ""
         draft = _person_draft(c, p)
         if draft:
-            djs = draft.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+            mid = f"msg-{slugify(name)}"
             copy_html = (f'<button class="copybtn" onclick="event.preventDefault();'
-                         f'event.stopPropagation();copyText(this, \'{esc(djs)}\')">Copy message</button>')
+                         f'event.stopPropagation();toggleMsg(this, \'{mid}\')">show message</button>')
+            editor_html = (
+                f'<div class="msgedit" id="{mid}" style="display:none">'
+                f'<textarea rows="6" spellcheck="false">{esc(draft)}</textarea>'
+                f'<button class="copybtn" onclick="copyText(this, '
+                f'document.getElementById(\'{mid}\').querySelector(\'textarea\').value)">'
+                f'{_COPY_ICON} Copy</button></div>')
         prows += (f'<a class="row {cls}" href="{esc(url)}" target="_blank">'
                   f'<span class="mono">{esc(_monogram(name))}</span>'
                   f'<span class="who"><b>{esc(name)}</b><div class="r">{esc(p.get("title", ""))}</div></span>'
                   f'<span class="why">{esc(p.get("hook", ""))[:80]}'
                   f'{f"<br><span style=\"font-size:11.5px\">{esc(log)}</span>" if log else ""}</span>'
                   f'{copy_html}{email_html}'
-                  f'<span class="pill {pcls}">{state}</span></a>')
+                  f'<span class="pill {pcls}">{state}</span></a>{editor_html}')
 
     apps = [a for a in tracker.list_applications()
             if slugify(a.get("company", "")) == slug and not a.get("removed")]
