@@ -941,15 +941,19 @@ def render_entry() -> str:
     greet_line = f"Damn. {first}" if greet == "Damn." else f"{greet}, {first}"
 
     if open_loops:
-        head_a, head_b = random.choice([
+        pool = [
             (f"{open_loops} doors are open. ", "Pick a lane."),
             (f"{open_loops} doors today. ", "One is yours."),
             (f"{open_loops} ways in. ", "Start with one."),
             (f"Doors open right now: {open_loops}. ", "Knock."),
-            (f"{open_loops} jobs are waiting. ", "Make them wait less."),
-            (f"{open_loops} jobs on the table. ", "Take your pick."),
-            (f"Somebody is hiring. ", f"{open_loops} jobs say so."),
-        ])
+        ]
+        if n_ready:
+            pool += [
+                (f"{n_ready} jobs are waiting. ", "Make them wait less."),
+                (f"{n_ready} jobs on the table. ", "Take your pick."),
+                (f"Somebody is hiring. ", f"{n_ready} jobs say so."),
+            ]
+        head_a, head_b = random.choice(pool)
     else:
         head_a, head_b = "No open doors right now. ", "Tonight's sweep finds more."
     glance_rows = ""
