@@ -381,7 +381,7 @@ a.row:hover .ract { opacity:1 }
 .scene { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden }
 .scene svg.wave { position:absolute; bottom:-8vh; left:-5%; width:110%; height:54vh; will-change:transform }
 .scene .ship { position:absolute; left:7%; bottom:5.5vh; width:60px; will-change:transform }
-.itrail { position:fixed; pointer-events:none; z-index:8; width:46px;
+.itrail { position:fixed; pointer-events:none; z-index:8; width:28px;
   animation:it .85s cubic-bezier(.2,.7,.4,1) forwards }
 .itrail svg { width:100%; height:auto; display:block }
 @keyframes it {
@@ -516,7 +516,7 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     t.className = 'itrail';
     t.innerHTML = minis[nImg++ % minis.length];
     t.style.setProperty('--rot', ((Math.random() - 0.5) * 28) + 'deg');
-    t.style.left = (e.clientX - 23) + 'px'; t.style.top = (e.clientY - 20) + 'px';
+    t.style.left = (e.clientX - 14) + 'px'; t.style.top = (e.clientY - 12) + 'px';
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 900);
   }, { passive: true });
