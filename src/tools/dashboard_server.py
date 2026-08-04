@@ -198,7 +198,7 @@ _FOCUS_MTIME = None
 
 
 _DEADCHECK_MARKER = "deadcheck_ready.json"
-_DEADCHECK_TTL = 1800  # at most one sweep per 30 min, however often /apply loads
+_DEADCHECK_TTL = 60  # every refresh checks the ready rows; 60s guard against reload spam
 
 
 def _deadcheck_ready_sync() -> dict:
