@@ -253,8 +253,8 @@ a.row:hover, .row.click:hover { background:var(--panel-hov); cursor:pointer }
 .thead .h-prof { width:74px } .thead .h-why { flex:1 } .thead .h-st { width:70px; text-align:right }
 .cell { flex-shrink:0; font-size:12.5px; color:var(--mut); font-variant-numeric:tabular-nums }
 .c-date { width:66px } .c-prof { width:74px; overflow:hidden; text-overflow:ellipsis }
-.ract { display:none; gap:6px; flex-shrink:0 }
-a.row:hover .ract { display:inline-flex }
+.ract { display:inline-flex; gap:6px; flex-shrink:0; opacity:.55 }
+a.row:hover .ract { opacity:1 }
 .ract button { font:inherit; font-size:11.5px; font-weight:650; border:1px solid var(--line);
   border-radius:7px; padding:3px 10px; cursor:pointer; background:var(--panel); color:var(--mut) }
 .ract button:hover { color:var(--accent); border-color:var(--accent) }
