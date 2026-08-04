@@ -368,6 +368,16 @@ def test_network_and_company_show_find_people_row_when_empty(monkeypatch):
         assert "linkedin.com/search/results/people" in html
 
 
+def test_scouted_person_with_draft_is_sendable_without_company_status(monkeypatch):
+    from src.tools import focus
+    c = {"name": "Acme", "people": []}  # no /scout status on the company
+    p = {"name": "Sam Rivera", "title": "HM", "draft": "Hi Sam.", "outreach": []}
+    assert focus._person_state(c, p)[0] == "send"
+    assert focus._person_state(c, {"name": "X", "outreach": []})[0] == "no draft"
+    buckets = focus._people_actions([{"name": "Acme", "people": [p]}])
+    assert buckets["sends"] and not buckets["waiting"]
+
+
 def test_network_person_row_shows_email_button(monkeypatch):
     from src.tools import focus, tracker
     comp = {"name": "Acme", "website": "https://acme.ai", "heat": "HOT",

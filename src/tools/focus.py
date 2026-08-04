@@ -140,7 +140,8 @@ def _person_state(c: dict, p: dict) -> tuple[str, str, str, str]:
     if t and t[-1].get("outcome") in ("replied", "referred"):
         return "reply", "go", "p-go", "they answered, respond today"
     if not t:
-        if c.get("status") in ("outreach_drafted", "contacted"):
+        # a draft on the person's own record counts, whatever the company status says
+        if p.get("draft") or c.get("status") in ("outreach_drafted", "contacted"):
             return "send", "go", "p-go", ""
         return "no draft", "", "p-mut", "re-scout or write one on the company page"
     try:
@@ -163,7 +164,7 @@ def _people_actions(companies: list[dict]) -> dict:
             if t and t[-1].get("outcome") in ("replied", "referred"):
                 replies.append(item)
             elif not t:
-                if c.get("status") in ("outreach_drafted", "contacted"):
+                if p.get("draft") or c.get("status") in ("outreach_drafted", "contacted"):
                     sends.append(item)
                 else:
                     waiting.append(item)
