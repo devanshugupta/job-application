@@ -290,6 +290,13 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
         if verbose:
             print("    ⛔ removed from dashboard; skipping (restore it there to re-enable)")
         return existing_row
+    # 0b. Stale-row gate  a row ticked "stale" (dead/expired link) has no live posting to
+    # apply to, so spending a fetch/tailor/score on it is wasted. Skip it entirely, exactly
+    # like a removed row; untick it on the dashboard to re-enable.
+    if existing_row is not None and existing_row.get("stale"):
+        if verbose:
+            print("    ⛔ marked stale (dead link); skipping (untick it to re-enable)")
+        return existing_row
 
     # 1. JD ---------------------------------------------------------------------
     if not jd_text:

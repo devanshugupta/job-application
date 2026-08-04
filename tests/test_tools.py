@@ -164,6 +164,20 @@ def test_save_artifacts_no_deprecated_files(tmp_path, monkeypatch):
     assert info["changes"] is None
 
 
+def test_tailor_job_skips_stale_and_removed(monkeypatch):
+    """A row ticked stale (dead link) or removed must be skipped by tailor_job before any
+    fetch/brain spend  it returns the existing row untouched."""
+    from src.tools import tailor, tracker
+    url = "https://example.com/jobs/123"
+    for flag in ("stale", "removed"):
+        row = {"url": url, "company": "Acme", "role": "Engineer", "status": "found", flag: True}
+        monkeypatch.setattr(tracker, "list_applications", lambda: [row])
+        # brain=None proves the gate returns BEFORE any brain call would run
+        out = tailor.tailor_job(url, brain=None, company="Acme", role="Engineer",
+                                jd_text="x", verbose=False)
+        assert out is row
+
+
 # --- ATS scoring ---------------------------------------------------------------
 
 def test_ats_score_basic():
