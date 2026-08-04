@@ -376,7 +376,7 @@ a.row:hover, .row.click:hover { background:var(--panel-hov); cursor:pointer }
 .cell { flex-shrink:0; font-size:13.5px; color:var(--mut); font-variant-numeric:tabular-nums }
 .c-date { width:66px } .c-prof { width:74px; overflow:hidden; text-overflow:ellipsis }
 .ract { display:inline-flex; gap:6px; flex-shrink:0; opacity:.55; margin-left:auto }
-.ract.rml { margin-left:0; margin-right:2px }
+.ract.rml { margin-left:0; margin-right:0; width:28px; flex-shrink:0; justify-content:center }
 .rml button { padding:3px 8px }
 a.row:hover .ract { opacity:1 }
 .ract button { font:inherit; font-size:12.5px; font-weight:650; border:1px solid var(--line);
@@ -1113,7 +1113,7 @@ def render_entry() -> str:
     return _page("vouch.", body)
 
 
-THEAD = ('<div class="thead"><span style="width:34px"></span>'
+THEAD = ('<div class="thead"><span style="width:38px"></span>'
          '<span class="h-who sortable" data-key="co">Company / Role</span>'
          '<span class="h-fit sortable" data-key="fit">Fit</span>'
          '<span class="h-tats sortable" data-key="tats">Tailored</span>'
@@ -1189,10 +1189,10 @@ def render_apply() -> str:
   {_applied_panel()}
   <input id="q" class="search" type="search" placeholder="Search company, role, track">
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
-  <div class="rows" id="readybox"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing waiting here. Run the sweep to find the latest jobs, or paste a posting below.</span></div>'}</div>
+  <div class="rows" id="readybox"><div class="thead"><span style="width:80px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing waiting here. Run the sweep to find the latest jobs, or paste a posting below.</span></div>'}</div>
   <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span>
     <button class="runbtn" onclick="fetch('/api/run-pipeline').then(r => r.json()).then(d => this.textContent = 'running').catch(() => this.textContent = 'needs server')">run sweep</button></div>
-  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
+  <div class="rows"><div class="thead"><span style="width:80px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
   {_catalog_section()}
   {_apply_charts()}
   <div class="rows" style="margin-top:26px"><a class="row" href="/network" style="justify-content:space-between">

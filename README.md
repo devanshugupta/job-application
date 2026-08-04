@@ -1,24 +1,68 @@
-# Job Applier Agent (from scratch)
+# vouch.
 
-A provider-agnostic **AI job-application system**: it discovers the freshest
-matching roles every day (curated GitHub feeds + the free public JSON APIs of
-Greenhouse/Lever/Ashby/SmartRecruiters/Workable), tailors your closest-matching
-master resume per job (Summary, Technical Skills, top-2 bullets  nothing else),
-scores every application with a composite **Application Quality Score**, renders a
-dashboard, and can fill + submit applications (Greenhouse deterministically; other
-portals via a Playwright browser agent with human confirmation).
+If you're struggling with finding a job, you're at the right place.
 
-LLM judgment is isolated behind a single **Brain** seam, so the whole pipeline runs
-either on the Anthropic/OpenAI APIs (`--brain api`) or with **no API key at all**
-(`--brain manual`  prompt packets on disk that any LLM, including Claude Code
-driving this repo, can answer).
+You know the drill. Open twelve tabs, paste your resume into a portal that
+un-formats it, hit apply, hear nothing. Repeat until your soul files its own
+resignation. **vouch.** exists because the actual game is different: the freshest
+postings win, tailored resumes win, and a referral beats a hundred cold
+applications. So that's exactly what it does, every day, from your own machine.
 
-The user-facing product is **vouch.** — a local web UI (`dashboard --serve`,
-localhost:8765) with two lanes: **Applications** (ready-to-apply rows with
-tailored PDFs, paste-a-job-URL background tailoring, dead-link checks) and
-**Networking** (per-company people maps with copy-ready outreach drafts, found
-from free signals: company sites, TheOrg org charts, LinkedIn hiring posts —
-never LinkedIn automation). Referral and application go out the same day.
+Every morning it sweeps the free public job APIs (Greenhouse, Lever, Ashby,
+SmartRecruiters, Workable) for roles posted in the last 24 hours that actually
+match you. It rewrites your real LaTeX resume per job, scores the result like a
+grumpy senior engineer would, and lines everything up in a calm little site at
+localhost:8765. Then it does the part nobody else automates: it finds the actual
+humans at each company (recruiters, hiring managers, people who posted "my team
+is hiring" this week) and writes them a short, honest note you can copy in one
+click. Referral and application go out the same day. That's the whole religion.
+
+### The home page knows what day it is
+
+![home](docs/screenshots/home.png)
+
+One headline, two doors. No 47-widget dashboard screaming at you before coffee.
+
+### Applications: tailored, scored, ready
+
+![applications](docs/screenshots/applications.png)
+
+Every row is a real posting with a resume already rewritten for it: keyword fit,
+match percent, a reviewer score out of 10, and one green "ready" pill when it's
+worth your click. Paste any job URL at the bottom and hit **create resume**; it
+tailors in the background while you keep browsing.
+
+### Networking: people who can open doors
+
+![networking](docs/screenshots/networking.png)
+
+For each company: who to message, why them, and a draft that sounds like you
+(with your sign-off appended automatically, never left to an LLM's mood). Found
+from free signals only: company sites, TheOrg org charts, LinkedIn hiring posts.
+No LinkedIn automation, ever. Your account stays yours.
+
+### One page per company, one move
+
+![company](docs/screenshots/company.png)
+
+The dossier view: hiring heat, open reqs matching you, the single next action.
+Not ten. One.
+
+### Bring your own keys, or none at all
+
+![settings](docs/screenshots/settings.png)
+
+Here's the trick that makes this cheap: all LLM judgment goes through one
+**Brain** seam. Give it an Anthropic or OpenAI key and it runs itself, or run
+`--brain manual` and it writes its questions to disk as prompt packets that any
+LLM (including Claude Code sitting in this repo) answers for free. Same
+pipeline, zero API bill. Optional Serper and Hunter keys make the people-finding
+sharper; everything works without them.
+
+Under the hood it's plain Python you can read in an afternoon: deterministic
+discovery, a composite Application Quality Score on every row, PDF rendering via
+tectonic, and a Playwright agent for portals that need a real browser, with a
+human confirmation before anything irreversible.
 
 > ⚠️ **Read the [Responsible use](#responsible-use) section first.** Auto-submitting
 > applications and automating LinkedIn can violate site Terms of Service and get

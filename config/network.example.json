@@ -49,6 +49,6 @@
     "ask_role": "Would you be open to referring me for it?",
     "ask_general": "I'd love to be considered as the team grows. Open to a quick 15-minute chat?",
     "signoff_style": "warm and direct, no corporate filler",
-    "signoff": "Regards,\nYour Name - 5551234567"
+    "signoff": "Regards,\nYour Name\nyou@example.com\n5551234567"
   }
 }
