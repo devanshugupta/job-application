@@ -53,6 +53,23 @@ def _monogram(name: str) -> str:
 
 # ------------------------------------------------------------------ data
 
+HEAT_PILL = {"HOT": "p-go", "WARM": "p-hold", "COOL": "p-mut", "DEAD": "p-dead"}
+
+
+def _heat_rows() -> dict:
+    """hiring_heat.json rows keyed by company slug (empty if no sweep yet)."""
+    try:
+        data = json.loads((_net_dir() / "hiring_heat.json").read_text())
+        return {slugify(r["company"]): r for r in data.get("companies", [])}
+    except Exception:
+        return {}
+
+
+def _open_actions(c: dict) -> list[str]:
+    """Unchecked next-action boxes from the company dossier."""
+    return [m.strip() for m in re.findall(r"\s*- \[ \] (.+)", _dossier_text(c))]
+
+
 def _net_companies() -> list[dict]:
     try:
         return json.loads((_net_dir() / "companies.json").read_text()).get("companies", [])
@@ -519,14 +536,35 @@ def render_network() -> str:
         wrows += _person_row(item, "hold", "nudge", "p-hold", "follow-up is due")
     for item in people["waiting"][:5]:
         wrows += _person_row(item, "hold", "waiting", "p-hold", "nothing to do yet")
-    crows = ""
-    for c in sorted(companies, key=lambda c: c.get("last_scouted", ""), reverse=True)[:6]:
-        n = len(c.get("people", []))
-        crows += (f'<a class="row" href="/company/{slugify(c["name"])}">'
+    heat_by = _heat_rows()
+    crows = ('<div class="thead"><span style="width:34px"></span>'
+             '<span class="h-who sortable" data-key="co">Company</span>'
+             '<span class="h-fit sortable" data-key="heat">Heat</span>'
+             '<span class="h-tats sortable" data-key="people">People</span>'
+             '<span class="h-score sortable" data-key="roles">Roles 30d</span>'
+             '<span class="h-date sortable" data-key="scouted">Scouted</span>'
+             '<span class="h-why">Fit</span><span class="h-st">Status</span></div>')
+    for i, c in enumerate(sorted(companies, key=lambda c: c.get("last_scouted", ""), reverse=True)):
+        np_ = len(c.get("people", []))
+        heat = (c.get("heat") or "?").upper()
+        hr = heat_by.get(slugify(c["name"]), {})
+        m30 = hr.get("match_new_30d", "")
+        acts = len(_open_actions(c))
+        hide = ' hidden" data-grp="cos' if i >= 5 else '"'
+        crows += (f'<a class="row{hide} data-co="{esc(c["name"])}" data-heat="{heat}"'
+                  f' data-people="{np_}" data-roles="{m30 or 0}" data-scouted="{esc(c.get("last_scouted", ""))}"'
+                  f' href="/company/{slugify(c["name"])}">'
                   f'<span class="mono">{esc(_monogram(c["name"]))}</span>'
-                  f'<span class="who"><b>{esc(c["name"])}</b><div class="r">{n} people mapped</div></span>'
+                  f'<span class="who"><b>{esc(c["name"])}</b>'
+                  f'<div class="r">{np_} people{f", {acts} next actions" if acts else ""}</div></span>'
+                  f'<span class="fit"><span class="pill {HEAT_PILL.get(heat, "p-mut")}">{esc(heat)}</span></span>'
+                  f'<span class="cell c-tats">{np_}</span>'
+                  f'<span class="cell c-score">{m30}</span>'
+                  f'<span class="cell c-date">{esc((c.get("last_scouted") or "")[5:])}</span>'
                   f'<span class="why">{esc(c.get("fit", ""))[:70]}</span>'
                   f'<span class="pill p-mut">{esc((c.get("status") or "").replace("_", " "))}</span></a>')
+    if len(companies) > 5:
+        crows += f'<div class="more" data-for="cos">show 20 more ({len(companies) - 5} hidden)</div>' 
 
     body = f"""<div class="wrap">
   <h1 class="serif" style="font-size:30px">Networking</h1>
@@ -557,20 +595,43 @@ def render_company(slug: str) -> str | None:
                       f'<div class="draftbox"><div class="lab">Primary draft from the dossier</div>'
                       f'{esc(draft)}'
                       f'<div><button class="copybtn" onclick="copyText(this, \'{esc(draft_js)}\')">Copy message</button></div></div>')
+    hr = _heat_rows().get(slug, {})
+    stats_html = ""
+    if hr:
+        fresh_links = "".join(
+            f'<a class="row" href="{esc(j["url"])}" target="_blank">'
+            f'<span class="mono">-</span>'
+            f'<span class="who"><b>{esc(j["role"])}</b><div class="r">posted {esc(j["posted"])}</div></span>'
+            f'<span class="pill p-go">open</span></a>'
+            for j in hr.get("freshest_matches", [])[:5])
+        stats_html = (
+            f'<div class="sech"><h2>Hiring heat</h2>'
+            f'<span class="n">{hr.get("open_roles", 0)} open, {hr.get("new_30d", 0)} new in 30d, '
+            f'{hr.get("accel", 0):.1f}x pace, {hr.get("match_new_30d", 0)} matching you</span></div>'
+            + (f'<div class="rows">{fresh_links}</div>' if fresh_links else ""))
+    acts = _open_actions(c)
+    acts_html = ""
+    if acts:
+        acts_html = ('<div class="sech"><h2>Next actions</h2></div><div class="rows">'
+                     + "".join(f'<div class="row hold"><span class="why">{esc(a)}</span></div>'
+                               for a in acts) + '</div>')
     prows = ""
     for p in sorted(c.get("people", []), key=lambda p: -sum((p.get("rwl") or [0, 0, 0])[:2])):
         name = p["name"].split("[")[0].strip()
-        t = _touches(p)
-        state = ("replied" if t and t[-1].get("outcome") in ("replied", "referred")
-                 else "contacted" if t else "send")
+        t_ = _touches(p)
+        state = ("replied" if t_ and t_[-1].get("outcome") in ("replied", "referred")
+                 else "contacted" if t_ else "send")
         cls, pcls = ("go", "p-go") if state != "contacted" else ("hold", "p-hold")
         from urllib.parse import quote_plus
         url = p.get("linkedin") or ("https://www.linkedin.com/search/results/people/?keywords="
                                     + quote_plus(f"{name} {c['name']}"))
+        log = "; ".join(f'{o.get("date","")} {o.get("channel","")} touch {o.get("touch_n","")}'
+                        f' {o.get("outcome","")}' for o in t_) if t_ else ""
         prows += (f'<a class="row {cls}" href="{esc(url)}" target="_blank">'
                   f'<span class="mono">{esc(_monogram(name))}</span>'
                   f'<span class="who"><b>{esc(name)}</b><div class="r">{esc(p.get("title", ""))}</div></span>'
-                  f'<span class="why">{esc(p.get("hook", ""))[:80]}</span>'
+                  f'<span class="why">{esc(p.get("hook", ""))[:80]}'
+                  f'{f"<br><span style=\"font-size:11.5px\">{esc(log)}</span>" if log else ""}</span>'
                   f'<span class="pill {pcls}">{state}</span></a>')
 
     apps = [a for a in tracker.list_applications()
@@ -590,7 +651,7 @@ def render_company(slug: str) -> str | None:
   <div class="meta">{esc(c.get("fit", ""))} · heat <b>{esc(c.get("heat", "?"))}</b>
     · scouted {esc(c.get("last_scouted", "?"))}
     {f' · <a class="lnk" href="{esc(c.get("website"))}" style="color:var(--accent)">website</a>' if c.get("website") else ''}</div>
-  {draft_html}
+  {draft_html}{acts_html}{stats_html}
   <div class="sech"><h2>People</h2><span class="n">ranked by reachability</span></div>
   <div class="rows">{prows or '<div class="row"><span class="why">none mapped yet</span></div>'}</div>
   <div class="sech"><h2>Roles here</h2></div>
