@@ -26,7 +26,9 @@ import html as _html
 import json
 import pathlib
 import re
+from collections import Counter
 from datetime import date, datetime, timedelta
+from urllib.parse import quote_plus
 
 from .. import config
 from . import dashboard as _dash  # reuse _has_resume + _SUBMITTED semantics
@@ -97,8 +99,53 @@ def _first_draft(c: dict) -> str:
     return " ".join(block).strip()
 
 
+def _person_draft(c: dict, p: dict) -> str:
+    """The blockquote under this person's ### heading in the dossier."""
+    first = p["name"].split("[")[0].strip().split()[0].lower()
+    for chunk in re.split(r"^### ", _dossier_text(c), flags=re.M)[1:]:
+        lines = chunk.splitlines()
+        if first not in lines[0].lower():
+            continue
+        block = []
+        for line in lines[1:]:
+            if line.lstrip().startswith(">"):
+                block.append(re.sub(r"^\s*>\s?", "", line))
+            elif block:
+                break
+        return " ".join(block).strip()
+    return ""
+
+
+def _sources(c: dict) -> list[str]:
+    """Bullet lines under the dossier's ## Sources heading."""
+    m = re.search(r"^## Sources\s*\n(.*?)(?=^## |\Z)", _dossier_text(c), flags=re.M | re.S)
+    if not m:
+        return []
+    return [ln.strip()[2:].strip() for ln in m.group(1).splitlines()
+            if ln.strip().startswith("- ")]
+
+
 def _touches(p: dict) -> list[dict]:
     return p.get("outreach") or []
+
+
+def _person_state(c: dict, p: dict) -> tuple[str, str, str, str]:
+    """(pill text, row class, pill class, why) for one person, same rules as the buckets."""
+    t = _touches(p)
+    today = date.today()
+    if t and t[-1].get("outcome") in ("replied", "referred"):
+        return "reply", "go", "p-go", "they answered, respond today"
+    if not t:
+        if c.get("status") in ("outreach_drafted", "contacted"):
+            return "send", "go", "p-go", ""
+        return "waiting", "", "p-mut", ""
+    try:
+        last = datetime.strptime(t[-1].get("date", ""), "%Y-%m-%d").date()
+    except ValueError:
+        last = today
+    if len(t) < 3 and today - last >= timedelta(days=4):
+        return "nudge", "hold", "p-hold", f"follow-up due, touch {len(t) + 1} of 3"
+    return "waiting", "hold", "p-hold", f"contacted {t[-1].get('date', '')}, give it time"
 
 
 def _people_actions(companies: list[dict]) -> dict:
@@ -304,6 +351,39 @@ a.row:hover .ract { opacity:1 }
 .theme { margin-left:14px; cursor:pointer; border:none; background:none; font-size:15px; line-height:1 }
 .copybtn { font:inherit; font-size:12.5px; font-weight:650; border:none; border-radius:8px; padding:6px 14px;
   cursor:pointer; background:var(--ink); color:#fff; margin-top:10px }
+.copybtn.sm { margin-top:0; padding:3px 10px; font-size:11.5px; border-radius:7px }
+.pbtn { font-size:11.5px; font-weight:650; border:1px solid var(--line); border-radius:7px; padding:3px 10px;
+  background:var(--panel); color:var(--mut); text-decoration:none; flex-shrink:0 }
+.pbtn:hover { color:var(--accent); border-color:var(--accent) }
+.scene { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden }
+.scene svg { position:absolute; bottom:-8vh; left:-5%; width:110%; height:54vh; will-change:transform }
+[data-theme="dark"] .scene { opacity:.4 }
+.metapills { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px }
+.v-hi { color:var(--go) !important } .v-mid { color:var(--hold) !important } .v-lo { color:var(--mut) !important }
+.charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px;
+  box-shadow:0 4px 18px rgba(30,20,0,.04); margin-bottom:14px }
+.charts .panel { margin-bottom:0 }
+.panel h3 { font-family:Georgia,serif; font-size:15px; font-weight:600; margin-bottom:10px }
+.frow { display:flex; align-items:center; gap:8px; margin:6px 0; font-size:12.5px }
+.flab { width:96px; color:var(--mut); flex-shrink:0; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.ftrack { flex:1 } .fbar { display:block; height:10px; border-radius:5px; background:var(--accent); opacity:.85; position:relative; overflow:hidden }
+.fbar i { position:absolute; inset:0; background:var(--go); border-radius:5px }
+.fnum { color:var(--mut); font-variant-numeric:tabular-nums; flex-shrink:0; min-width:34px; text-align:right }
+.hgrid { display:flex; align-items:flex-end; gap:4px; height:104px }
+.hcol { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:3px; height:100% }
+.hcol .hbar { width:100%; background:var(--accent); border-radius:3px 3px 0 0; min-height:1px; opacity:.85 }
+.hcol .hx, .hcol .hn { font-size:10px; color:var(--mut) }
+.cal { display:flex; gap:4px; padding:6px 0 2px; flex-wrap:wrap }
+.cal i { width:19px; height:19px; border-radius:4px; background:var(--line); display:block; position:relative }
+.cal i:hover::after { content:attr(data-tip); position:absolute; bottom:135%; left:50%; transform:translateX(-50%);
+  background:var(--ink); color:var(--cream); font-size:11.5px; font-weight:650; font-style:normal;
+  padding:3px 9px; border-radius:6px; white-space:nowrap; z-index:3 }
+.cal .l1 { background:#cdeccd } .cal .l2 { background:#8fd48f } .cal .l3 { background:#3fae3f } .cal .l4 { background:#0b7a0b }
+[data-theme="dark"] .cal i { background:#252523 }
+[data-theme="dark"] .cal .l1 { background:#1e3b1e } [data-theme="dark"] .cal .l2 { background:#2c5c2c }
+[data-theme="dark"] .cal .l3 { background:#3f8a3f } [data-theme="dark"] .cal .l4 { background:#57c957 }
+.sech .coname { text-decoration:none; color:inherit } .sech .coname:hover h2 { color:var(--accent) }
 """
 
 JS = """
@@ -365,7 +445,107 @@ if (document.body.dataset.lane && document.documentElement.dataset.theme !== 'da
     document.body.style.background = 'rgb(' + from.map((f, i) => Math.round(f + (to[i] - f) * k)).join(',') + ')';
   }, { passive: true });
 }
+const scene = document.querySelector('.scene');
+if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const layers = scene.querySelectorAll('svg');
+  addEventListener('scroll', () => {
+    layers.forEach((l, i) => l.style.transform = 'translateY(' + scrollY * (0.10 + i * 0.10) + 'px)');
+    scene.style.opacity = Math.max(1 - scrollY / 900, 0.12);
+  }, { passive: true });
+}
 """
+
+
+SCENE = """<div class="scene">
+<svg viewBox="0 0 1440 420" preserveAspectRatio="none">
+  <circle cx="1150" cy="80" r="58" fill="rgba(201,133,0,.10)"/>
+  <path d="M0,300 C240,258 430,342 720,310 C1010,278 1210,332 1440,288 L1440,420 L0,420 Z" fill="rgba(42,120,214,.06)"/>
+</svg>
+<svg viewBox="0 0 1440 420" preserveAspectRatio="none">
+  <path d="M0,338 C210,298 480,382 780,344 C1080,308 1270,372 1440,330 L1440,420 L0,420 Z" fill="rgba(42,120,214,.09)"/>
+  <path d="M0,388 C260,358 560,410 860,384 C1130,361 1310,402 1440,376 L1440,420 L0,420 Z" fill="rgba(201,133,0,.06)"/>
+</svg>
+</div>"""
+
+
+# ------------------------------------------------------------------ charts
+
+def _applied_heatmap() -> str:
+    """One square per day, last 20 days; hover a square for the count."""
+    counts = Counter((a.get("applied_date") or "")[:10]
+                     for a in tracker.list_applications()
+                     if a.get("applied_date") and not a.get("removed"))
+    today = date.today()
+    cells = ""
+    for i in range(19, -1, -1):
+        day = today - timedelta(days=i)
+        n = counts.get(day.isoformat(), 0)
+        lvl = "l4" if n >= 50 else "l3" if n >= 30 else "l2" if n >= 10 else "l1" if n else ""
+        cells += f'<i class="{lvl}" data-tip="{day.strftime("%b %d")}: {n}"></i>'
+    return f'<div class="cal">{cells}</div>'
+
+
+def _bar_rows(items: list[tuple[str, int, int | None]]) -> str:
+    """Label / bar / number rows. Optional third value renders as a green share."""
+    mx = max((n for _, n, _ in items), default=0) or 1
+    out = ""
+    for label, n, part in items:
+        inner = f'<i style="width:{round(100 * part / n) if n else 0}%"></i>' if part is not None else ""
+        num = f"{part}/{n}" if part is not None else str(n)
+        out += (f'<div class="frow"><span class="flab">{esc(label)}</span>'
+                f'<span class="ftrack"><span class="fbar" style="width:{max(2, round(100 * n / mx))}%">{inner}</span></span>'
+                f'<span class="fnum">{num}</span></div>')
+    return out or '<div class="frow"><span class="flab"></span><span class="fnum">no data yet</span></div>'
+
+
+def _apply_charts() -> str:
+    live = [a for a in tracker.list_applications() if not a.get("removed")]
+    mats = [int(a["master_ats"]) for a in live if isinstance(a.get("master_ats"), (int, float))]
+    funnel = [("found", sum(1 for a in live if a.get("status") == "found"), None),
+              ("high fit 70+", sum(1 for v in mats if v >= 70), None),
+              ("tailored", sum(1 for a in live if _dash._has_resume(a)), None),
+              ("applied", sum(1 for a in live if a.get("status") in _dash._SUBMITTED), None)]
+    buckets = [0] * 10
+    for v in mats:
+        buckets[min(9, v // 10)] += 1
+    bmax = max(buckets) or 1
+    hist = "".join(
+        f'<div class="hcol" title="fit {i * 10} to {i * 10 + 9}: {n} roles">'
+        f'<span class="hn">{n or ""}</span><div class="hbar" style="height:{round(84 * n / bmax)}%"></div>'
+        f'<span class="hx">{i * 10}</span></div>' for i, n in enumerate(buckets))
+    prof_t, prof_a = Counter(), Counter()
+    for a in live:
+        if not a.get("profile"):
+            continue
+        prof_t[a["profile"]] += 1
+        if a.get("status") in _dash._SUBMITTED:
+            prof_a[a["profile"]] += 1
+    tracks = [(p.replace("_", " "), prof_t[p], prof_a.get(p, 0))
+              for p in sorted(prof_t, key=lambda p: -prof_t[p])]
+    return (f'<div class="sech"><h2>The numbers</h2><span class="n">the whole tracker at a glance</span></div>'
+            f'<div class="panel"><h3>Applications per day</h3>{_applied_heatmap()}</div>'
+            f'<div class="charts">'
+            f'<div class="panel"><h3>Pipeline funnel</h3>{_bar_rows(funnel)}</div>'
+            f'<div class="panel"><h3>Fit distribution</h3><div class="hgrid">{hist}</div></div>'
+            f'<div class="panel"><h3>Tracks, applied of total</h3>{_bar_rows(tracks)}</div>'
+            f'</div>')
+
+
+def _network_charts(companies: list[dict]) -> str:
+    touches = [o for c in companies for p in c.get("people", []) for o in _touches(p)]
+    replies = sum(1 for o in touches if o.get("outcome") in ("replied", "referred"))
+    tiles = "".join(f"<div><b>{v}</b><span>{k}</span></div>" for v, k in [
+        (len(companies), "companies"),
+        (sum(len(c.get("people", [])) for c in companies), "people mapped"),
+        (len(touches), "messages sent"), (replies, "replies")])
+    top = sorted((r for r in _heat_rows().values() if r.get("match_new_30d", 0) > 0),
+                 key=lambda r: -r["match_new_30d"])[:8]
+    bars = _bar_rows([(r["company"], r["match_new_30d"], None) for r in top])
+    return (f'<div class="sech"><h2>The numbers</h2><span class="n">is the outreach paying off</span></div>'
+            f'<div class="charts">'
+            f'<div class="panel"><h3>Outreach so far</h3><div class="momentum" style="padding:14px 0 4px">{tiles}</div></div>'
+            f'<div class="panel"><h3>Matching roles opened, last 30 days</h3>{bars}</div>'
+            f'</div>')
 
 
 def _page(title: str, body: str, active: str = "") -> str:
@@ -399,11 +579,15 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool) -
             f' data-score="{score if isinstance(score, (int, float)) else -1}"'
             f' data-posted="{posted_full}" data-prof="{esc(a.get("profile") or "")}"')
     prof = esc((a.get("profile") or "").replace("_", " "))
+    tats_cls = ("" if not isinstance(tats, (int, float))
+                else " v-hi" if tats >= 85 else " v-mid" if tats >= 70 else " v-lo")
+    score_cls = ("" if not isinstance(score, (int, float))
+                 else " v-hi" if score >= 8 else " v-mid" if score >= 6 else " v-lo")
     return (f'<a class="row {cls}{hide}"{grp}{data} href="{url}" target="_blank">'
             f'<span class="mono">{esc(_monogram(a.get("company", "?")))}</span>'
             f'<span class="who"><b>{esc(a.get("company"))}</b><div class="r">{esc(a.get("role"))}</div></span>'
-            f'{fit}<span class="cell c-tats">{tats if tats is not None else ""}</span>'
-            f'<span class="cell c-score">{f"{score}/10" if score is not None else ""}</span>'
+            f'{fit}<span class="cell c-tats{tats_cls}">{tats if tats is not None else ""}</span>'
+            f'<span class="cell c-score{score_cls}">{f"{score}/10" if score is not None else ""}</span>'
             f'<span class="cell c-date">{posted}</span>'
             f'<span class="cell c-prof">{prof}</span>'
             f'<span class="why">{esc(why)}</span>'
@@ -461,7 +645,7 @@ def render_entry() -> str:
         a = apps["ready"][0]
         glance_rows += _app_row(a, "go", "3 min", "p-go", "two clicks to applied", "")
 
-    body = f"""
+    body = f"""{SCENE}
 <div class="heroblock">
   <div class="aurora"></div>
   <div class="count">{esc(greet)}, {esc(first)}</div>
@@ -478,7 +662,7 @@ def render_entry() -> str:
 <div class="hint">v</div>
 <div class="glance">
   <h2>Here is the whole day.</h2>
-  <div class="gs">A few minutes of honest work.</div>
+  <div class="gs">Done when this list is empty.</div>
   <div class="rows">{glance_rows or '<div class="row"><span class="why">Nothing urgent. The sweep runs tonight.</span></div>'}</div>
 </div>
 <div class="glance">
@@ -499,28 +683,29 @@ def render_apply() -> str:
     story = (f"<b>{esc(ready[0].get('company'))} first.</b> " if ready else "")
     rows = ""
     for i, a in enumerate(ready):
-        rows += _app_row(a, "go", "ready", "p-go", "tailored and verified, posting live",
+        rows += _app_row(a, "go", "ready", "p-go", "",
                          "ready" if i >= 5 else "")
     for a in holds:
         rows += _app_row(a, "hold", "hold", "p-hold",
-                         "outreach in flight, applying now burns the referral", "")
+                         "referral in flight, apply after it lands", "")
     if len(ready) > 5:
         rows += f'<div class="more" data-for="ready">show 20 more ({len(ready) - 5} hidden)</div>'
     frows = ""
     for i, a in enumerate(fresh):
-        frows += _app_row(a, "", "tailor", "p-mut", "fresh today, strong keyword fit",
+        frows += _app_row(a, "", "tailor", "p-mut", "found today",
                           "fresh" if i >= 5 else "")
     if len(fresh) > 5:
         frows += f'<div class="more" data-for="fresh">show 20 more ({len(fresh) - 5} hidden)</div>'
 
     body = f"""<div class="wrap">
   <h1 class="serif" style="font-size:30px">Applications</h1>
-  <div class="storyline">{story}Referral holds are marked. Everything green is safe to send.</div>
+  <div class="storyline">{story}Amber rows wait on a referral.</div>
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
-  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
+  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Note</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
   <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span>
     <button class="runbtn" onclick="fetch('/api/run-pipeline').then(r => r.json()).then(d => this.textContent = 'running').catch(() => this.textContent = 'needs server')">run sweep</button></div>
-  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
+  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Note</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
+  {_apply_charts()}
   <div class="rows" style="margin-top:26px"><a class="row" href="/network" style="justify-content:space-between">
     <span class="who" style="width:auto"><b>Done applying?</b><div class="r">people are waiting in Networking</div></span>
     <span class="pill p-nav">Networking</span></a></div>
@@ -534,56 +719,72 @@ def render_network() -> str:
     apps = _app_rows()
     s = _story(people, apps)
     story_line = (f"<b>{s['h'].replace('<em>', '').replace('</em>', '')}</b>"
-                  if s.get("lane") == "/network" else "Green means send.")
-    rows = ""
-    for item in people["replies"]:
-        rows += _person_row(item, "go", "reply", "p-go", "they answered, respond today")
-    for item in people["sends"][:5 - min(len(people["replies"]), 5)]:
-        rows += _person_row(item, "go", "send", "p-go", "draft ready, copy and send")
-    wrows = ""
-    for item in people["due"]:
-        wrows += _person_row(item, "hold", "nudge", "p-hold", "follow-up is due")
-    for item in people["waiting"][:5]:
-        wrows += _person_row(item, "hold", "waiting", "p-hold", "nothing to do yet")
-    heat_by = _heat_rows()
-    crows = ('<div class="thead"><span style="width:34px"></span>'
-             '<span class="h-who sortable" data-key="co">Company</span>'
-             '<span class="h-fit sortable" data-key="heat">Heat</span>'
-             '<span class="h-tats sortable" data-key="people">People</span>'
-             '<span class="h-score sortable" data-key="roles">Roles 30d</span>'
-             '<span class="h-date sortable" data-key="scouted">Scouted</span>'
-             '<span class="h-why">Fit</span><span class="h-st">Status</span></div>')
-    for i, c in enumerate(sorted(companies, key=lambda c: c.get("last_scouted", ""), reverse=True)):
-        np_ = len(c.get("people", []))
+                  if s.get("lane") == "/network" else "Referral before application, always.")
+
+    order = {"reply": 0, "send": 1, "nudge": 2, "waiting": 3}
+    heat_rank = {"HOT": 0, "WARM": 1, "COOL": 2, "DEAD": 3}
+
+    def co_key(c):
+        states = [_person_state(c, p)[0] for p in c.get("people", [])]
+        return (min((order[st] for st in states), default=4),
+                heat_rank.get((c.get("heat") or "").upper(), 4))
+
+    blocks = ""
+    newest_first = sorted(companies, key=lambda c: c.get("last_scouted") or "", reverse=True)
+    for c in sorted(newest_first, key=co_key):
+        slug = slugify(c["name"])
         heat = (c.get("heat") or "?").upper()
-        hr = heat_by.get(slugify(c["name"]), {})
-        m30 = hr.get("match_new_30d", "")
-        acts = len(_open_actions(c))
-        hide = ' hidden" data-grp="cos' if i >= 5 else '"'
-        crows += (f'<a class="row{hide} data-co="{esc(c["name"])}" data-heat="{heat}"'
-                  f' data-people="{np_}" data-roles="{m30 or 0}" data-scouted="{esc(c.get("last_scouted", ""))}"'
-                  f' href="/company/{slugify(c["name"])}">'
-                  f'<span class="mono">{esc(_monogram(c["name"]))}</span>'
-                  f'<span class="who"><b>{esc(c["name"])}</b>'
-                  f'<div class="r">{np_} people{f", {acts} next actions" if acts else ""}</div></span>'
-                  f'<span class="fit"><span class="pill {HEAT_PILL.get(heat, "p-mut")}">{esc(heat)}</span></span>'
-                  f'<span class="cell c-tats">{np_}</span>'
-                  f'<span class="cell c-score">{m30}</span>'
-                  f'<span class="cell c-date">{esc((c.get("last_scouted") or "")[5:])}</span>'
-                  f'<span class="why">{esc(c.get("fit", ""))[:70]}</span>'
-                  f'<span class="pill p-mut">{esc((c.get("status") or "").replace("_", " "))}</span></a>')
-    if len(companies) > 5:
-        crows += f'<div class="more" data-for="cos">show 20 more ({len(companies) - 5} hidden)</div>' 
+        ppl = sorted(c.get("people", []), key=lambda p: order.get(_person_state(c, p)[0], 4))
+        prows = ""
+        for p in ppl:
+            state, cls, pcls, why = _person_state(c, p)
+            name = p["name"].split("[")[0].strip()
+            hook = (p.get("hook") or "").split(";")[0].strip()
+            url = p.get("linkedin") or ("https://www.linkedin.com/search/results/people/?keywords="
+                                        + quote_plus(f"{name} {c['name']}"))
+            copy = ""
+            draft = _person_draft(c, p)
+            if draft:
+                js = draft.replace("\\", "\\\\").replace("'", "\\'")
+                copy = ('<button class="copybtn sm" onclick="copyText(this, '
+                        f"'{esc(js)}')\">Copy message</button>")
+            prows += (f'<div class="row {cls}">'
+                      f'<span class="mono">{esc(_monogram(name))}</span>'
+                      f'<span class="who"><b>{esc(name)}</b><div class="r">{esc(p.get("title", ""))}</div></span>'
+                      f'<span class="why">{esc(why or hook)}</span>'
+                      f'<span class="ract" style="opacity:1">{copy}'
+                      f'<a class="pbtn" href="{esc(url)}" target="_blank">profile</a></span>'
+                      f'<span class="pill {pcls}">{state}</span></div>')
+        if not prows:
+            prows = '<div class="row"><span class="why">no people mapped yet</span></div>'
+        links = []
+        for src_line in _sources(c)[:3]:
+            tok = src_line.split()[0].strip().rstrip(",")
+            href = tok if tok.startswith("http") else "https://" + tok
+            label = tok.replace("https://", "").replace("http://", "")
+            label = label if len(label) <= 46 else label[:43] + "..."
+            links.append(f'<a style="color:var(--accent);text-decoration:none" '
+                         f'href="{esc(href)}" target="_blank">{esc(label)}</a>')
+        if links:
+            prows += ('<div class="row"><span class="why">sources: '
+                      + ", ".join(links) + "</span></div>")
+        fit_short = esc((c.get("fit") or "").split(";")[0])
+        blocks += (
+            f'<div class="sech"><a class="coname" href="/company/{slug}"><h2>{esc(c["name"])}</h2></a>'
+            f'<span class="pill {HEAT_PILL.get(heat, "p-mut")}">{esc(heat)}</span>'
+            f'<span class="n">{fit_short}</span>'
+            f'<a class="pbtn" style="margin-left:auto" href="/company/{slug}">full page</a></div>'
+            f'<div class="rows">{prows}</div>')
+    if not blocks:
+        blocks = ('<div class="sech"><h2>Companies</h2></div><div class="rows">'
+                  '<div class="row"><span class="why">No companies scouted yet. '
+                  'Run /scout with a company name.</span></div></div>')
 
     body = f"""<div class="wrap">
   <h1 class="serif" style="font-size:30px">Networking</h1>
-  <div class="storyline">{story_line} Referral before application, always.</div>
-  <div class="sech"><h2>Send today</h2><span class="n">{len(people['replies']) + len(people['sends'])}</span></div>
-  <div class="rows">{rows or '<div class="row"><span class="why">Nothing to send. Scout a company.</span></div>'}</div>
-  <div class="sech"><h2>Waiting</h2><span class="n">{len(people['due']) + len(people['waiting'])}, nothing to do unless marked</span></div>
-  <div class="rows">{wrows or '<div class="row"><span class="why">No open threads.</span></div>'}</div>
-  <div class="sech"><h2>Companies</h2><span class="n">{len(companies)} in flight, click any for its page</span></div>
-  <div class="rows">{crows}</div>
+  <div class="storyline">{story_line} Green rows have a message ready to copy.</div>
+  {blocks}
+  {_network_charts(companies)}
   <div class="rows" style="margin-top:26px"><a class="row" href="/apply" style="justify-content:space-between">
     <span class="who" style="width:auto"><b>Messages sent?</b><div class="r">roles are ready in Applications</div></span>
     <span class="pill p-nav">Applications</span></a></div>
@@ -596,6 +797,8 @@ def render_company(slug: str) -> str | None:
     c = next((x for x in companies if slugify(x["name"]) == slug), None)
     if not c:
         return None
+    fit_main, _, fit_extra = (c.get("fit") or "").partition(";")
+    fit_main, fit_extra = fit_main.strip(), fit_extra.strip()
     draft = _first_draft(c)
     draft_html = ""
     if draft:
@@ -657,9 +860,10 @@ def render_company(slug: str) -> str | None:
     body = f"""<div class="wrap">
   <div class="cohead"><span class="mono">{esc(_monogram(c["name"]))}</span>
     <h1 class="serif">{esc(c["name"])}</h1></div>
-  <div class="meta">{esc(c.get("fit", ""))} · heat <b>{esc(c.get("heat", "?"))}</b>
-    · scouted {esc(c.get("last_scouted", "?"))}
-    {f' · <a class="lnk" href="{esc(c.get("website"))}" style="color:var(--accent)">website</a>' if c.get("website") else ''}</div>
+  <div class="metapills"><span class="pill {HEAT_PILL.get((c.get("heat") or "").upper(), "p-mut")}">{esc((c.get("heat") or "?").upper())}</span>
+    <span class="pill p-mut">scouted {esc(c.get("last_scouted", "?"))}</span>
+    {f'<a class="pbtn" href="{esc(c.get("website"))}" target="_blank">website</a>' if c.get("website") else ''}</div>
+  <div class="meta"><b>{esc(fit_main)}</b>{f' <span style="font-size:12.5px">{esc(fit_extra)}</span>' if fit_extra else ''}</div>
   {draft_html}{acts_html}{stats_html}
   <div class="sech"><h2>People</h2><span class="n">ranked by reachability</span></div>
   <div class="rows">{prows or '<div class="row"><span class="why">none mapped yet</span></div>'}</div>

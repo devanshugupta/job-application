@@ -127,10 +127,10 @@ please refer/consider me) in TWO modes. Fill slots, don't freestyle:
 
 **Mode A — role-specific** (a matching req exists; the default when roles were
 found in step 3):
-> [Hook: shared {candidate.schools} / mutual <name> / their team's work] — I've
-> [achievement + number from achievements.md] and [second achievement matching
-> the role]. I'd be a strong fit for [role title/req #] because [1 line].
-> Would you be open to referring me for it?
+> [Hook: shared {candidate.schools} / mutual <name> / a value they signal
+> publicly] — I've [achievement + number from achievements.md] and [second
+> achievement matching the role]. I'd be a strong fit for [role title]
+> ([role URL]) because [1 line]. Would you be open to referring me for it?
 
 **Mode B — general company interest** (no matching req, or HOT company worth
 getting on the radar of; ask is a chat/future consideration, NOT a referral):
@@ -150,6 +150,20 @@ Produce Mode A per matching role; produce Mode B whenever the person is a
 strong contact regardless of current postings (e.g. pre-posting funded
 companies from step 3); produce Mode C whenever the warm path runs through a
 known mutual.
+
+**Personalization rules (all modes):**
+- Assume the candidate does NOT know the person, even 1st-degree connections.
+  Never fake familiarity ("great to see you again", "love what you've been up
+  to lately"). Warmth comes from specifics, not pretended history.
+- Mine the person's public profile (posts, about section, talks, repos) for
+  what they VALUE — ownership, bias for action, craftsmanship, shipping fast,
+  rigorous evals — and frame the why-I-fit line in those terms. This matters
+  most for hiring managers: they refer people who match how they think.
+- Paste the role's URL in the message so they can open it in one click.
+  Include the req id only when it actually exists; if it is unknown, drop the
+  phrase cleanly — never emit empty slots like "req #" or "(req )".
+- Keep it short: 3-4 sentences. One of them must say concretely why the
+  candidate fits THIS role, with a number from achievements.md.
 
 ### Sequencing & cadence rules (violating these wastes the referral)
 - **Referral BEFORE application.** Most ATSs cannot attach a referral to an
@@ -171,9 +185,10 @@ Draft, for the top 2-3 people:
 - **DM/follow-up** (full template, 3-5 sentences)
 - **Cold email** variant (subject + template) with guessed email pattern
   (check via WebSearch `"<company>" email format`; mark as guess).
-Rules: every claim grounded in achievements.md; mention the specific role req
-if one exists; pick the achievement pair per role family (the
-families are {candidate.role_families}); ask with {outreach.ask_role} or
+Rules: every claim grounded in achievements.md; link the specific role URL
+when one exists (req id only if known, no empty placeholders); pick the
+achievement pair per role family (the families are
+{candidate.role_families}); ask with {outreach.ask_role} or
 {outreach.ask_general} per mode; one clear ask;
 never desperate.
 
