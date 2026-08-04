@@ -334,11 +334,11 @@ a.row:hover, .row.click:hover { background:var(--panel-hov); cursor:pointer }
   letter-spacing:.6px; text-transform:uppercase; color:var(--mut); border-bottom:1px solid var(--line) }
 .thead .h-who { width:265px } .thead .h-fit { width:105px } .thead .h-date { width:66px }
 .thead .h-prof { width:74px } .thead .h-tats { width:64px } .thead .h-score { width:58px }
-.thead .h-why { flex:1 } .thead .h-st { width:70px; text-align:right }
+.thead .h-why { flex:1 } .thead .h-st { width:70px; text-align:right; margin-left:auto }
 .c-tats { width:64px } .c-score { width:58px; font-weight:650; color:var(--ink) }
 .cell { flex-shrink:0; font-size:13.5px; color:var(--mut); font-variant-numeric:tabular-nums }
 .c-date { width:66px } .c-prof { width:74px; overflow:hidden; text-overflow:ellipsis }
-.ract { display:inline-flex; gap:6px; flex-shrink:0; opacity:.55 }
+.ract { display:inline-flex; gap:6px; flex-shrink:0; opacity:.55; margin-left:auto }
 a.row:hover .ract { opacity:1 }
 .ract button { font:inherit; font-size:12.5px; font-weight:650; border:1px solid var(--line);
   border-radius:7px; padding:3px 10px; cursor:pointer; background:var(--panel); color:var(--mut) }
