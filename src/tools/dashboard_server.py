@@ -243,6 +243,13 @@ class _Handler(BaseHTTPRequestHandler):
             if net.is_file():
                 return self._send(200, net.read_bytes(), "text/html")
             return self._json(404, {"error": "no networking dashboard yet; run scripts/network_dashboard.py"})
+        if path.startswith("assets/"):
+            adir = (pathlib.Path(__file__).parent / "assets").resolve()
+            f = (adir / path.split("/", 1)[1]).resolve()
+            if adir in f.parents and f.is_file():
+                ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
+                return self._send(200, f.read_bytes(), ctype)
+            return self._json(404, {"error": "no such asset"})
         target = (config.DATA_DIR / path).resolve()
         if config.DATA_DIR.resolve() in target.parents and target.is_file():
             ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"

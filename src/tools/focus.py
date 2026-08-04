@@ -381,9 +381,10 @@ a.row:hover .ract { opacity:1 }
 .scene { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden }
 .scene svg.wave { position:absolute; bottom:-8vh; left:-5%; width:110%; height:54vh; will-change:transform }
 .scene .ship { position:absolute; left:7%; bottom:5.5vh; width:60px; will-change:transform }
-.itrail { position:fixed; pointer-events:none; z-index:8; width:20px;
+.itrail { position:fixed; pointer-events:none; z-index:8; width:64px;
   animation:it .85s cubic-bezier(.2,.7,.4,1) forwards }
-.itrail svg { width:100%; height:auto; display:block }
+.itrail img { width:100%; height:auto; display:block; border-radius:9px;
+  border:2.5px solid #fff; box-shadow:0 6px 18px rgba(30,20,0,.18) }
 @keyframes it {
   0% { opacity:0; transform:scale(.3) rotate(var(--rot,0deg)) }
   22% { opacity:1; transform:scale(1.1) rotate(var(--rot,0deg)) }
@@ -512,21 +513,17 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     if (ship) ship.style.transform = 'translateX(' + Math.min(scrollY * 0.55, innerWidth * 0.72) + 'px) translateY(' +
       (dip(0) + Math.sin(scrollY / 55) * 5) + 'px) rotate(' + Math.sin(scrollY / 70) * 4 + 'deg)';
   }, { passive: true });
-  const minis = [
-    '<svg viewBox="0 0 48 40" fill="none"><path d="M8 28 L40 28 L34 35 L14 35 Z" fill="#2a78d6" opacity=".85"/><line x1="24" y1="7" x2="24" y2="28" stroke="#1c1b18" stroke-width="1.6" opacity=".5"/><path d="M24 8 L37 25 L24 25 Z" fill="rgba(201,133,0,.7)"/><path d="M24 11 L15 25 L24 25 Z" fill="rgba(255,255,255,.95)" stroke="rgba(28,27,24,.2)"/></svg>',
-    '<svg viewBox="0 0 48 48" fill="none"><path d="M24 44 C23 34 22 26 24 18" stroke="rgba(139,94,60,.85)" stroke-width="3" stroke-linecap="round"/><path d="M24 18 C18 11 10 11 6 16 C14 13 20 15 24 18" fill="rgba(46,139,87,.6)"/><path d="M24 18 C30 11 38 11 42 16 C34 13 28 15 24 18" fill="rgba(46,139,87,.6)"/><path d="M24 18 C20 10 21 6 27 4 C24 8 25 13 24 18" fill="rgba(46,139,87,.45)"/><ellipse cx="24" cy="45" rx="10" ry="2.5" fill="rgba(201,133,0,.35)"/></svg>',
-    '<svg viewBox="0 0 48 48" fill="none"><path d="M6 21 A18 17 0 0 1 42 21 Z" fill="rgba(201,133,0,.7)"/><path d="M13 21 A18 17 0 0 1 21.5 6.5 L24 21 Z" fill="rgba(255,255,255,.9)"/><path d="M35 21 A18 17 0 0 0 26.5 6.5 L24 21 Z" fill="rgba(255,255,255,.9)"/><line x1="24" y1="21" x2="27" y2="43" stroke="#5a6b80" stroke-width="2.2" stroke-linecap="round"/></svg>',
-    '<svg viewBox="0 0 48 48" fill="none"><path d="M24 7 L28.3 18 L40 18.6 L30.8 26.2 L34 38 L24 31 L14 38 L17.2 26.2 L8 18.6 L19.7 18 Z" fill="rgba(230,150,60,.8)" stroke="rgba(230,150,60,.9)" stroke-width="3" stroke-linejoin="round"/><circle cx="24" cy="24" r="1.6" fill="rgba(255,255,255,.8)"/></svg>',
-    '<svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="29" r="13" fill="rgba(121,85,61,.85)"/><ellipse cx="24" cy="23" rx="8.5" ry="3.4" fill="rgba(255,255,255,.9)"/><line x1="28.5" y1="6" x2="25" y2="23" stroke="#2a78d6" stroke-width="2.4" stroke-linecap="round"/><path d="M28.5 6 L34 4" stroke="#2a78d6" stroke-width="2.4" stroke-linecap="round"/></svg>'];
+  const minis = ['/assets/trail/b1.jpg', '/assets/trail/b2.jpg', '/assets/trail/b3.jpg',
+    '/assets/trail/b4.jpg', '/assets/trail/b5.jpg'];
   let lastX = -99, lastY = -99, nImg = 0;
   addEventListener('mousemove', e => {
     if (Math.hypot(e.clientX - lastX, e.clientY - lastY) < 72) return;
     lastX = e.clientX; lastY = e.clientY;
     const t = document.createElement('span');
     t.className = 'itrail';
-    t.innerHTML = minis[nImg++ % minis.length];
+    t.innerHTML = '<img src="' + minis[nImg++ % minis.length] + '" alt="">';
     t.style.setProperty('--rot', ((Math.random() - 0.5) * 28) + 'deg');
-    t.style.left = (e.clientX - 10) + 'px'; t.style.top = (e.clientY - 9) + 'px';
+    t.style.left = (e.clientX - 32) + 'px'; t.style.top = (e.clientY - 24) + 'px';
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 900);
   }, { passive: true });
