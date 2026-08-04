@@ -182,10 +182,20 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .bar b a { color:var(--ink); text-decoration:none; font-weight:650 }
 .bar a { color:var(--mut); text-decoration:none } .bar a.on, .bar a:hover { color:var(--ink) }
 .bar .right { margin-left:auto } .bar .right a { font-size:12px }
-.wrap { max-width:820px; margin:0 auto; padding:26px 24px 60px }
+.wrap { max-width:1160px; margin:0 auto; padding:26px 32px 60px }
 .serif { font-family:Georgia,serif; font-weight:600; letter-spacing:-.5px }
 .heroblock { min-height:calc(88vh - 50px); display:flex; flex-direction:column; align-items:center;
-  justify-content:center; text-align:center; padding:20px; margin:0 auto; max-width:760px }
+  justify-content:center; text-align:center; padding:20px; margin:0 auto; max-width:760px; position:relative }
+.aurora { position:absolute; top:50%; left:50%; width:520px; height:380px; transform:translate(-50%,-58%);
+  background:conic-gradient(from 0deg, rgba(42,120,214,.16), rgba(201,133,0,.10), rgba(27,175,122,.10), rgba(42,120,214,.16));
+  border-radius:48% 52% 55% 45% / 55% 45% 52% 48%; filter:blur(64px); z-index:-1;
+  animation:aur 22s ease-in-out infinite alternate }
+@keyframes aur { to { transform:translate(-48%,-54%) rotate(50deg) scale(1.12) } }
+@media (prefers-reduced-motion: reduce) { .aurora { animation:none } }
+.count { font-size:12.5px; font-weight:700; letter-spacing:1.5px; color:var(--mut); text-transform:uppercase; margin-bottom:16px }
+.count b { color:var(--accent) }
+.progress { margin-top:16px; font-size:13px; color:var(--mut) }
+.progress b { color:var(--ink) }
 .heroblock h1 { font-family:Georgia,serif; font-weight:600; font-size:42px; line-height:1.14; letter-spacing:-.5px; margin-bottom:12px }
 .heroblock h1 em { font-style:italic; color:var(--accent) }
 .heroblock .sub { color:var(--mut); font-size:16px; margin-bottom:30px; max-width:460px }
@@ -301,6 +311,11 @@ def render_entry() -> str:
     replies = sum(1 for o in touches if o.get("outcome") in ("replied", "referred"))
     rate = f"{round(100 * replies / len(touches))}%" if touches else "-"
 
+    today_iso = date.today().isoformat()
+    done_today = sum(1 for o in touches if o.get("date") == today_iso)
+    done_today += sum(1 for a in tracker.list_applications()
+                      if (a.get("applied_date") or "")[:10] == today_iso and not a.get("removed"))
+    open_loops = n_send + min(n_ready, 3)
     hour = datetime.now().hour
     greet = "Morning" if hour < 12 else "Afternoon" if hour < 18 else "Evening"
     first = "there"
@@ -320,9 +335,12 @@ def render_entry() -> str:
 
     body = f"""
 <div class="heroblock">
+  <div class="aurora"></div>
+  <div class="count">{esc(greet)}, {esc(first)} · <b>{open_loops}</b> open loops</div>
   <h1>{story['h']}</h1>
   <div class="sub">{esc(story['p'])}</div>
   <a class="cta" href="{esc(story['href'])}">{esc(story['cta'])}</a>
+  {f'<div class="progress"><b>{done_today} done today.</b> {open_loops} to go, closest one first.</div>' if done_today else ''}
   <div class="doors">
     <a class="door" href="/network"><h3>Networking</h3>
       <p>people who can open doors for you</p><div class="cue">{n_send} waiting</div></a>
