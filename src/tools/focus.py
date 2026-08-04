@@ -380,7 +380,7 @@ a.row:hover .ract { opacity:1 }
 .pbtn:hover { color:var(--accent); border-color:var(--accent) }
 .scene { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden }
 .scene svg.wave { position:absolute; bottom:-8vh; left:-5%; width:110%; height:54vh; will-change:transform }
-.scene .ship { position:absolute; left:7%; bottom:30vh; width:84px; will-change:transform }
+.scene .ship { position:absolute; left:7%; bottom:5.5vh; width:84px; will-change:transform }
 .trail { position:fixed; pointer-events:none; z-index:9; font-size:17px; animation:tr .9s ease-out forwards }
 @keyframes tr { to { opacity:0; transform:translateY(-30px) rotate(24deg) scale(.55) } }
 [data-theme="dark"] .scene { opacity:.55 }
@@ -488,10 +488,10 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const layers = scene.querySelectorAll('svg.wave');
   const ship = scene.querySelector('.ship');
   addEventListener('scroll', () => {
-    layers.forEach((l, i) => l.style.transform = 'translateY(' + scrollY * (0.24 + i * 0.16) + 'px)');
-    if (ship) ship.style.transform = 'translateX(' + scrollY * 0.55 + 'px) translateY(' +
-      (scrollY * 0.2 + Math.sin(scrollY / 55) * 5) + 'px) rotate(' + Math.sin(scrollY / 70) * 4 + 'deg)';
-    scene.style.opacity = Math.max(1 - scrollY / 1600, 0.25);
+    const dip = i => Math.min(scrollY * (0.24 + i * 0.16), 34 + i * 26);
+    layers.forEach((l, i) => l.style.transform = 'translateY(' + dip(i) + 'px)');
+    if (ship) ship.style.transform = 'translateX(' + Math.min(scrollY * 0.55, innerWidth * 0.72) + 'px) translateY(' +
+      (dip(0) + Math.sin(scrollY / 55) * 5) + 'px) rotate(' + Math.sin(scrollY / 70) * 4 + 'deg)';
   }, { passive: true });
   const drops = ['\\ud83d\\udcc4', '\\ud83d\\udcbc', '\\ud83d\\ude80', '\\u2728', '\\u2615'];
   let lastDrop = 0;
