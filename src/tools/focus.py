@@ -381,8 +381,8 @@ a.row:hover .ract { opacity:1 }
 .scene { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden }
 .scene svg.wave { position:absolute; bottom:-8vh; left:-5%; width:110%; height:54vh; will-change:transform }
 .scene .ship { position:absolute; left:7%; bottom:5.5vh; width:84px; will-change:transform }
-.trail { position:fixed; pointer-events:none; z-index:9; font-size:17px; animation:tr .9s ease-out forwards }
-@keyframes tr { to { opacity:0; transform:translateY(-30px) rotate(24deg) scale(.55) } }
+.trail { position:fixed; pointer-events:none; z-index:9; animation:tr 1s ease-out forwards }
+@keyframes tr { to { opacity:0; transform:translate(var(--dx,0), -34px) rotate(var(--rot,25deg)) scale(.3) } }
 [data-theme="dark"] .scene { opacity:.55 }
 .metapills { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px }
 .v-hi { color:var(--go) !important } .v-mid { color:var(--hold) !important } .v-lo { color:var(--mut) !important }
@@ -493,18 +493,20 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     if (ship) ship.style.transform = 'translateX(' + Math.min(scrollY * 0.55, innerWidth * 0.72) + 'px) translateY(' +
       (dip(0) + Math.sin(scrollY / 55) * 5) + 'px) rotate(' + Math.sin(scrollY / 70) * 4 + 'deg)';
   }, { passive: true });
-  const drops = ['\\ud83d\\udc7b', '\\ud83e\\udd21', '\\ud83e\\udd72', '\\ud83e\\udd1e', '\\ud83d\\udcb8', '\\ud83d\\udea9'];
   let lastDrop = 0;
   addEventListener('mousemove', e => {
     const now = performance.now();
-    if (now - lastDrop < 110) return;
+    if (now - lastDrop < 70) return;
     lastDrop = now;
     const t = document.createElement('span');
     t.className = 'trail';
-    t.textContent = drops[Math.floor(Math.random() * drops.length)];
-    t.style.left = (e.clientX + 10) + 'px'; t.style.top = (e.clientY + 12) + 'px';
+    t.textContent = '\\u2728';
+    t.style.fontSize = (11 + Math.random() * 9) + 'px';
+    t.style.setProperty('--dx', ((Math.random() - 0.5) * 44) + 'px');
+    t.style.setProperty('--rot', ((Math.random() - 0.5) * 120) + 'deg');
+    t.style.left = (e.clientX + 8) + 'px'; t.style.top = (e.clientY + 10) + 'px';
     document.body.appendChild(t);
-    setTimeout(() => t.remove(), 950);
+    setTimeout(() => t.remove(), 1050);
   }, { passive: true });
   const hero = document.querySelector('.heroblock');
   if (hero) {
