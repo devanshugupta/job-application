@@ -416,6 +416,11 @@ a.row:hover .ract { opacity:1 }
   border:1px solid var(--line); border-radius:10px; padding:9px 14px; margin:4px 0 10px; display:block }
 .search:focus { outline:none; border-color:var(--accent) }
 .qhide { display:none !important }
+.seg { display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden;
+  background:var(--panel); margin-bottom:12px }
+.seg button { font:inherit; font-size:13.5px; font-weight:650; padding:7px 18px; border:none;
+  cursor:pointer; background:transparent; color:var(--mut) }
+.seg button.on { background:var(--accent); color:#fff }
 .foot { max-width:1440px; margin:44px auto 0; padding:18px 40px 34px; display:flex; justify-content:space-between;
   align-items:baseline; gap:14px; flex-wrap:wrap; color:var(--mut); font-size:13.5px; border-top:1px solid var(--line) }
 .foot a { color:var(--mut); text-decoration:none; margin-left:18px } .foot a:hover { color:var(--accent) }
@@ -465,6 +470,8 @@ document.querySelectorAll('.ract button').forEach(b => b.addEventListener('click
       b.textContent = 'apply';
     }
     if (api === 'remove') row.style.display = 'none';
+    if (api === 'restore') { row.querySelector('.pill').textContent = 'restored'; b.remove(); }
+    if (api === 'unapplied') { row.querySelector('.pill').textContent = 'ready'; b.remove(); }
     if (api === 'reveal') { b.textContent = 'opened'; setTimeout(() => b.textContent = 'resume', 1500); } })
   .catch(() => { b.textContent = 'needs server'; setTimeout(() => b.textContent = api, 1500); });
 }));
@@ -482,7 +489,8 @@ document.querySelectorAll('.sortable').forEach(hcell => hcell.addEventListener('
     return numeric ? (an - bn) * dir : av.localeCompare(bv) * dir;
   });
   const more = box.querySelector('.more[data-for]');
-  rows.forEach((r, i) => { r.classList.toggle('hidden', i >= visible);
+  const isCat = box.id === 'catalog';
+  rows.forEach((r, i) => { if (!isCat) r.classList.toggle('hidden', i >= visible);
     if (more) box.insertBefore(r, more); else box.appendChild(r); });
 }));
 document.querySelectorAll('button[data-touch]').forEach(b => b.addEventListener('click', e => {
@@ -501,15 +509,37 @@ document.querySelectorAll('button[data-touch]').forEach(b => b.addEventListener(
     b.textContent = 'logged'; setTimeout(() => b.remove(), 900); })
   .catch(() => { b.textContent = 'needs server'; });
 }));
+let seg = '';
+function refreshCatalog() {
+  const cat = document.getElementById('catalog');
+  if (!cat) return;
+  const term = (document.getElementById('q') || { value: '' }).value.trim().toLowerCase();
+  let any = false;
+  cat.querySelectorAll('.row').forEach(r => {
+    const inSeg = seg === 'all' || r.dataset.bucket === seg;
+    const byTerm = r.textContent.toLowerCase().includes(term);
+    const show = seg ? (inSeg && (!term || byTerm)) : (!!term && byTerm);
+    r.classList.toggle('hidden', !show);
+    if (show) any = true;
+  });
+  cat.classList.toggle('qhide', !any && !seg);
+}
+document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+  seg = (seg === b.dataset.seg) ? '' : b.dataset.seg;
+  document.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x.dataset.seg === seg));
+  refreshCatalog();
+}));
+refreshCatalog();
 const q = document.getElementById('q');
 if (q) q.addEventListener('input', () => {
   const term = q.value.trim().toLowerCase();
-  document.querySelectorAll('.rows .row').forEach(r => {
+  document.querySelectorAll('.rows:not(#catalog) .row').forEach(r => {
     const hit = !term || r.textContent.toLowerCase().includes(term);
     r.classList.toggle('qhide', !hit);
     if (term && hit) r.classList.remove('hidden');
   });
-  document.querySelectorAll('.rows').forEach(box => {
+  refreshCatalog();
+  document.querySelectorAll('.rows:not(#catalog)').forEach(box => {
     const rows = [...box.querySelectorAll('.row')];
     if (!rows.length) return;
     const any = !term || rows.some(r => !r.classList.contains('qhide') && !r.classList.contains('hidden'));
@@ -715,12 +745,13 @@ def _page(title: str, body: str, active: str = "") -> str:
             f'{body}{foot}<script>{JS}</script></body></html>')
 
 
-def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool) -> str:
+def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
+             acts: str = "", grp: str = "") -> str:
     mats = a.get("master_ats")
     fit = (f'<span class="fit"><span class="t"><i style="width:{min(int(mats), 100)}%"></i></span>'
            f'<b>{mats}</b></span>') if isinstance(mats, (int, float)) else '<span class="fit"></span>'
-    grp = f' data-grp="{cap}"' if cap else ""
-    hide = " hidden" if cap else ""
+    grp = f' data-grp="{grp or cap}"' if (grp or cap) else ""
+    hide = " hidden" if (cap or grp) else ""
     url = esc(a.get("url") or "#")
     posted_full = esc((a.get("posted_date") or a.get("date") or "")[:10])
     posted = posted_full[5:]  # MM-DD display
@@ -732,6 +763,9 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool) -
             f' data-score="{score if isinstance(score, (int, float)) else -1}"'
             f' data-posted="{posted_full}" data-prof="{esc(a.get("profile") or "")}"')
     prof = esc((a.get("profile") or "").replace("_", " "))
+    default_acts = ('<button data-api="applied">apply</button>'
+                    '<button data-api="reveal">resume</button>'
+                    '<button data-api="remove">hide</button>')
     tats_cls = ("" if not isinstance(tats, (int, float))
                 else " v-hi" if tats >= 85 else " v-mid" if tats >= 70 else " v-lo")
     score_cls = ("" if not isinstance(score, (int, float))
@@ -744,9 +778,7 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool) -
             f'<span class="cell c-date">{posted}</span>'
             f'<span class="cell c-prof">{prof}</span>'
             f'<span class="why">{esc(why)}</span>'
-            f'<span class="ract"><button data-api="applied">apply</button>'
-            f'<button data-api="reveal">resume</button>'
-            f'<button data-api="remove">hide</button></span>'
+            f'<span class="ract">{acts or default_acts}</span>'
             f'<span class="pill {pill_cls}">{esc(pill)}</span></a>')
 
 
@@ -832,6 +864,55 @@ def render_entry() -> str:
     return _page("vouch", body)
 
 
+THEAD = ('<div class="thead"><span style="width:34px"></span>'
+         '<span class="h-who sortable" data-key="co">Company / Role</span>'
+         '<span class="h-fit sortable" data-key="fit">Fit</span>'
+         '<span class="h-tats sortable" data-key="tats">Tailored</span>'
+         '<span class="h-score sortable" data-key="score">Score</span>'
+         '<span class="h-date sortable" data-key="posted">Posted</span>'
+         '<span class="h-prof sortable" data-key="prof">Track</span>'
+         '<span class="h-why">Note</span><span class="h-st">Status</span></div>')
+
+
+def _catalog() -> tuple[str, dict]:
+    """Every tracked job as a hidden row, bucketed for the segmented filter."""
+    counts = {"applied": 0, "hidden": 0, "dead": 0, "skipped": 0, "open": 0}
+    rows = ""
+    for a in tracker.list_applications():
+        if a.get("removed"):
+            b, pill, pcls = "hidden", "hidden", "p-mut"
+            acts = '<button data-api="restore">restore</button><button data-api="reveal">resume</button>'
+        elif a.get("stale"):
+            b, pill, pcls = "dead", "stale", "p-dead"
+            acts = '<button data-api="remove">hide</button>'
+        elif a.get("status") in _dash._SUBMITTED:
+            b, pill, pcls = "applied", "applied", "p-mut"
+            acts = '<button data-api="unapplied">undo</button><button data-api="reveal">resume</button>'
+        elif a.get("status") == "skipped":
+            b, pill, pcls = "skipped", "skipped", "p-mut"
+            acts = '<button data-api="reveal">resume</button><button data-api="remove">hide</button>'
+        else:
+            b, pill, pcls = "open", esc(a.get("status") or "open"), "p-mut"
+            acts = ""
+        counts[b] += 1
+        row = _app_row(a, "", pill, pcls, "", "", acts=acts, grp="cat")
+        rows += row.replace('data-grp="cat"', f'data-grp="cat" data-bucket="{b}"', 1)
+    return rows, counts
+
+
+def _catalog_section() -> str:
+    rows, counts = _catalog()
+    total = sum(counts.values())
+    seg = "".join(
+        f'<button data-seg="{b}">{label} {counts[b] if b != "all" else total}</button>'
+        for b, label in [("applied", "applied"), ("hidden", "hidden"), ("dead", "stale"),
+                         ("skipped", "skipped"), ("open", "open"), ("all", "all")])
+    return (f'<div class="sech"><h2>Catalog</h2>'
+            f'<span class="n">every job ever tracked, pick a filter or just search</span></div>'
+            f'<div class="seg">{seg}</div>'
+            f'<div class="rows" id="catalog">{THEAD}{rows}</div>')
+
+
 def render_apply() -> str:
     apps = _app_rows()
     ready, fresh = apps["ready"], apps["fresh"]
@@ -859,6 +940,7 @@ def render_apply() -> str:
   <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span>
     <button class="runbtn" onclick="fetch('/api/run-pipeline').then(r => r.json()).then(d => this.textContent = 'running').catch(() => this.textContent = 'needs server')">run sweep</button></div>
   <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Note</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
+  {_catalog_section()}
   {_apply_charts()}
   <div class="rows" style="margin-top:26px"><a class="row" href="/network" style="justify-content:space-between">
     <span class="who" style="width:auto"><b>Done applying?</b><div class="r">people are waiting in Networking</div></span>
