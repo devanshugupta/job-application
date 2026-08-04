@@ -946,6 +946,9 @@ def render_entry() -> str:
             (f"{open_loops} doors today. ", "One is yours."),
             (f"{open_loops} ways in. ", "Start with one."),
             (f"Doors open right now: {open_loops}. ", "Knock."),
+            (f"{open_loops} jobs are waiting. ", "Make them wait less."),
+            (f"{open_loops} jobs on the table. ", "Take your pick."),
+            (f"Somebody is hiring. ", f"{open_loops} jobs say so."),
         ])
     else:
         head_a, head_b = "No open doors right now. ", "Tonight's sweep finds more."
