@@ -311,7 +311,9 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .door h3 { font-family:Georgia,serif; font-size:19px; font-weight:600; margin-bottom:3px }
 .door p { color:var(--mut); font-size:13px }
 .door .cue { margin-top:14px; font-size:12.5px; font-weight:700; color:var(--accent) }
-.hint { text-align:center; color:var(--mut); font-size:14px; padding-bottom:20px; animation:bob 2.2s infinite }
+.hint { text-align:center; color:var(--mut); padding-bottom:20px; animation:bob 2.2s infinite }
+.hint svg { display:inline-block }
+a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline:none }
 @keyframes bob { 50% { transform:translateY(4px) } }
 .rows { background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 4px 18px rgba(30,20,0,.04) }
 .row { display:flex; align-items:center; gap:14px; padding:12px 18px; border-bottom:1px solid var(--line); color:inherit; text-decoration:none }
@@ -701,7 +703,15 @@ def render_entry() -> str:
       <p>people who can open doors for you</p><div class="cue">{n_send} waiting</div></a>
   </div>
 </div>
-<div class="hint">v</div>
+<div class="hint"><svg width="22" height="28" viewBox="0 0 22 28" fill="none">
+  <rect x="1" y="1" width="20" height="26" rx="3" stroke="currentColor" stroke-width="1.5" fill="var(--panel)"/>
+  <circle cx="7" cy="8" r="2.2" fill="currentColor" opacity=".55"/>
+  <line x1="12" y1="7" x2="17" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>
+  <line x1="12" y1="10" x2="16" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".35"/>
+  <line x1="5" y1="15" x2="17" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".45"/>
+  <line x1="5" y1="18.5" x2="17" y2="18.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".45"/>
+  <line x1="5" y1="22" x2="13" y2="22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".45"/>
+</svg></div>
 <div class="glance">
   <h2>Here is the whole day.</h2>
   <div class="gs">Done when this list is empty.</div>
