@@ -212,6 +212,22 @@ class _Handler(BaseHTTPRequestHandler):
         path = unquote(self.path.split("?")[0]).lstrip("/")
         if path == "api/ping":
             return self._json(200, {"ok": True})
+        if path in ("api/job-status", "api/job-row"):
+            from urllib.parse import parse_qs, urlparse
+            url = (parse_qs(urlparse(self.path).query).get("url") or [""])[0]
+            rec = tracker._find_by_url(tracker.list_applications(), url)
+            if rec is None:
+                return self._json(404, {"found": False})
+            if path == "api/job-status":
+                from ..brain import pending_packets
+                return self._json(200, {
+                    "found": True, "status": rec.get("status"),
+                    "company": rec.get("company"), "role": rec.get("role"),
+                    "has_resume": dashboard._has_resume(rec),
+                    "awaiting_brain": bool(pending_packets()),
+                    "score": rec.get("resume_score"), "match": rec.get("match_pct")})
+            return self._json(200, {"html": focus._app_row(
+                rec, "go", "ready", "p-go", "just added, tailored and verified", "")})
         if path == "api/pipeline-status":
             return self._json(200, pipeline_status())
         # Focus UI (the official interface): /, /apply, /network, /company/<slug>.
@@ -267,6 +283,19 @@ class _Handler(BaseHTTPRequestHandler):
             # run-pipeline takes no job url  handle before the record lookup
             if self.path.startswith("/api/run-pipeline"):
                 return self._json(200, start_pipeline())
+            if self.path.startswith("/api/add-job"):
+                url = (payload.get("url") or "").strip()
+                if not url.startswith(("http://", "https://")):
+                    return self._json(400, {"error": "need a full http(s) job URL"})
+                rec = tracker._find_by_url(tracker.list_applications(), url)
+                if rec is not None and dashboard._has_resume(rec):
+                    return self._json(200, {"queued": False, "already": True,
+                                            "company": rec.get("company")})
+                log = open(config.DATA_DIR / "add_job.log", "ab")
+                subprocess.Popen(
+                    [sys.executable, "-m", "src.cli", "add", url],
+                    cwd=config.ROOT, stdout=log, stderr=log, start_new_session=True)
+                return self._json(200, {"queued": True})
             if self.path.startswith("/api/touch"):
                 # Log one outreach touch on a person, so reply rate has real data.
                 company = (payload.get("company") or "").strip()

@@ -8,6 +8,7 @@ here instead of in the browser. Every response must be JSON: the buttons parse w
 import json
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import HTTPServer
 
@@ -221,3 +222,26 @@ def test_touch_logs_outreach(server, tmp_data):
     assert db["companies"][0]["status"] == "contacted"
     status, body = _post(server, "/api/touch", "")
     assert status == 400
+
+
+def test_add_job_queues_background_tailor(server, monkeypatch):
+    spawned = []
+    monkeypatch.setattr(dashboard_server.subprocess, "Popen",
+                        lambda *a, **k: spawned.append(a[0]))
+    status, body = _post(server, "/api/add-job", "https://boards.greenhouse.io/x/jobs/1")
+    assert status == 200 and body["queued"] is True
+    assert spawned and spawned[0][-2:] == ["add", "https://boards.greenhouse.io/x/jobs/1"]
+    status, body = _post(server, "/api/add-job", "not-a-url")
+    assert status == 400
+
+
+def test_job_status_and_row_endpoints(server, job):
+    url = "https://boards.greenhouse.io/acme/jobs/4951814008"
+    r = urllib.request.urlopen(server + "/api/job-status?url=" + urllib.parse.quote(url, safe=""))
+    st = json.loads(r.read())
+    assert st["found"] and st["company"] == "Acme Inc" and st["has_resume"] is True
+    r = urllib.request.urlopen(server + "/api/job-row?url=" + urllib.parse.quote(url, safe=""))
+    assert "Acme Inc" in json.loads(r.read())["html"]
+    with pytest.raises(urllib.error.HTTPError) as e:
+        urllib.request.urlopen(server + "/api/job-status?url=https%3A%2F%2Fnope")
+    assert e.value.code == 404

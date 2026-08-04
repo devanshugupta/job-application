@@ -78,6 +78,43 @@ def cmd_discover(hours: int, target: int, profile: str | None,
     _print_results_hint()
 
 
+def _guess_company_role(url: str, jd: str) -> tuple[str, str]:
+    """Best-effort company/role for a pasted URL: ATS slug for the company, first
+    real JD line for the role. Good enough for the row; the resume uses the JD."""
+    from urllib.parse import urlparse
+    u = urlparse(url)
+    host = u.netloc.lower().removeprefix("www.")
+    parts = [x for x in u.path.split("/") if x]
+    if any(h in host for h in ("greenhouse.io", "ashbyhq.com", "lever.co")) and parts:
+        company = parts[0]
+    else:
+        company = host.split(".")[0]
+    company = company.replace("-", " ").replace("_", " ").title() or "Unknown"
+    role = next((ln.strip() for ln in (jd or "").splitlines() if len(ln.strip()) > 3), "")
+    return company, (role[:80] or "Pasted role")
+
+
+def cmd_add(url: str, brain_mode: str | None, profile: str | None) -> None:
+    """Add ONE pasted job URL: fetch the JD, upsert the tracker row, tailor it.
+    The dashboard's paste bar shells out to this in the background."""
+    from .tools import jd_fetch
+    existing = tracker._find_by_url(tracker.list_applications(), url)
+    if (existing is not None and dash._has_resume(existing)
+            and existing.get("resume_score") is not None):
+        print(f"already tailored: {existing['company']}  {existing['role']}")
+        return
+    r = jd_fetch.fetch_jd(url, allow_browser=True)
+    company, role = _guess_company_role(url, r["text"])
+    if existing is not None:
+        company = existing.get("company") or company
+        role = existing.get("role") or role
+    tracker.save_application(company=company, role=role, url=url, status="found",
+                             source="pasted", jd_text=r["text"] or None)
+    if not r["looks_complete"]:
+        print("warning: JD looks thin (login wall?); tailoring anyway from what we got")
+    cmd_tailor(url, brain_mode, profile)
+
+
 def cmd_tailor(query: str, brain_mode: str | None, profile: str | None) -> None:
     """Tailor ONE tracked job, matched by substring against company/role/url.
 
@@ -549,6 +586,10 @@ def main(argv: list[str] | None = None) -> None:
     p_pipe.add_argument("--source", default=None,
                         help="comma-separated source names/keywords; default: all available")
 
+    p_add = sub.add_parser("add", help="Add one pasted job URL: fetch JD, track, tailor")
+    p_add.add_argument("url")
+    p_add.add_argument("--brain", choices=["api", "manual"], default=None)
+    p_add.add_argument("--profile", default=None)
     p_tailor = sub.add_parser("tailor", help="Tailor one tracked job (match by company/role/url substring)")
     p_tailor.add_argument("query", help="substring matching the tracked job's company/role/url")
     p_tailor.add_argument("--profile", default=None)
@@ -626,6 +667,8 @@ def main(argv: list[str] | None = None) -> None:
                      refresh=args.refresh, sources=_srcs(args.source))
     elif args.command == "run":
         cmd_pipeline(args.days * 24, args.top, args.profile, args.brain, False)
+    elif args.command == "add":
+        cmd_add(args.url, args.brain, args.profile)
     elif args.command == "tailor":
         cmd_tailor(args.query, args.brain, args.profile)
     elif args.command == "brain":

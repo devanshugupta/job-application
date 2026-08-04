@@ -415,6 +415,12 @@ a.row:hover .ract { opacity:1 }
 .search { width:100%; max-width:420px; font:inherit; font-size:14.5px; color:var(--ink); background:var(--panel);
   border:1px solid var(--line); border-radius:10px; padding:9px 14px; margin:4px 0 10px; display:block }
 .search:focus { outline:none; border-color:var(--accent) }
+.addbar { display:flex; gap:10px; align-items:center; margin:4px 0 10px }
+.addbar input { flex:1; max-width:560px; font:inherit; font-size:14.5px; color:var(--ink);
+  background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:9px 14px }
+.addbar input:focus { outline:none; border-color:var(--accent) }
+@keyframes pulse { 50% { opacity:.45 } }
+.row.adding { animation:pulse 1.6s ease-in-out infinite }
 .qhide { display:none !important }
 .seg { display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden;
   background:var(--panel); margin-bottom:12px }
@@ -452,8 +458,10 @@ document.querySelectorAll('.more[data-for]').forEach(m => m.addEventListener('cl
   const hid = [...document.querySelectorAll('.hidden[data-grp="' + m.dataset.for + '"]')];
   hid.slice(0, 20).forEach(r => r.classList.remove('hidden'));
   const left = Math.max(hid.length - 20, 0);
-  if (left) m.textContent = 'show 20 more (' + left + ' hidden)'; else m.remove(); }));
-document.querySelectorAll('.ract button').forEach(b => b.addEventListener('click', e => {
+  if (left) m.textContent = 'show ' + Math.min(20, left) + ' more'; else m.remove(); }));
+document.addEventListener('click', e => {
+  const b = e.target.closest('.ract button');
+  if (!b) return;
   e.preventDefault(); e.stopPropagation();
   const row = b.closest('a.row'), api = b.dataset.api;
   const undo = api === 'applied' && row.classList.contains('rowdone');
@@ -474,7 +482,7 @@ document.querySelectorAll('.ract button').forEach(b => b.addEventListener('click
     if (api === 'unapplied') { row.querySelector('.pill').textContent = 'ready'; b.remove(); }
     if (api === 'reveal') { b.textContent = 'opened'; setTimeout(() => b.textContent = 'resume', 1500); } })
   .catch(() => { b.textContent = 'needs server'; setTimeout(() => b.textContent = api, 1500); });
-}));
+});
 document.querySelectorAll('.sortable').forEach(hcell => hcell.addEventListener('click', () => {
   const box = hcell.closest('.rows'), key = hcell.dataset.key;
   const dir = hcell.classList.contains('asc') ? -1 : 1;
@@ -509,6 +517,53 @@ document.querySelectorAll('button[data-touch]').forEach(b => b.addEventListener(
     b.textContent = 'logged'; setTimeout(() => b.remove(), 900); })
   .catch(() => { b.textContent = 'needs server'; });
 }));
+const addForm = document.getElementById('addjob');
+if (addForm) addForm.addEventListener('submit', e => {
+  e.preventDefault();
+  const url = document.getElementById('addurl').value.trim();
+  if (!url) return;
+  fetch('/api/add-job', { method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ url }) })
+  .then(r => r.json().then(d => ({ ok: r.ok, d })))
+  .then(({ ok, d }) => {
+    if (!ok) { alert(d.error || 'could not queue'); return; }
+    if (d.already) { alert('Already tailored for ' + d.company + '. Find it via search.'); return; }
+    document.getElementById('addurl').value = '';
+    const box = document.getElementById('readybox');
+    const ph = document.createElement('a');
+    ph.className = 'row go adding'; ph.href = url; ph.target = '_blank';
+    ph.innerHTML = '<span class="mono">+</span>' +
+      '<span class="who"><b>Adding your job</b><div class="r">' + url.slice(0, 60) + '</div></span>' +
+      '<span class="why">fetching the JD and tailoring a resume, a few minutes</span>' +
+      '<span class="pill p-hold">tailoring</span>';
+    box.insertBefore(ph, box.querySelector('.row'));
+    const t0 = Date.now();
+    const poll = setInterval(() => {
+      if (Date.now() - t0 > 20 * 60 * 1000) { clearInterval(poll);
+        ph.querySelector('.pill').textContent = 'slow, check data/add_job.log'; return; }
+      fetch('/api/job-status?url=' + encodeURIComponent(url)).then(r => r.json()).then(st => {
+        if (!st.found) return;
+        ph.querySelector('.who b').textContent = st.company || 'Adding your job';
+        if (st.has_resume) {
+          clearInterval(poll);
+          fetch('/api/job-row?url=' + encodeURIComponent(url)).then(r => r.json()).then(d2 => {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = d2.html;
+            ph.replaceWith(tmp.firstChild);
+          });
+        } else if (st.status === 'skipped') {
+          clearInterval(poll);
+          ph.querySelector('.pill').textContent = 'skipped, see catalog';
+          ph.classList.remove('adding');
+        } else {
+          ph.querySelector('.pill').textContent =
+            st.awaiting_brain ? 'awaiting brain' : (st.status || 'tailoring');
+        }
+      }).catch(() => {});
+    }, 7000);
+  })
+  .catch(() => alert('needs the server running'));
+});
 let seg = '';
 function refreshCatalog() {
   const cat = document.getElementById('catalog');
@@ -922,21 +977,24 @@ def render_apply() -> str:
         rows += _app_row(a, "go", "ready", "p-go", "",
                          "ready" if i >= 5 else "")
     if len(ready) > 5:
-        rows += f'<div class="more" data-for="ready">show 20 more ({len(ready) - 5} hidden)</div>'
+        rows += f'<div class="more" data-for="ready">show {min(20, len(ready) - 5)} more</div>'
     frows = ""
     for i, a in enumerate(fresh):
         frows += _app_row(a, "", "tailor", "p-mut", "found today",
                           "fresh" if i >= 5 else "")
     if len(fresh) > 5:
-        frows += f'<div class="more" data-for="fresh">show 20 more ({len(fresh) - 5} hidden)</div>'
+        frows += f'<div class="more" data-for="fresh">show {min(20, len(fresh) - 5)} more</div>'
 
     body = f"""<div class="wrap">
   <h1 class="serif" style="font-size:36px">Applications</h1>
   <div class="storyline">{story}Send the referral ask the same day, from Networking.</div>
   {_applied_panel()}
+  <form id="addjob" class="addbar"><input id="addurl" type="url" required
+    placeholder="Paste a job posting URL, get a tailored resume">
+    <button class="runbtn" style="margin-left:0">add + tailor</button></form>
   <input id="q" class="search" type="search" placeholder="Search company, role, track">
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
-  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Note</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
+  <div class="rows" id="readybox"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Note</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
   <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span>
     <button class="runbtn" onclick="fetch('/api/run-pipeline').then(r => r.json()).then(d => this.textContent = 'running').catch(() => this.textContent = 'needs server')">run sweep</button></div>
   <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Note</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
