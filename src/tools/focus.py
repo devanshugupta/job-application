@@ -207,7 +207,7 @@ def _story(people: dict, apps: dict) -> dict:
         return {"h": f"{esc(n)} said yes. <em>Answer today.</em>",
                 "p": f"A warm door at {esc(i['company']['name'])} is open right now. Momentum decays in days, not weeks.",
                 "cta": "Open the thread", "href": f"/company/{slugify(i['company']['name'])}",
-                "teaser": f"{i['person']['name'].split('[')[0].strip().split()[0]} at {i['company']['name']} replied. Answer them.",
+                "teaser": "Someone replied. Answer them today.",
                 "lane": "/network", "lane_name": "Networking"}
     if people["sends"]:
         i = people["sends"][0]
@@ -216,7 +216,7 @@ def _story(people: dict, apps: dict) -> dict:
         return {"h": f"{esc(n)} can open the door at {esc(co)}. <em>Ask.</em>",
                 "p": "The draft is written. One message, referral before application, always.",
                 "cta": "Show me the message", "href": f"/company/{slugify(co)}",
-                "teaser": f"Message {n} at {co}. The draft is written.",
+                "teaser": "A referral ask is written and ready to send.",
                 "lane": "/network", "lane_name": "Networking"}
     if people["due"]:
         i = people["due"][0]
@@ -224,14 +224,14 @@ def _story(people: dict, apps: dict) -> dict:
         return {"h": f"{esc(n)} went quiet. <em>One gentle nudge.</em>",
                 "p": f"Touch {len(_touches(i['person'])) + 1} of 3 at {esc(i['company']['name'])}. Most replies come from the follow-up.",
                 "cta": "Show me the nudge", "href": f"/company/{slugify(i['company']['name'])}",
-                "teaser": f"Nudge {n} at {i['company']['name']}. The follow-up is due.",
+                "teaser": "A follow-up is due today.",
                 "lane": "/network", "lane_name": "Networking"}
     if apps["ready"]:
         a = apps["ready"][0]
         return {"h": f"{esc(a.get('company'))} is ready. <em>Two clicks.</em>",
                 "p": f"{esc(a.get('role'))}. Resume tailored and verified, posting live.",
                 "cta": "Open the posting", "href": "/apply",
-                "teaser": f"Apply to {a.get('company')}. The resume is tailored and the posting is live.",
+                "teaser": "A tailored application is ready to send.",
                 "lane": "/apply", "lane_name": "Applications"}
     return {"h": "You're clear. <em>Well done.</em>",
             "p": "Every thread is moving. Come back after the next discovery sweep.",
