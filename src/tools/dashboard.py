@@ -25,6 +25,7 @@ buttons need the backend (`dashboard --serve`, see dashboard_server.py).
 from __future__ import annotations
 
 import html
+import json
 import re
 import pathlib
 from datetime import date, datetime
@@ -128,9 +129,22 @@ def _grade_color(score) -> str:
     return "var(--bad)"
 
 
+def _dead_companies() -> set:
+    """Companies rated DEAD by the networking heat sweep (data/network/hiring_heat.json,
+    posting-velocity metric: no fresh reqs, evergreen/ghost postings). Their roles are
+    excluded from 'ready to apply' so effort goes to companies that actually hire."""
+    try:
+        data = json.loads((config.DATA_DIR / "network" / "hiring_heat.json").read_text())
+        return {c["company"].lower() for c in data.get("companies", [])
+                if c.get("heat") == "DEAD"}
+    except Exception:
+        return set()
+
+
 def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     apps = tracker.list_applications()
     today = date.today().isoformat()
+    dead = _dead_companies()
 
     # Default order: most recently touched first (a job's `date` is bumped on every
     # upsert, so the job you just worked on leads). Columns stay click-sortable.
@@ -259,7 +273,8 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
 
         # is_tailored was already computed above (gates the Tailored ATS cell); reused
         # here for the "tailored only" / "ready to apply" filters.
-        ready = is_tailored and a.get("status") not in _SUBMITTED
+        ready = (is_tailored and a.get("status") not in _SUBMITTED
+                 and (a.get("company") or "").lower() not in dead)
         high_fit = mats is not None and mats >= 70
         rows.append(
             f"<tr data-status='{html.escape(str(a.get('status') or ''))}' "
@@ -289,7 +304,8 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     found_today = sum(1 for a in live if a.get("status") == "found"
                       and (a.get("date") or "")[:10] == today)
     tailored = sum(1 for a in live if _has_resume(a))
-    ready = sum(1 for a in live if _has_resume(a) and a.get("status") not in _SUBMITTED)
+    ready = sum(1 for a in live if _has_resume(a) and a.get("status") not in _SUBMITTED
+                and (a.get("company") or "").lower() not in dead)
     applied = sum(1 for a in live if a.get("status") in _SUBMITTED)
     # "high fit" = Master ATS >= 70  the ONE deterministic, pre-LLM signal for whether
     # a role is worth spending tailoring effort on. This replaces the old blended AQS
