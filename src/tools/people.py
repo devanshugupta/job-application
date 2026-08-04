@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import tempfile
 import unicodedata
 import urllib.error
@@ -162,6 +163,22 @@ def jd_hints(jd_text: str) -> list[str]:
         if _TITLE_KW.search(target):
             hints.append(f"reports to {target}")
     return list(dict.fromkeys(hints))[:3]
+
+
+def domain_has_mx(domain: str, _run=None) -> bool:
+    """Can this domain receive mail at all? Deterministic gate for pattern guesses.
+
+    Uses `dig +short MX` (present on macOS/Linux); any failure or missing tool
+    defaults to True so guesses degrade gracefully instead of vanishing."""
+    if not domain:
+        return False
+    try:
+        run = _run or (lambda d: subprocess.run(
+            ["dig", "+short", "MX", d], capture_output=True, text=True,
+            timeout=4).stdout)
+        return bool(run(domain).strip())
+    except Exception:
+        return True
 
 
 def guess_emails(name: str, domain: str) -> list[str]:
@@ -364,7 +381,7 @@ def find_people(company: dict, jobs: list[dict], brain,
     existing = [{"name": p.get("name", ""), "title": p.get("title", ""),
                  "linkedin": p.get("linkedin", "")} for p in company.get("people", [])]
     guesses = {}
-    if sig["domain"]:
+    if sig["domain"] and domain_has_mx(sig["domain"]):
         for line in (sig["chunks"] + sig["org_chart"])[:24]:
             m = re.match(r"([A-Z][a-z'’.-]+ [A-Z][a-z'’.-]+)", line.strip())
             if m and looks_like_name(m.group(1)):

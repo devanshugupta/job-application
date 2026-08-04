@@ -84,6 +84,16 @@ def test_guess_emails_patterns_and_unicode():
     assert people.guess_emails("", "x.ai") == []
 
 
+def test_domain_has_mx_gates_guesses():
+    assert people.domain_has_mx("acme.ai", _run=lambda d: "10 mx.acme.ai.\n")
+    assert not people.domain_has_mx("acme.ai", _run=lambda d: "")
+    assert not people.domain_has_mx("")
+    # dig missing or erroring must not kill guessing
+    def boom(d):
+        raise FileNotFoundError
+    assert people.domain_has_mx("acme.ai", _run=boom)
+
+
 def test_ttl_freshness():
     today = date(2026, 8, 4)
     assert people.is_fresh({"people_scouted": "2026-07-20"}, today)

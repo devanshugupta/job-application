@@ -142,14 +142,14 @@ def _person_state(c: dict, p: dict) -> tuple[str, str, str, str]:
     if not t:
         if c.get("status") in ("outreach_drafted", "contacted"):
             return "send", "go", "p-go", ""
-        return "waiting", "", "p-mut", ""
+        return "no draft", "", "p-mut", "re-scout or write one on the company page"
     try:
         last = datetime.strptime(t[-1].get("date", ""), "%Y-%m-%d").date()
     except ValueError:
         last = today
     if len(t) < 3 and today - last >= timedelta(days=4):
         return "nudge", "hold", "p-hold", f"follow-up due, touch {len(t) + 1} of 3"
-    return "waiting", "hold", "p-hold", f"contacted {t[-1].get('date', '')}, give it time"
+    return "waiting on them", "hold", "p-hold", f"contacted {t[-1].get('date', '')}, give it time"
 
 
 def _people_actions(companies: list[dict]) -> dict:
@@ -530,7 +530,7 @@ document.querySelectorAll('button[data-touch]').forEach(b => b.addEventListener(
   .then(r => { if (!r.ok) throw 0;
     const row = b.closest('.row'), pill = row.querySelector('.pill');
     if (b.dataset.touch === 'sent') {
-      pill.textContent = 'waiting'; pill.className = 'pill p-hold';
+      pill.textContent = 'waiting on them'; pill.className = 'pill p-hold';
       row.classList.remove('go'); row.classList.add('hold');
     } else {
       pill.textContent = 'reply'; pill.className = 'pill p-go';
@@ -1026,7 +1026,7 @@ def render_entry() -> str:
     <a class="door" href="/apply"><h3>Applications</h3>
       <p>tailored, verified, ready to send</p><div class="cue">{f"{n_ready} ready" if n_ready else "sweep runs tonight"}</div></a>
     <a class="door" href="/network"><h3>Networking</h3>
-      <p>people who can open doors for you</p><div class="cue">{f"{n_co} compan{'ies' if n_co != 1 else 'y'}, {n_send} people waiting" if n_co else "scout a company"}</div></a>
+      <p>people who can open doors for you</p><div class="cue">{f"{n_co} compan{'ies' if n_co != 1 else 'y'}, {n_send} people to message" if n_co else "scout a company"}</div></a>
   </div>
 </div>
 <div class="hint">v</div>
@@ -1160,12 +1160,12 @@ def render_network() -> str:
     s = _story(people, apps)
     story_line = "<b>Referral and application.</b>"
 
-    order = {"reply": 0, "send": 1, "nudge": 2, "waiting": 3}
+    order = {"reply": 0, "send": 1, "nudge": 2, "waiting on them": 3, "no draft": 4}
     heat_rank = {"HOT": 0, "WARM": 1, "COOL": 2, "DEAD": 3}
 
     def co_key(c):
         states = [_person_state(c, p)[0] for p in c.get("people", [])]
-        return (min((order[st] for st in states), default=4),
+        return (min((order.get(st, 5) for st in states), default=5),
                 heat_rank.get((c.get("heat") or "").upper(), 4))
 
     blocks = ""
