@@ -976,8 +976,10 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
             f' data-score="{score if isinstance(score, (int, float)) else -1}"'
             f' data-posted="{posted_full}" data-prof="{esc(a.get("profile") or "")}"')
     prof = esc((a.get("profile") or "").replace("_", " "))
-    default_acts = ('<button data-api="applied">apply</button>'
-                    '<button data-api="reveal">resume</button>'
+    is_applied = a.get("status") in ("applied", "submitted")
+    default_acts = ((('<button data-api="applied" disabled>applied</button>') if is_applied
+                     else '<button data-api="applied">apply</button>')
+                    + '<button data-api="reveal">resume</button>'
                     '<button data-api="recompile" title="re-render the PDF after a tex edit">rebuild</button>')
     # the remove control leads the row (classic layout); actions stay on the right
     minus = ('' if acts else '<span class="ract rml">'
@@ -1377,11 +1379,26 @@ def render_company(slug: str) -> str | None:
     hr = _heat_rows().get(slug, {})
     stats_html = ""
     if hr:
+        # pills stay in sync with the applications tracker
+        done = {(a.get("url") or "").rstrip("/").lower()
+                for a in tracker.list_applications()
+                if slugify(a.get("company", "")) == slug
+                and a.get("status") in ("applied", "submitted")}
+        done_roles = {(a.get("role") or "").strip().lower()
+                      for a in tracker.list_applications()
+                      if slugify(a.get("company", "")) == slug
+                      and a.get("status") in ("applied", "submitted")}
+
+        def _heat_pill(j: dict) -> str:
+            hit = ((j.get("url") or "").rstrip("/").lower() in done
+                   or (j.get("role") or "").strip().lower() in done_roles)
+            return '<span class="pill p-mut">applied</span>' if hit else '<span class="pill p-go">open</span>'
+
         fresh_links = "".join(
             f'<a class="row" href="{esc(j["url"])}" target="_blank">'
             f'<span class="mono">-</span>'
             f'<span class="who"><b>{esc(j["role"])}</b><div class="r">posted {esc(j["posted"])}</div></span>'
-            f'<span class="pill p-go">open</span></a>'
+            f'{_heat_pill(j)}</a>'
             for j in hr.get("freshest_matches", [])[:5])
         stats_html = (
             f'<div class="sech"><h2>Hiring heat</h2>'
