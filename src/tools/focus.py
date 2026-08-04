@@ -288,7 +288,7 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .wrap { max-width:1440px; margin:0 auto; padding:26px 40px 60px }
 .serif { font-family:Georgia,serif; font-weight:600; letter-spacing:-.5px }
 .heroblock { min-height:calc(96vh - 50px); display:flex; flex-direction:column; align-items:center;
-  justify-content:flex-start; text-align:center; padding:14vh 20px 20px; margin:0 auto; max-width:760px; position:relative }
+  justify-content:flex-start; text-align:center; padding:11vh 20px 20px; margin:0 auto; max-width:760px; position:relative }
 .aurora { position:absolute; top:50%; left:50%; width:520px; height:380px; transform:translate(-50%,-58%);
   background:conic-gradient(from 0deg, rgba(42,120,214,.16), rgba(201,133,0,.10), rgba(27,175,122,.10), rgba(42,120,214,.16));
   border-radius:48% 52% 55% 45% / 55% 45% 52% 48%; filter:blur(64px); z-index:-1;
@@ -309,14 +309,15 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .cta { display:inline-flex; background:var(--accent); color:#fff; font-size:17px; font-weight:650; padding:14px 34px;
   border-radius:999px; cursor:pointer; border:none; text-decoration:none; box-shadow:0 6px 20px rgba(42,120,214,.25) }
 .cta:hover { transform:translateY(-2px) }
-.doors { display:flex; gap:20px; justify-content:center; margin-top:34px; flex-wrap:wrap }
-.door { width:330px; background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:34px 32px; cursor:pointer;
+.doors { display:flex; gap:20px; justify-content:center; margin-top:26px; flex-wrap:wrap }
+.door { width:330px; background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:26px 30px; cursor:pointer;
   text-align:left; transition:.15s; box-shadow:0 4px 18px rgba(30,20,0,.04); text-decoration:none; color:var(--ink); display:block }
 .door:hover { transform:translateY(-3px); box-shadow:0 12px 30px rgba(30,20,0,.09) }
 .door h3 { font-family:Georgia,serif; font-size:25px; font-weight:600; margin-bottom:3px }
 .door p { color:var(--mut); font-size:15.5px }
-.door .cue { margin-top:18px; font-size:14.5px; font-weight:700; color:var(--accent) }
-.hint { text-align:center; color:var(--mut); padding-bottom:20px; animation:dip 2.2s ease-in-out infinite }
+.door .cue { margin-top:14px; font-size:14.5px; font-weight:700; color:var(--accent) }
+.hint { text-align:center; color:var(--mut); padding-top:22px;
+  animation:dip 2.2s ease-in-out infinite }
 .hint svg { display:inline-block }
 .footmark { text-align:center; padding:34px 0 4px }
 .footmark a { color:var(--mut); display:inline-block }
@@ -470,7 +471,7 @@ a.row:hover .ract { opacity:1 }
 .ccard span { color:var(--accent); font-size:14.5px; font-weight:650 }
 html.anim .wrap > h1, html.anim .storyline, html.anim .search, html.anim .sech, html.anim .rows,
 html.anim .panel, html.anim .charts, html.anim .glance, html.anim .lastcall, html.anim .draftbox, html.anim .doors,
-html.anim .momentum, html.anim .metapills, html.anim .heroblock > *:not(.aurora):not(.count), html.anim .hint { opacity:0 }
+html.anim .momentum, html.anim .metapills, html.anim .heroblock > *:not(.aurora):not(.count):not(.hint) { opacity:0 }
 .rise { opacity:0 !important }
 .rise.up { opacity:1 !important }
 .rise { transform:translateY(120px);
@@ -733,7 +734,7 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   }
   const landing = [];
   new Set([
-    ...document.querySelectorAll('.heroblock > *:not(.aurora):not(.count), .hint'),
+    ...document.querySelectorAll('.heroblock > *:not(.aurora):not(.count):not(.hint)'),
     ...document.querySelectorAll('.wrap > h1, .storyline, .search, .sech, .rows, .panel, .charts, .glance, .lastcall, .draftbox, .doors, .momentum, .metapills'),
   ]).forEach(el => {
     if (el.getBoundingClientRect().top > innerHeight * 0.92) { el.classList.add('rise'); ob.observe(el); }
@@ -922,7 +923,7 @@ def _page(title: str, body: str, active: str = "") -> str:
             '<a href="/settings">settings</a></span></div>')
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>{esc(title)}</title>'
+            f'<title>{esc(title if title == "vouch." else f"{title} | vouch.")}</title>'
             f'<link rel="icon" href="/assets/favicon.png" type="image/png">'
             f'<link rel="icon" href="{_FAVICON}" type="image/svg+xml">'
             f'<link rel="apple-touch-icon" href="/assets/favicon.png">'f'<script>if(!matchMedia("(prefers-reduced-motion: reduce)").matches)'f'document.documentElement.classList.add("anim");</script>'f'<style>{CSS}</style></head>'
@@ -1070,8 +1071,8 @@ def render_entry() -> str:
     <a class="door" href="/network"><h3>Networking</h3>
       <p>people who can open doors for you</p><div class="cue">{f"{n_co} compan{'ies' if n_co != 1 else 'y'}, {n_send} people to message" if n_co else "scout a company"}</div></a>
   </div>
+  <div class="hint">{_mark(30)}</div>
 </div>
-<div class="hint">{_mark(30)}</div>
 <div class="glance">
   <h2>The moves that matter.</h2>
   <div class="gs">Everything else can wait.</div>
