@@ -375,7 +375,7 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool) -
             f'<span class="why">{esc(why)}</span>'
             f'<span class="ract"><button data-api="applied">applied</button>'
             f'<button data-api="reveal">resume</button>'
-            f'<button data-api="remove">x</button></span>'
+            f'<button data-api="remove">hide</button></span>'
             f'<span class="pill {pill_cls}">{esc(pill)}</span></a>')
 
 
