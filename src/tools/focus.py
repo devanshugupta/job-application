@@ -749,7 +749,8 @@ def render_entry() -> str:
     open_loops = n_send + min(n_ready, 3)
     hour = datetime.now().hour
     greet = ("Morning" if 5 <= hour < 14 else "Afternoon" if 14 <= hour < 17
-             else "Evening" if 17 <= hour < 20 else "Late night")
+             else "Evening" if 17 <= hour < 20 else "Damn.")
+    greet_line = greet if greet == "Damn." else f"{greet}, {first}"
     first = "there"
     try:
         net_cfg = json.loads((config.ROOT / "config" / "network.json").read_text())
@@ -768,7 +769,7 @@ def render_entry() -> str:
     body = f"""{SCENE}
 <div class="heroblock">
   <div class="aurora"></div>
-  <div class="count">{esc(greet)}, {esc(first)}</div>
+  <div class="count">{esc(greet_line)}</div>
   <h1>{open_loops} doors are open. <em>Pick a lane.</em></h1>
   <div class="sub">{esc(story['teaser'])}</div>
   {f'<div class="progress"><b>{done_today} done today.</b> {open_loops} to go.</div>' if done_today else ''}
