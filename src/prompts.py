@@ -375,9 +375,11 @@ employer, stack), L = leverage (3 hiring manager, 2 senior IC or founder at a sm
 company, 1 recruiter). Drop anyone you cannot tie to a title.
 - company_size: "small" only with clear signals (startup language, seed/Series A-B, team \
 page lists everyone, under ~100 people). When unsure say "large".
-- email: ONLY for small companies. Prefer an address literally present in the evidence \
-(email_source "site"). Otherwise choose the single most likely pattern from the provided \
-guesses (email_source "guessed"). Large company or no basis: email "" and source "none".
+- email: ONLY for small companies. Trust order: an address on their own site \
+(email_source "site") > an observed_emails entry (email_source "hunter", real observed \
+data with confidence) > the most likely pattern guess (email_source "guessed"). \
+Large company or no basis: email "" and source "none". A person appearing in \
+observed_emails with a title IS evidence and may be picked like anyone else.
 - linkedin: only a URL that appears in the evidence, else "".
 - ALREADY-TRACKED people are evidence by definition: return them too when you can add \
 value (an email for a small company, a sharper hook, a draft), and they do not count \

@@ -62,7 +62,8 @@ PEOPLE_SCHEMA = {
                                   "senior_ic", "warm"]},
                 "linkedin": {"type": "string"},
                 "email": {"type": "string"},
-                "email_source": {"type": "string", "enum": ["site", "guessed", "none"]},
+                "email_source": {"type": "string",
+                                 "enum": ["site", "hunter", "guessed", "none"]},
                 "rwl": {"type": "array", "items": {"type": "integer"}},
                 "hook": {"type": "string"},
                 "message": {"type": "string"},
@@ -254,10 +255,12 @@ def search_people(company: str, keywords: list[str], _post=None) -> list[str]:
     return snippets
 
 
-def hunter_pattern(domain: str, _get=None) -> str:
-    """The domain's confirmed email pattern from Hunter, '' without a key."""
+def hunter_domain(domain: str, _get=None) -> dict:
+    """Hunter domain search: the confirmed pattern plus OBSERVED emails with names,
+    titles, and confidence. {} without a key. One call per domain, cached 30 days
+    via the company record like every other signal."""
     if not os.environ.get("HUNTER_API_KEY"):
-        return ""
+        return {}
     try:
         if _get is not None:
             data = _get(domain)
@@ -266,9 +269,44 @@ def hunter_pattern(domain: str, _get=None) -> str:
                    + "&api_key=" + os.environ["HUNTER_API_KEY"])
             with urllib.request.urlopen(url, timeout=15) as r:
                 data = json.loads(r.read().decode())
-        return (data.get("data") or {}).get("pattern") or ""
+        d = data.get("data") or {}
+        emails = [{"email": e.get("value"), "name": f'{e.get("first_name") or ""} '
+                   f'{e.get("last_name") or ""}'.strip(),
+                   "title": e.get("position") or "", "confidence": e.get("confidence")}
+                  for e in (d.get("emails") or []) if (e.get("confidence") or 0) >= 80]
+        return {"pattern": d.get("pattern") or "", "emails": emails[:10]}
     except Exception:
-        return ""
+        return {}
+
+
+def hunter_find_email(domain: str, name: str, _get=None) -> dict:
+    """Hunter Email Finder: this person's address at this domain, with a 0-100 score.
+    {} without a key or a two-part name. Costs one search credit, so callers must gate."""
+    parts = name.split()
+    if not os.environ.get("HUNTER_API_KEY") or len(parts) < 2:
+        return {}
+    try:
+        if _get is not None:
+            data = _get(domain, parts[0], parts[-1])
+        else:
+            url = ("https://api.hunter.io/v2/email-finder?domain=" + domain
+                   + "&first_name=" + urllib.parse.quote(parts[0])
+                   + "&last_name=" + urllib.parse.quote(parts[-1])
+                   + "&api_key=" + os.environ["HUNTER_API_KEY"])
+            with urllib.request.urlopen(url, timeout=15) as r:
+                data = json.loads(r.read().decode())
+        d = data.get("data") or {}
+        if d.get("email") and (d.get("score") or 0) >= 70:
+            return {"email": d["email"], "score": d["score"]}
+        return {}
+    except Exception:
+        return {}
+
+
+def hunter_pattern(domain: str, _get=None) -> str:
+    """The domain's confirmed email pattern, '' without a key. Kept for callers that
+    only need the pattern."""
+    return hunter_domain(domain, _get=_get).get("pattern", "")
 
 
 # ------------------------------------------------------------------ tracker io
@@ -362,7 +400,7 @@ def gather_signals(company: dict, jobs: list[dict], fetch_fn=fetch) -> dict:
         "org_chart": theorg_people(company, fetch_fn),
         "jd_hints": hints[:6],
         "snippets": search_people(company.get("name", ""), kw),
-        "hunter_pattern": hunter_pattern(domain) if domain else "",
+        "hunter": hunter_domain(domain) if domain else {},
     }
 
 
@@ -406,7 +444,8 @@ def find_people(company: dict, jobs: list[dict], brain,
         "org_chart_people": sig["org_chart"],
         "jd_reporting_hints": sig["jd_hints"],
         "linkedin_search_snippets": sig["snippets"],
-        "email_pattern_confirmed": sig["hunter_pattern"],
+        "email_pattern_confirmed": sig["hunter"].get("pattern", ""),
+        "observed_emails": sig["hunter"].get("emails", []),
         "email_pattern_guesses": guesses,
         "already_tracked_people": existing,
     }, indent=1)
@@ -439,6 +478,19 @@ def find_people(company: dict, jobs: list[dict], brain,
             "source": "people-scout",
             "found": today.isoformat(),
         })
+    # deterministic upgrade: at small companies, guessed emails get one Email Finder
+    # lookup each (capped 2 per run, 1 Hunter credit each) and become verified on a hit
+    if out.get("company_size") == "small" and sig["domain"]:
+        budget = 2
+        for rec in company["people"]:
+            if budget == 0:
+                break
+            if rec.get("email_source") == "guessed":
+                found = hunter_find_email(sig["domain"], rec.get("name", ""))
+                budget -= 1
+                if found:
+                    rec.update({"email": found["email"], "email_source": "hunter",
+                                "email_confidence": found["score"]})
     company["people_scouted"] = today.isoformat()
     if company.get("fit") == "pasted on /network, not yet scouted":
         company["fit"] = "pasted on /network"

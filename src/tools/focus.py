@@ -1199,7 +1199,8 @@ def render_network() -> str:
             email_btn = ""
             if p.get("email"):
                 ejs = p["email"].replace("\\", "\\\\").replace("'", "\\'")
-                note = " (guessed)" if p.get("email_source") == "guessed" else ""
+                note = {"guessed": " (guessed)", "hunter": " (verified)"}.get(
+                    p.get("email_source"), "")
                 email_btn = (f'<button class="copybtn sm" onclick="copyText(this, '
                              f"'{esc(ejs)}')\">{esc(p['email'])}{note}</button>")
             prows += (f'<div class="row {cls}">'

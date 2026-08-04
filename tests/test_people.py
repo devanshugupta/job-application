@@ -121,12 +121,34 @@ def test_search_parses_serper_organic(monkeypatch):
 def test_hunter_off_without_key(monkeypatch):
     monkeypatch.delenv("HUNTER_API_KEY", raising=False)
     assert people.hunter_pattern("acme.ai") == ""
+    assert people.hunter_domain("acme.ai") == {}
+    assert people.hunter_find_email("acme.ai", "Jane Doe") == {}
 
 
-def test_hunter_pattern_with_key(monkeypatch):
+def test_hunter_domain_with_key(monkeypatch):
     monkeypatch.setenv("HUNTER_API_KEY", "k")
-    got = people.hunter_pattern("acme.ai", _get=lambda d: {"data": {"pattern": "{first}"}})
-    assert got == "{first}"
+    data = {"data": {"pattern": "{first}", "emails": [
+        {"value": "jane@acme.ai", "first_name": "Jane", "last_name": "Doe",
+         "position": "CEO", "confidence": 97},
+        {"value": "low@acme.ai", "first_name": "Low", "last_name": "Conf",
+         "position": "", "confidence": 40}]}}
+    got = people.hunter_domain("acme.ai", _get=lambda d: data)
+    assert got["pattern"] == "{first}"
+    assert got["emails"] == [{"email": "jane@acme.ai", "name": "Jane Doe",
+                              "title": "CEO", "confidence": 97}]
+    assert people.hunter_pattern("acme.ai", _get=lambda d: data) == "{first}"
+
+
+def test_hunter_find_email_scores(monkeypatch):
+    monkeypatch.setenv("HUNTER_API_KEY", "k")
+    hit = {"data": {"email": "sam@acme.ai", "score": 92}}
+    assert people.hunter_find_email("acme.ai", "Sam Rivera",
+                                    _get=lambda d, f, l: hit) == \
+        {"email": "sam@acme.ai", "score": 92}
+    miss = {"data": {"email": "sam@acme.ai", "score": 30}}
+    assert people.hunter_find_email("acme.ai", "Sam Rivera",
+                                    _get=lambda d, f, l: miss) == {}
+    assert people.hunter_find_email("acme.ai", "Cher") == {}
 
 
 # ------------------------------------------------------------------ component: find_people
@@ -203,6 +225,22 @@ def test_find_people_merges_and_stamps(monkeypatch, company):
     # prompt-cached in API mode), never inside the per-company user payload
     assert brain.cache_blocks and brain.cache_blocks[0].startswith("CANDIDATE:")
     assert "candidate" not in payload and "achievements" not in payload
+
+
+def test_guessed_emails_upgrade_via_email_finder(monkeypatch, company):
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
+    monkeypatch.setenv("HUNTER_API_KEY", "k")
+    monkeypatch.setattr(people, "hunter_domain", lambda d, _get=None: {})
+    monkeypatch.setattr(people, "hunter_find_email",
+                        lambda d, n, _get=None: {"email": "sam.r@acme.ai", "score": 91}
+                        if n == "Sam Rivera" else {})
+    people.find_people(company, [], FakeBrain(CANNED), fetch_fn=_fake_fetch,
+                       today=date(2026, 8, 4))
+    sam = next(p for p in company["people"] if p["name"] == "Sam Rivera")
+    assert sam["email"] == "sam.r@acme.ai" and sam["email_source"] == "hunter"
+    assert sam["email_confidence"] == 91
+    jane = next(p for p in company["people"] if p["name"] == "Jane Doe")
+    assert jane["email_source"] == "site"  # site emails are never second-guessed
 
 
 def test_find_people_skips_when_fresh_and_force_overrides(company):
