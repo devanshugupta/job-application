@@ -420,7 +420,7 @@ a.row:hover .ract { opacity:1 }
 .foot a { color:var(--mut); text-decoration:none; margin-left:18px } .foot a:hover { color:var(--accent) }
 .rise { opacity:0; transform:translateY(44px);
   transition:opacity 1.2s ease, transform 2.6s cubic-bezier(.28,1.9,.42,1) }
-.rise.far { transform:translateY(150px) }
+.rise.far { transform:translateY(150px); transition-duration:1.32s, 2.86s }
 .rise.up { opacity:1; transform:none }
 @media (prefers-reduced-motion: reduce) { .rise { opacity:1; transform:none; transition:none } }
 """
@@ -527,7 +527,7 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       if (!el) return;
       el.style.transitionDelay = (i * 130) + 'ms';
       el.classList.add('up');
-      setTimeout(() => el.style.transitionDelay = '', 2700 + i * 130);
+      setTimeout(() => el.style.transitionDelay = '', 3100 + i * 130);
     })));
   }
 }
