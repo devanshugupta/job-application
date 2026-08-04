@@ -12,11 +12,11 @@ Company / IDEO have done this?"):
   - No emojis, no em dashes, no icon where a word fits.
   - Ambient drifting background, slow enough to never catch moving.
 
-Pages (rendered on demand by dashboard_server):
-  /                entry: greeting, story of the day, two doors, scroll funnel
-  /apply           applications lane (ready rows + fresh finds + cross-door)
-  /network         networking lane (send today + waiting + companies + cross-door)
-  /company/<slug>  one company: the one move, people, roles
+Pages, ONE purpose each (a page never does another page's job):
+  /                ROUTE me: state of the pipeline + two doors. Never a task.
+  /apply           DO applications: ready rows + fresh finds.
+  /network         DO outreach: its hero names today's top send.
+  /company/<slug>  DECIDE about one company: the one move, people, roles.
 Old dashboards stay at /classic and /network-classic.
 """
 
@@ -142,28 +142,38 @@ def _story(people: dict, apps: dict) -> dict:
         n = i["person"]["name"].split("[")[0].strip().split()[0]
         return {"h": f"{esc(n)} said yes. <em>Answer today.</em>",
                 "p": f"A warm door at {esc(i['company']['name'])} is open right now. Momentum decays in days, not weeks.",
-                "cta": "Open the thread", "href": f"/company/{slugify(i['company']['name'])}"}
+                "cta": "Open the thread", "href": f"/company/{slugify(i['company']['name'])}",
+                "teaser": f"Best move today lives in Networking: {i['person']['name'].split('[')[0].strip().split()[0]} at {i['company']['name']} replied.",
+                "lane": "/network", "lane_name": "Networking"}
     if people["sends"]:
         i = people["sends"][0]
         n = i["person"]["name"].split("[")[0].strip().split()[0]
         co = i["company"]["name"]
         return {"h": f"{esc(n)} can open the door at {esc(co)}. <em>Ask.</em>",
                 "p": "The draft is written. One message, referral before application, always.",
-                "cta": "Show me the message", "href": f"/company/{slugify(co)}"}
+                "cta": "Show me the message", "href": f"/company/{slugify(co)}",
+                "teaser": f"Best move today lives in Networking: one message to {n} at {co}.",
+                "lane": "/network", "lane_name": "Networking"}
     if people["due"]:
         i = people["due"][0]
         n = i["person"]["name"].split("[")[0].strip().split()[0]
         return {"h": f"{esc(n)} went quiet. <em>One gentle nudge.</em>",
                 "p": f"Touch {len(_touches(i['person'])) + 1} of 3 at {esc(i['company']['name'])}. Most replies come from the follow-up.",
-                "cta": "Show me the nudge", "href": f"/company/{slugify(i['company']['name'])}"}
+                "cta": "Show me the nudge", "href": f"/company/{slugify(i['company']['name'])}",
+                "teaser": f"Best move today lives in Networking: a follow-up at {i['company']['name']} is due.",
+                "lane": "/network", "lane_name": "Networking"}
     if apps["ready"]:
         a = apps["ready"][0]
         return {"h": f"{esc(a.get('company'))} is ready. <em>Two clicks.</em>",
                 "p": f"{esc(a.get('role'))}. Resume tailored and verified, posting live.",
-                "cta": "Open the posting", "href": "/apply"}
+                "cta": "Open the posting", "href": "/apply",
+                "teaser": f"Best move today lives in Applications: {a.get('company')} is tailored and ready.",
+                "lane": "/apply", "lane_name": "Applications"}
     return {"h": "You're clear. <em>Well done.</em>",
             "p": "Every thread is moving. Come back after the next discovery sweep.",
-            "cta": "See the pipeline", "href": "/apply"}
+            "cta": "See the pipeline", "href": "/apply",
+            "teaser": "Nothing is waiting on you right now.",
+            "lane": "/apply", "lane_name": "Applications"}
 
 
 # ------------------------------------------------------------------ html
@@ -374,11 +384,10 @@ def render_entry() -> str:
     body = f"""
 <div class="heroblock">
   <div class="aurora"></div>
-  <div class="count">{esc(greet)}, {esc(first)} · <b>{open_loops}</b> open loops</div>
-  <h1>{story['h']}</h1>
-  <div class="sub">{esc(story['p'])}</div>
-  <a class="cta" href="{esc(story['href'])}">{esc(story['cta'])}</a>
-  {f'<div class="progress"><b>{done_today} done today.</b> {open_loops} to go, closest one first.</div>' if done_today else ''}
+  <div class="count">{esc(greet)}, {esc(first)}</div>
+  <h1>{open_loops} doors are open. <em>Pick a lane.</em></h1>
+  <div class="sub">{esc(story['teaser'])}</div>
+  {f'<div class="progress"><b>{done_today} done today.</b> {open_loops} to go.</div>' if done_today else ''}
   <div class="doors">
     <a class="door" href="/network"><h3>Networking</h3>
       <p>people who can open doors for you</p><div class="cue">{n_send} waiting</div></a>
@@ -400,7 +409,7 @@ def render_entry() -> str:
     <div><b>{applied}</b><span>applied</span></div>
   </div>
 </div>
-<div class="lastcall"><a class="cta" href="{esc(story['href'])}">{esc(story['cta'])}</a></div>"""
+<div class="lastcall"><a class="cta" href="{esc(story['lane'])}">Start in {esc(story['lane_name'])}</a></div>"""
     return _page("Pipeline", body)
 
 
@@ -441,6 +450,10 @@ def render_apply() -> str:
 def render_network() -> str:
     companies = _net_companies()
     people = _people_actions(companies)
+    apps = _app_rows()
+    s = _story(people, apps)
+    story_line = (f"<b>{s['h'].replace('<em>', '').replace('</em>', '')}</b>"
+                  if s.get("lane") == "/network" else "Green means send.")
     rows = ""
     for item in people["replies"]:
         rows += _person_row(item, "go", "reply", "p-go", "they answered, respond today")
@@ -462,7 +475,7 @@ def render_network() -> str:
 
     body = f"""<div class="wrap">
   <h1 class="serif" style="font-size:30px">Networking</h1>
-  <div class="storyline">Referral before application, always. Green means send.</div>
+  <div class="storyline">{story_line} Referral before application, always.</div>
   <div class="sech"><h2>Send today</h2><span class="n">{len(people['replies']) + len(people['sends'])}</span></div>
   <div class="rows">{rows or '<div class="row"><span class="why">Nothing to send. Scout a company.</span></div>'}</div>
   <div class="sech"><h2>Waiting</h2><span class="n">{len(people['due']) + len(people['waiting'])}, nothing to do unless marked</span></div>
