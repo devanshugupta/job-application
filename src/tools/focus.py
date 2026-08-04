@@ -1086,7 +1086,7 @@ def render_entry() -> str:
   </div>
 </div>
 <div class="lastcall"><a class="cta" href="{esc(story['lane'])}">Open {esc(story['lane_name'])}</a></div>"""
-    return _page("vouch", body)
+    return _page("vouch.", body)
 
 
 THEAD = ('<div class="thead"><span style="width:34px"></span>'
