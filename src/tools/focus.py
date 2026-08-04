@@ -381,7 +381,7 @@ a.row:hover .ract { opacity:1 }
 .pbtn:hover { color:var(--accent); border-color:var(--accent) }
 .scene { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden }
 .scene svg { position:absolute; bottom:-8vh; left:-5%; width:110%; height:54vh; will-change:transform }
-[data-theme="dark"] .scene { opacity:.4 }
+[data-theme="dark"] .scene { opacity:.55 }
 .metapills { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px }
 .v-hi { color:var(--go) !important } .v-mid { color:var(--hold) !important } .v-lo { color:var(--mut) !important }
 .charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px }
@@ -485,8 +485,8 @@ const scene = document.querySelector('.scene');
 if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const layers = scene.querySelectorAll('svg');
   addEventListener('scroll', () => {
-    layers.forEach((l, i) => l.style.transform = 'translateY(' + scrollY * (0.10 + i * 0.10) + 'px)');
-    scene.style.opacity = Math.max(1 - scrollY / 900, 0.12);
+    layers.forEach((l, i) => l.style.transform = 'translateY(' + scrollY * (0.24 + i * 0.16) + 'px)');
+    scene.style.opacity = Math.max(1 - scrollY / 1600, 0.25);
   }, { passive: true });
 }
 """
@@ -494,12 +494,12 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
 
 SCENE = """<div class="scene">
 <svg viewBox="0 0 1440 420" preserveAspectRatio="none">
-  <circle cx="1150" cy="80" r="58" fill="rgba(201,133,0,.10)"/>
-  <path d="M0,300 C240,258 430,342 720,310 C1010,278 1210,332 1440,288 L1440,420 L0,420 Z" fill="rgba(42,120,214,.06)"/>
+  <circle cx="1150" cy="80" r="64" fill="rgba(201,133,0,.20)"/>
+  <path d="M0,300 C240,258 430,342 720,310 C1010,278 1210,332 1440,288 L1440,420 L0,420 Z" fill="rgba(42,120,214,.13)"/>
 </svg>
 <svg viewBox="0 0 1440 420" preserveAspectRatio="none">
-  <path d="M0,338 C210,298 480,382 780,344 C1080,308 1270,372 1440,330 L1440,420 L0,420 Z" fill="rgba(42,120,214,.09)"/>
-  <path d="M0,388 C260,358 560,410 860,384 C1130,361 1310,402 1440,376 L1440,420 L0,420 Z" fill="rgba(201,133,0,.06)"/>
+  <path d="M0,338 C210,298 480,382 780,344 C1080,308 1270,372 1440,330 L1440,420 L0,420 Z" fill="rgba(42,120,214,.20)"/>
+  <path d="M0,388 C260,358 560,410 860,384 C1130,361 1310,402 1440,376 L1440,420 L0,420 Z" fill="rgba(201,133,0,.13)"/>
 </svg>
 </div>"""
 
