@@ -232,7 +232,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         stale = bool(a.get("stale"))
         if url:
             u = html.escape(url, quote=True)
-            label = "💀 dead" if stale else "⟳ check"
+            label = "💀 dead" if stale else "is dead?"
             cls = "dead" if stale else ""
             stale_btn = (f"<button class='deadbtn {cls}' title='re-check if this link is live' "
                          f"data-url=\"{u}\" onclick='deadCheck(this)'>{label}</button>")
