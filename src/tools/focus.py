@@ -431,7 +431,7 @@ a.row:hover .ract { opacity:1 }
 .ccard span { color:var(--accent); font-size:14.5px; font-weight:650 }
 .rise { opacity:0; transform:translateY(44px);
   transition:opacity 1.4s ease, transform 3s cubic-bezier(.28,1.9,.42,1) }
-.rise.far { transform:translateY(170px); transition-duration:1.5s, 3.3s }
+.rise.far { transform:translateY(170px); transition-duration:2.5s, 5s }
 .rise.up { opacity:1; transform:none }
 @media (prefers-reduced-motion: reduce) { .rise { opacity:1; transform:none; transition:none } }
 """
@@ -513,8 +513,8 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     if (ship) ship.style.transform = 'translateX(' + Math.min(scrollY * 0.55, innerWidth * 0.72) + 'px) translateY(' +
       (dip(0) + Math.sin(scrollY / 55) * 5) + 'px) rotate(' + Math.sin(scrollY / 70) * 4 + 'deg)';
   }, { passive: true });
-  const minis = ['/assets/trail/b1.jpg?v=2', '/assets/trail/b2.jpg?v=2', '/assets/trail/b3.jpg?v=2',
-    '/assets/trail/b4.jpg?v=2', '/assets/trail/b5.jpg?v=2'];
+  const minis = ['/assets/trail/b1.jpg?v=3', '/assets/trail/b2.jpg?v=3', '/assets/trail/b3.jpg?v=3',
+    '/assets/trail/b4.jpg?v=3', '/assets/trail/b5.jpg?v=3'];
   let lastX = -99, lastY = -99, nImg = 0;
   addEventListener('mousemove', e => {
     if (Math.hypot(e.clientX - lastX, e.clientY - lastY) < 72) return;
@@ -534,9 +534,8 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     requestAnimationFrame(() => requestAnimationFrame(() => els.forEach((el, i) => {
       if (!el) return;
       el.style.transitionDelay = (i * 90) + 'ms';
-      if (i === 0) el.style.transitionDuration = '2.5s, 5s';
       el.classList.add('up');
-      setTimeout(() => el.style.transitionDelay = '', 3600 + i * 90);
+      setTimeout(() => el.style.transitionDelay = '', 5300 + i * 90);
     })));
   }
 }
