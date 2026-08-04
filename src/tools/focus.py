@@ -527,7 +527,7 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     requestAnimationFrame(() => requestAnimationFrame(() => els.forEach((el, i) => {
       if (!el) return;
       el.style.transitionDelay = (i * 90) + 'ms';
-      if (i === 0) el.style.transitionDuration = '2s, 4.3s';
+      if (i === 0) el.style.transitionDuration = '5s, 13s';
       el.classList.add('up');
       setTimeout(() => el.style.transitionDelay = '', 3600 + i * 90);
     })));
