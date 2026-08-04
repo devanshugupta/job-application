@@ -232,7 +232,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         stale = bool(a.get("stale"))
         if url:
             u = html.escape(url, quote=True)
-            label = "💀 dead" if stale else "is dead?"
+            label = "💀" if stale else "is dead?"
             cls = "dead" if stale else ""
             stale_btn = (f"<button class='deadbtn {cls}' title='re-check if this link is live' "
                          f"data-url=\"{u}\" onclick='deadCheck(this)'>{label}</button>")
@@ -662,7 +662,7 @@ function deadCheck(btn) {{
     var dead = res && res.dead;
     btn.closest('tr').dataset.stale = dead ? '1' : '0';
     btn.classList.toggle('dead', dead); btn.classList.toggle('live', !dead);
-    btn.textContent = dead ? '💀 dead' : '✓ live';
+    btn.textContent = dead ? '💀' : '✓ live';
     toast(dead ? 'Link is DEAD (' + (res.chars||0) + ' chars) — pipeline will skip it.'
                : 'Link is live (' + (res.chars||0) + ' chars).');
   }}).catch(function(e) {{ btn.disabled = false; btn.textContent = old;
