@@ -522,7 +522,7 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   }, { passive: true });
   const hero = document.querySelector('.heroblock');
   if (hero) {
-    const els = [...hero.querySelectorAll(':scope > *:not(.aurora)'), document.querySelector('.hint')];
+    const els = [...hero.querySelectorAll(':scope > *:not(.aurora):not(.count)'), document.querySelector('.hint')];
     els.forEach(el => el && el.classList.add('rise', 'far'));
     requestAnimationFrame(() => requestAnimationFrame(() => els.forEach((el, i) => {
       if (!el) return;
