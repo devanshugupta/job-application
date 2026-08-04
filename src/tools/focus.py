@@ -1292,11 +1292,14 @@ def render_settings() -> str:
         ("config/watchlist.json", "Company watchlist", None),
     ]:
         exists = (config.ROOT / path).exists()
-        dot = '<span class="ok-dot">set up</span>' if exists else '<span class="bad-dot">missing</span>'
+        dot = ('<span class="pill p-go">configured</span>' if exists
+               else '<span class="pill p-dead">missing</span>')
         btn = ("" if exists or not example else
                f' <button class="pbtn" data-boot="{esc(path)}">create from example</button>')
+        note = ("edit it in the forms above, or open the file in your editor" if exists
+                else "one click creates it from the committed example")
         checklist += (f'<div class="row"><span class="who" style="width:auto;flex:1"><b>{esc(label)}</b>'
-                      f'<div class="r">{esc(path)}</div></span>{dot}{btn}</div>')
+                      f'<div class="r">{esc(path)}, {note}</div></span>{btn}{dot}</div>')
 
     body = f"""<div class="wrap" style="max-width:900px">
   <h1 class="serif" style="font-size:36px">Settings</h1>
