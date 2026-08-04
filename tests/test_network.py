@@ -222,3 +222,36 @@ def test_person_gets_linkedin_link():
     assert "search/results/people/?keywords=Jane+Roe+Acme" in h
     assert "find on LinkedIn" in h
     assert 'href="https://www.linkedin.com/in/bob-exact/"' in h and ">profile</a>" in h
+
+
+# ------------------------------------------------------------- focus UI
+
+def test_focus_pages_render_and_follow_design_laws():
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from src.tools import focus
+    entry, apply_, net = focus.render_entry(), focus.render_apply(), focus.render_network()
+    for page in (entry, apply_, net):
+        # design laws: no emojis, no em dashes, no arrows in chrome
+        import re
+        assert not re.search(r"[\U0001F300-\U0001FAFF]", page)
+        assert "—" not in page and "→" not in page
+        # one blue accent defined once; nav present
+        assert page.count("--accent:#2a78d6") == 1
+        assert 'href="/apply"' in page and 'href="/network"' in page
+    # entry: story hero + two doors + momentum
+    assert 'class="door"' in entry and entry.count('class="door"') == 2
+    assert "It is working." in entry
+    # lanes cross-link each other at the bottom
+    assert "Done applying?" in apply_ and "Messages sent?" in net
+
+
+def test_focus_company_page():
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from src.tools import focus
+    page = focus.render_company("adapts")
+    assert page and "Adapts" in page
+    assert "Copy message" in page          # dossier draft surfaced
+    assert "ranked by reachability" in page
+    assert focus.render_company("not-a-company") is None

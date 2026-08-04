@@ -209,10 +209,24 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json(200, {"ok": True})
         if path == "api/pipeline-status":
             return self._json(200, pipeline_status())
+        # Focus UI (the official interface): /, /apply, /network, /company/<slug>.
+        # Old dashboards remain at /classic and /network-classic.
+        from . import focus
         if not path:
+            return self._send(200, focus.render_entry().encode(), "text/html")
+        if path == "apply":
+            return self._send(200, focus.render_apply().encode(), "text/html")
+        if path == "network":
+            return self._send(200, focus.render_network().encode(), "text/html")
+        if path.startswith("company/"):
+            page = focus.render_company(path.split("/", 1)[1])
+            if page:
+                return self._send(200, page.encode(), "text/html")
+            return self._json(404, {"error": "company not scouted"})
+        if path == "classic":
             dashboard.render(config.DASHBOARD_PATH)
             return self._send(200, config.DASHBOARD_PATH.read_bytes(), "text/html")
-        if path == "network":
+        if path == "network-classic":
             net = config.DATA_DIR / "network" / "dashboard.html"
             if net.is_file():
                 return self._send(200, net.read_bytes(), "text/html")

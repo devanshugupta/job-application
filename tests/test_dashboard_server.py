@@ -62,8 +62,14 @@ def job(tmp_data):
     return url
 
 
-def test_get_root_serves_freshly_rendered_dashboard(server, job):
+def test_get_root_serves_focus_entry(server, job):
+    # "/" is the official focus UI (story + doors); the old dashboard moved to /classic
     body = urllib.request.urlopen(server + "/").read().decode()
+    assert "pipeline." in body and 'class="door"' in body
+
+
+def test_get_classic_serves_freshly_rendered_dashboard(server, job):
+    body = urllib.request.urlopen(server + "/classic").read().decode()
     assert "Acme Inc" in body and "applyJob(this)" in body
 
 

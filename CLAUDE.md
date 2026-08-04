@@ -381,3 +381,15 @@ profile-driven. NOTHING personal is hardcoded; everything resolves from
 The scout agent prompt (`.claude/agents/company-scout.md`) references these as
 `{candidate.*}` / `{outreach.*}` variables and refuses to run without
 `config/network.json`.
+
+## Focus UI (the official interface, adopted Aug 2026)
+
+`src/tools/focus.py` renders the user-facing UI on demand at localhost:8765:
+`/` entry (greeting, story of the day, two doors, scroll funnel), `/apply`,
+`/network`, `/company/<slug>`. Old dashboards remain at `/classic` and
+`/network-classic`. Design laws live in focus.py's docstring; the reference
+test for every UI decision is "would Apple / The Browser Company / IDEO have
+done this?" (one story per screen, one CTA, cream + ink + one blue accent,
+green only on do-now rows, amber only on waiting, 3-5 rows per section,
+no emojis, no em dashes). The story of the day is ranked deterministically:
+replied person > unsent warm draft > follow-up due > best ready apply.
