@@ -420,7 +420,8 @@ a.row:hover .ract { opacity:1 }
 .foot a { color:var(--mut); text-decoration:none; margin-left:18px } .foot a:hover { color:var(--accent) }
 .rise { opacity:0; transform:translateY(44px);
   transition:opacity 1.4s ease, transform 3s cubic-bezier(.28,1.9,.42,1) }
-.rise.far { transform:translateY(150px); transition-duration:1.8s, 4s }
+.rise.far { transform:translateY(90px); transition-duration:1.8s, 4s;
+  transition-timing-function:ease, cubic-bezier(.25,1.35,.45,1) }
 .rise.up { opacity:1; transform:none }
 @media (prefers-reduced-motion: reduce) { .rise { opacity:1; transform:none; transition:none } }
 """
