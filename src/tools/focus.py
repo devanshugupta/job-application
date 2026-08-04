@@ -381,7 +381,13 @@ a.row:hover .ract { opacity:1 }
 .scene { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden }
 .scene svg.wave { position:absolute; bottom:-8vh; left:-5%; width:110%; height:54vh; will-change:transform }
 .scene .ship { position:absolute; left:7%; bottom:5.5vh; width:60px; will-change:transform }
-.wake { position:fixed; inset:0; pointer-events:none; z-index:8 }
+.itrail { position:fixed; pointer-events:none; z-index:8; width:46px;
+  animation:it .85s cubic-bezier(.2,.7,.4,1) forwards }
+.itrail svg { width:100%; height:auto; display:block }
+@keyframes it {
+  0% { opacity:0; transform:scale(.3) rotate(var(--rot,0deg)) }
+  22% { opacity:1; transform:scale(1.1) rotate(var(--rot,0deg)) }
+  100% { opacity:0; transform:scale(.8) rotate(var(--rot,0deg)) translateY(24px) } }
 [data-theme="dark"] .scene { opacity:.55 }
 .metapills { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px }
 .v-hi { color:var(--go) !important } .v-mid { color:var(--hold) !important } .v-lo { color:var(--mut) !important }
@@ -496,34 +502,23 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     if (ship) ship.style.transform = 'translateX(' + Math.min(scrollY * 0.55, innerWidth * 0.72) + 'px) translateY(' +
       (dip(0) + Math.sin(scrollY / 55) * 5) + 'px) rotate(' + Math.sin(scrollY / 70) * 4 + 'deg)';
   }, { passive: true });
-  const wake = document.createElement('canvas');
-  wake.className = 'wake';
-  document.body.appendChild(wake);
-  const wctx = wake.getContext('2d');
-  const fit = () => { wake.width = innerWidth * devicePixelRatio; wake.height = innerHeight * devicePixelRatio;
-    wctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0); };
-  fit(); addEventListener('resize', fit);
-  const pts = [];
-  addEventListener('mousemove', e => pts.push({ x: e.clientX, y: e.clientY, t: performance.now() }), { passive: true });
-  (function draw() {
-    requestAnimationFrame(draw);
-    wctx.clearRect(0, 0, innerWidth, innerHeight);
-    const now = performance.now();
-    while (pts.length && now - pts[0].t > 500) pts.shift();
-    if (pts.length < 2) return;
-    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#2a78d6';
-    wctx.strokeStyle = accent; wctx.lineCap = 'round'; wctx.lineJoin = 'round';
-    for (let i = 1; i < pts.length; i++) {
-      const age = (now - pts[i].t) / 500;
-      wctx.globalAlpha = 0.4 * (1 - age);
-      wctx.lineWidth = 6.5 * (1 - age) + 0.4;
-      wctx.beginPath();
-      wctx.moveTo(pts[i - 1].x, pts[i - 1].y);
-      wctx.lineTo(pts[i].x, pts[i].y);
-      wctx.stroke();
-    }
-    wctx.globalAlpha = 1;
-  })();
+  const minis = [
+    '<svg viewBox="0 0 48 40" fill="none"><path d="M8 28 L40 28 L34 35 L14 35 Z" fill="#2a78d6" opacity=".85"/><line x1="24" y1="7" x2="24" y2="28" stroke="#1c1b18" stroke-width="1.6" opacity=".5"/><path d="M24 8 L37 25 L24 25 Z" fill="rgba(201,133,0,.7)"/><path d="M24 11 L15 25 L24 25 Z" fill="rgba(255,255,255,.95)" stroke="rgba(28,27,24,.2)"/></svg>',
+    '<svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="11" fill="rgba(201,133,0,.55)"/><circle cx="24" cy="24" r="16" stroke="rgba(201,133,0,.5)" stroke-width="2" stroke-dasharray="3 7" stroke-linecap="round"/></svg>',
+    '<svg viewBox="0 0 48 34" fill="none"><path d="M2 32 L18 8 L28 20 L34 13 L46 32 Z" fill="rgba(90,107,128,.55)"/><path d="M14 14 L18 8 L22 14 L18 17 Z" fill="rgba(255,255,255,.9)"/></svg>',
+    '<svg viewBox="0 0 48 24" fill="none"><path d="M2 10 C10 4 16 16 24 10 C32 4 38 16 46 10" stroke="#2a78d6" stroke-width="2.4" stroke-linecap="round" opacity=".7"/><path d="M6 18 C14 12 20 24 28 18 C36 12 42 22 46 17" stroke="#2a78d6" stroke-width="2" stroke-linecap="round" opacity=".4"/></svg>'];
+  let lastX = -99, lastY = -99, nImg = 0;
+  addEventListener('mousemove', e => {
+    if (Math.hypot(e.clientX - lastX, e.clientY - lastY) < 72) return;
+    lastX = e.clientX; lastY = e.clientY;
+    const t = document.createElement('span');
+    t.className = 'itrail';
+    t.innerHTML = minis[nImg++ % minis.length];
+    t.style.setProperty('--rot', ((Math.random() - 0.5) * 28) + 'deg');
+    t.style.left = (e.clientX - 23) + 'px'; t.style.top = (e.clientY - 20) + 'px';
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 900);
+  }, { passive: true });
   const hero = document.querySelector('.heroblock');
   if (hero) {
     const els = [...hero.querySelectorAll(':scope > *:not(.aurora)'), document.querySelector('.hint')];
