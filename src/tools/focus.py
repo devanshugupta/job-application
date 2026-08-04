@@ -319,8 +319,9 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .hint { text-align:center; color:var(--mut); padding-top:52px;
   animation:dip 2.2s ease-in-out infinite }
 .hint svg { display:inline-block }
-.footmark { text-align:center; padding:34px 0 4px }
-.footmark a { color:var(--mut); display:inline-block }
+.foot { position:relative }
+.footmark { position:absolute; left:50%; top:16px; transform:translateX(-50%) }
+.footmark a { color:var(--mut); display:inline-block; margin-left:0 }
 .footmark a:hover { color:var(--ink) }
 a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline:none }
 @keyframes bob { 50% { transform:translateY(2px) } }
@@ -917,8 +918,8 @@ def _page(title: str, body: str, active: str = "") -> str:
     nav = "".join(
         f'<a href="{h}" class="{"on" if active == k else ""}">{t}</a>'
         for k, h, t in [("apply", "/apply", "Applications"), ("net", "/network", "Networking")])
-    foot = (f'<div class="footmark"><a href="/" aria-label="home">{_mark(30)}</a></div>'
-            '<div class="foot"><span>vouch. referrals first, applications second.</span>'
+    foot = ('<div class="foot"><span>vouch. referrals first, applications second.</span>'
+            f'<span class="footmark"><a href="/" aria-label="home">{_mark(26)}</a></span>'
             '<span><a href="/about">about</a><a href="/about#contact">contact</a>'
             '<a href="/settings">settings</a></span></div>')
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
