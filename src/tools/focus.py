@@ -658,9 +658,19 @@ document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click'
   refreshCatalog();
 }));
 refreshCatalog();
+const comore = document.getElementById('comore');
+if (comore) comore.addEventListener('click', () => {
+  document.querySelectorAll('.cofold').forEach(el => el.style.display = '');
+  window.coExpanded = true; comore.remove();
+});
 const q = document.getElementById('q');
 if (q) q.addEventListener('input', () => {
   const term = q.value.trim().toLowerCase();
+  // folded companies join the search; refold when the box empties
+  document.querySelectorAll('.cofold').forEach(el =>
+    el.style.display = (term || window.coExpanded) ? '' : 'none');
+  const cm = document.getElementById('comore');
+  if (cm) cm.classList.toggle('qhide', !!term);
   document.querySelectorAll('.rows:not(#catalog) .row').forEach(r => {
     const hit = !term || r.textContent.toLowerCase().includes(term);
     r.classList.toggle('qhide', !hit);
@@ -1124,7 +1134,7 @@ def render_apply() -> str:
   {_applied_panel()}
   <input id="q" class="search" type="search" placeholder="Search company, role, track">
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
-  <div class="rows" id="readybox"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
+  <div class="rows" id="readybox"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing waiting here. Run the sweep to find the latest jobs, or paste a posting below.</span></div>'}</div>
   <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span>
     <button class="runbtn" onclick="fetch('/api/run-pipeline').then(r => r.json()).then(d => this.textContent = 'running').catch(() => this.textContent = 'needs server')">run sweep</button></div>
   <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
@@ -1159,7 +1169,9 @@ def render_network() -> str:
     people = _people_actions(companies)
     apps = _app_rows()
     s = _story(people, apps)
-    story_line = "<b>Referral and application.</b>"
+    n_act = len(people["replies"]) + len(people["sends"]) + len(people["due"])
+    story_line = ("<b>Referral and application.</b>" if n_act else
+                  "<b>Every message is out.</b> Paste a company url to open the next door.")
 
     order = {"reply": 0, "send": 1, "nudge": 2, "waiting on them": 3, "no draft": 4}
     heat_rank = {"HOT": 0, "WARM": 1, "COOL": 2, "DEAD": 3}
@@ -1169,7 +1181,7 @@ def render_network() -> str:
         return (min((order.get(st, 5) for st in states), default=5),
                 heat_rank.get((c.get("heat") or "").upper(), 4))
 
-    blocks = ""
+    blist = []
     newest_first = sorted(companies, key=lambda c: c.get("last_scouted") or "", reverse=True)
     for c in sorted(newest_first, key=co_key):
         slug = slugify(c["name"])
@@ -1225,14 +1237,21 @@ def render_network() -> str:
             prows += ('<div class="row"><span class="why">sources: '
                       + ", ".join(links) + "</span></div>")
         fit_short = esc((c.get("fit") or "").split(";")[0])
-        blocks += (
+        blist.append(
             f'<div class="sech"><a class="coname" href="/company/{slug}"><h2>{esc(c["name"])}</h2></a>'
             f'<span class="pill {HEAT_PILL.get(heat, "p-mut")}">{esc(heat)}</span>'
             f'<span class="pill p-mut">{esc((c.get("status") or "").replace("_", " "))}</span>'
             f'<span class="n">{fit_short}</span>'
             f'<a class="pbtn" style="margin-left:auto" href="/company/{slug}">full page</a></div>'
             f'<div class="rows">{prows}</div>')
-    if not blocks:
+    # main view stays 5 companies: the actionable ones sort first, contacted ones fall
+    # behind the fold, and search reaches everything either way
+    blocks = "".join(f'<div class="coblock">{b}</div>' for b in blist[:5])
+    blocks += "".join(f'<div class="coblock cofold" style="display:none">{b}</div>'
+                      for b in blist[5:])
+    if len(blist) > 5:
+        blocks += f'<div class="more" id="comore">show {len(blist) - 5} more companies</div>'
+    if not blist:
         blocks = ('<div class="rows"><div class="row"><span class="why">No companies '
                   'scouted yet. Paste one above to start.</span></div></div>')
 
@@ -1241,8 +1260,8 @@ def render_network() -> str:
   <div class="storyline">{story_line} Green rows have a message ready to copy.</div>
   <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap">
     <input id="q" class="search" type="search" placeholder="Search companies and people" style="flex:1; min-width:260px">
-    <form id="addco" class="addbar" style="margin:14px 0 18px; min-width:300px">
-      <input id="addcourl" type="url" required placeholder="Paste a company site or LinkedIn company URL">
+    <form id="addco" class="addbar" style="margin:14px 0 18px auto; min-width:220px">
+      <input id="addcourl" type="url" required placeholder="paste url" style="width:150px">
       <button class="runbtn" style="margin-left:0">add + scout</button></form>
   </div>
   {blocks}
