@@ -207,7 +207,7 @@ def _story(people: dict, apps: dict) -> dict:
         return {"h": f"{esc(n)} said yes. <em>Answer today.</em>",
                 "p": f"A warm door at {esc(i['company']['name'])} is open right now. Momentum decays in days, not weeks.",
                 "cta": "Open the thread", "href": f"/company/{slugify(i['company']['name'])}",
-                "teaser": f"Best move today lives in Networking: {i['person']['name'].split('[')[0].strip().split()[0]} at {i['company']['name']} replied.",
+                "teaser": f"{i['person']['name'].split('[')[0].strip().split()[0]} at {i['company']['name']} replied. Answer them.",
                 "lane": "/network", "lane_name": "Networking"}
     if people["sends"]:
         i = people["sends"][0]
@@ -216,7 +216,7 @@ def _story(people: dict, apps: dict) -> dict:
         return {"h": f"{esc(n)} can open the door at {esc(co)}. <em>Ask.</em>",
                 "p": "The draft is written. One message, referral before application, always.",
                 "cta": "Show me the message", "href": f"/company/{slugify(co)}",
-                "teaser": f"Best move today lives in Networking: one message to {n} at {co}.",
+                "teaser": f"Message {n} at {co}. The draft is written.",
                 "lane": "/network", "lane_name": "Networking"}
     if people["due"]:
         i = people["due"][0]
@@ -224,14 +224,14 @@ def _story(people: dict, apps: dict) -> dict:
         return {"h": f"{esc(n)} went quiet. <em>One gentle nudge.</em>",
                 "p": f"Touch {len(_touches(i['person'])) + 1} of 3 at {esc(i['company']['name'])}. Most replies come from the follow-up.",
                 "cta": "Show me the nudge", "href": f"/company/{slugify(i['company']['name'])}",
-                "teaser": f"Best move today lives in Networking: a follow-up at {i['company']['name']} is due.",
+                "teaser": f"Nudge {n} at {i['company']['name']}. The follow-up is due.",
                 "lane": "/network", "lane_name": "Networking"}
     if apps["ready"]:
         a = apps["ready"][0]
         return {"h": f"{esc(a.get('company'))} is ready. <em>Two clicks.</em>",
                 "p": f"{esc(a.get('role'))}. Resume tailored and verified, posting live.",
                 "cta": "Open the posting", "href": "/apply",
-                "teaser": f"Best move today lives in Applications: {a.get('company')} is tailored and ready.",
+                "teaser": f"Apply to {a.get('company')}. The resume is tailored and the posting is live.",
                 "lane": "/apply", "lane_name": "Applications"}
     return {"h": "You're clear. <em>Well done.</em>",
             "p": "Every thread is moving. Come back after the next discovery sweep.",
@@ -470,8 +470,8 @@ SCENE = """<div class="scene">
 
 # ------------------------------------------------------------------ charts
 
-def _applied_heatmap() -> str:
-    """One square per day, last 20 days; hover a square for the count."""
+def _applied_panel() -> str:
+    """Top-of-page strip: one square per day, last 20 days; hover for the count."""
     counts = Counter((a.get("applied_date") or "")[:10]
                      for a in tracker.list_applications()
                      if a.get("applied_date") and not a.get("removed"))
@@ -482,7 +482,17 @@ def _applied_heatmap() -> str:
         n = counts.get(day.isoformat(), 0)
         lvl = "l4" if n >= 50 else "l3" if n >= 30 else "l2" if n >= 10 else "l1" if n else ""
         cells += f'<i class="{lvl}" data-tip="{day.strftime("%b %d")}: {n}"></i>'
-    return f'<div class="cal">{cells}</div>'
+    today_n = counts.get(today.isoformat(), 0)
+    week = sum(counts.get((today - timedelta(days=i)).isoformat(), 0) for i in range(7))
+    if week > 150:
+        line = f"{week} this week. Nobody is outworking you."
+    elif today_n == 0:
+        line = "Zero today. The squares do not fill themselves."
+    else:
+        line = f"{today_n} today, {week} this week."
+    return (f'<div class="panel"><h3>Applications per day</h3>'
+            f'<div class="storyline" style="margin:0 0 4px">{line}</div>'
+            f'<div class="cal">{cells}</div></div>')
 
 
 def _bar_rows(items: list[tuple[str, int, int | None]]) -> str:
@@ -523,7 +533,6 @@ def _apply_charts() -> str:
     tracks = [(p.replace("_", " "), prof_t[p], prof_a.get(p, 0))
               for p in sorted(prof_t, key=lambda p: -prof_t[p])]
     return (f'<div class="sech"><h2>The numbers</h2><span class="n">the whole tracker at a glance</span></div>'
-            f'<div class="panel"><h3>Applications per day</h3>{_applied_heatmap()}</div>'
             f'<div class="charts">'
             f'<div class="panel"><h3>Pipeline funnel</h3>{_bar_rows(funnel)}</div>'
             f'<div class="panel"><h3>Fit distribution</h3><div class="hgrid">{hist}</div></div>'
@@ -700,6 +709,7 @@ def render_apply() -> str:
     body = f"""<div class="wrap">
   <h1 class="serif" style="font-size:30px">Applications</h1>
   <div class="storyline">{story}Amber rows wait on a referral.</div>
+  {_applied_panel()}
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
   <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Note</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
   <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span>
