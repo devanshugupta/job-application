@@ -346,6 +346,8 @@ a.row:hover, .row.click:hover { background:var(--panel-hov); cursor:pointer }
 .cell { flex-shrink:0; font-size:13.5px; color:var(--mut); font-variant-numeric:tabular-nums }
 .c-date { width:66px } .c-prof { width:74px; overflow:hidden; text-overflow:ellipsis }
 .ract { display:inline-flex; gap:6px; flex-shrink:0; opacity:.55; margin-left:auto }
+.ract.rml { margin-left:0; margin-right:2px }
+.rml button { padding:3px 8px }
 a.row:hover .ract { opacity:1 }
 .ract button { font:inherit; font-size:12.5px; font-weight:650; border:1px solid var(--line);
   border-radius:7px; padding:3px 10px; cursor:pointer; background:var(--panel); color:var(--mut) }
@@ -499,8 +501,9 @@ document.addEventListener('click', e => {
     if (api === 'remove') row.style.display = 'none';
     if (api === 'restore') { row.querySelector('.pill').textContent = 'restored'; b.remove(); }
     if (api === 'unapplied') { row.querySelector('.pill').textContent = 'ready'; b.remove(); }
-    if (api === 'reveal') { b.textContent = 'opened'; setTimeout(() => b.textContent = 'resume', 1500); } })
-  .catch(() => { b.textContent = 'needs server'; setTimeout(() => b.textContent = api, 1500); });
+    if (api === 'reveal') { b.textContent = 'opened'; setTimeout(() => b.textContent = 'resume', 1500); }
+    if (api === 'recompile') { b.textContent = 'rebuilt'; setTimeout(() => b.textContent = 'rebuild', 1500); } })
+  .catch(() => { const lbl = b.textContent; b.textContent = 'needs server'; setTimeout(() => b.textContent = lbl, 1500); });
 });
 document.querySelectorAll('.sortable').forEach(hcell => hcell.addEventListener('click', () => {
   const box = hcell.closest('.rows'), key = hcell.dataset.key;
@@ -885,12 +888,16 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
     prof = esc((a.get("profile") or "").replace("_", " "))
     default_acts = ('<button data-api="applied">apply</button>'
                     '<button data-api="reveal">resume</button>'
-                    '<button data-api="remove" title="remove from the list">&minus;</button>')
+                    '<button data-api="recompile" title="re-render the PDF after a tex edit">rebuild</button>')
+    # the remove control leads the row (classic layout); actions stay on the right
+    minus = ('' if acts else '<span class="ract rml">'
+             '<button data-api="remove" title="remove from the list">&minus;</button></span>')
     tats_cls = ("" if not isinstance(tats, (int, float))
                 else " v-hi" if tats >= 85 else " v-mid" if tats >= 70 else " v-lo")
     score_cls = ("" if not isinstance(score, (int, float))
                  else " v-hi" if score >= 8 else " v-mid" if score >= 6 else " v-lo")
     return (f'<a class="row {cls}{hide}"{grp}{data} href="{url}" target="_blank">'
+            f'{minus}'
             f'<span class="mono">{esc(_monogram(a.get("company", "?")))}</span>'
             f'<span class="who"><b>{esc(a.get("company"))}</b><div class="r">{esc(a.get("role"))}</div></span>'
             f'{fit}<span class="cell c-tats{tats_cls}">{tats if tats is not None else ""}</span>'
