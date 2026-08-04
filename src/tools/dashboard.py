@@ -274,7 +274,8 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         # is_tailored was already computed above (gates the Tailored ATS cell); reused
         # here for the "tailored only" / "ready to apply" filters.
         ready = (is_tailored and a.get("status") not in _SUBMITTED
-                 and (a.get("company") or "").lower() not in dead)
+                 and (a.get("company") or "").lower() not in dead
+                 and not a.get("stale"))   # a dead-link (💀) row is not ready to apply
         high_fit = mats is not None and mats >= 70
         rows.append(
             f"<tr data-status='{html.escape(str(a.get('status') or ''))}' "
@@ -305,14 +306,14 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
                       and (a.get("date") or "")[:10] == today)
     tailored = sum(1 for a in live if _has_resume(a))
     ready = sum(1 for a in live if _has_resume(a) and a.get("status") not in _SUBMITTED
-                and (a.get("company") or "").lower() not in dead)
+                and (a.get("company") or "").lower() not in dead and not a.get("stale"))
     applied = sum(1 for a in live if a.get("status") in _SUBMITTED)
     # "high fit" = Master ATS >= 70  the ONE deterministic, pre-LLM signal for whether
     # a role is worth spending tailoring effort on. This replaces the old blended AQS
     # 'scored'/'A-grade' concepts, which mixed in the LLM reviewer score.
     high_fit = sum(1 for a in live if (a.get("master_ats") or -1) >= 70)
     high_fit_not_applied = sum(1 for a in live if (a.get("master_ats") or -1) >= 70
-                               and a.get("status") not in _SUBMITTED)
+                               and a.get("status") not in _SUBMITTED and not a.get("stale"))
     avg_mats = round(sum(mats_values) / len(mats_values)) if mats_values else ""
 
     # funnel widths (relative to the largest stage)
