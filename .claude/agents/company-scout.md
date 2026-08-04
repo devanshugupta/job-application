@@ -166,10 +166,10 @@ known mutual.
   candidate fits THIS role, with a number from achievements.md.
 
 ### Sequencing & cadence rules (violating these wastes the referral)
-- **Referral BEFORE application.** Most ATSs cannot attach a referral to an
-  already-submitted application. If outreach is in flight for a role, flag the
-  role "HOLD — awaiting referral" in the dossier so the apply pipeline skips
-  it; apply directly only after the referral lands or outreach goes quiet.
+- **Referral AND application, same day.** Send the outreach and submit the
+  application in parallel; never hold an application waiting on a reply.
+  Drafts may say "I have applied to <role>" honestly once the application is
+  in. Never flag roles HOLD.
 - **Channel order:** 1st-degree → LinkedIn DM. 2nd w/ mutual → Mode C to the
   mutual. Else → connect note (compressed template); if they have a public
   email on their site, send the email variant the same day (site email =

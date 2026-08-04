@@ -182,22 +182,18 @@ def _people_actions(companies: list[dict]) -> dict:
 
 def _app_rows() -> dict:
     apps = [a for a in tracker.list_applications() if not a.get("removed")]
-    ready, holds, fresh = [], [], []
-    held_cos = {c["name"].lower() for c in _net_companies()
-                if any(not _touches(p) or _touches(p)[-1].get("outcome")
-                       not in ("declined",) for p in c.get("people", []))
-                and c.get("status") in ("outreach_drafted", "contacted")}
+    ready, fresh = [], []
     today = date.today().isoformat()
     for a in apps:
         stale = bool(a.get("stale"))
         if _dash._has_resume(a) and a.get("status") not in _dash._SUBMITTED and not stale:
-            (holds if a.get("company", "").lower() in held_cos else ready).append(a)
+            ready.append(a)
         elif (a.get("status") == "found" and not stale
               and (a.get("date") or "")[:10] == today and (a.get("master_ats") or 0) >= 70):
             fresh.append(a)
     ready.sort(key=lambda a: -(a.get("master_ats") or 0))
     fresh.sort(key=lambda a: -(a.get("master_ats") or 0))
-    return {"ready": ready, "holds": holds, "fresh": fresh}
+    return {"ready": ready, "fresh": fresh}
 
 
 TEASERS = {
@@ -235,7 +231,7 @@ def _story(people: dict, apps: dict) -> dict:
         n = i["person"]["name"].split("[")[0].strip().split()[0]
         co = i["company"]["name"]
         return {"h": f"{esc(n)} can open the door at {esc(co)}. <em>Ask.</em>",
-                "p": "The draft is written. One message, referral before application, always.",
+                "p": "The draft is written. Send it and apply the same day.",
                 "cta": "Show me the message", "href": f"/company/{slugify(co)}",
                 "teaser": random.choice(TEASERS["send"]),
                 "lane": "/network", "lane_name": "Networking"}
@@ -833,15 +829,12 @@ def render_entry() -> str:
 
 def render_apply() -> str:
     apps = _app_rows()
-    ready, holds, fresh = apps["ready"], apps["holds"], apps["fresh"]
+    ready, fresh = apps["ready"], apps["fresh"]
     story = (f"<b>{esc(ready[0].get('company'))} first.</b> " if ready else "")
     rows = ""
     for i, a in enumerate(ready):
         rows += _app_row(a, "go", "ready", "p-go", "",
                          "ready" if i >= 5 else "")
-    for a in holds:
-        rows += _app_row(a, "hold", "hold", "p-hold",
-                         "referral in flight, apply after it lands", "")
     if len(ready) > 5:
         rows += f'<div class="more" data-for="ready">show 20 more ({len(ready) - 5} hidden)</div>'
     frows = ""
@@ -853,7 +846,7 @@ def render_apply() -> str:
 
     body = f"""<div class="wrap">
   <h1 class="serif" style="font-size:36px">Applications</h1>
-  <div class="storyline">{story}Amber rows wait on a referral.</div>
+  <div class="storyline">{story}Send the referral ask the same day, from Networking.</div>
   {_applied_panel()}
   <input id="q" class="search" type="search" placeholder="Search company, role, track">
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
@@ -1062,8 +1055,8 @@ def render_about() -> str:
     ATS feeds and scores the fit deterministically, so effort only goes where it counts. Anything worth
     pursuing gets a resume tailored to the posting and verified before it ever leaves the house.</p>
   <p class="prose">Then comes the part most tools skip: for each company it maps the two or three
-    people who can actually open the door, writes the outreach, and holds the application until the
-    referral ask lands. Referral first, always.</p>
+    people who can actually open the door and writes the outreach, so the referral ask and the
+    application go out together, the same day.</p>
   <div class="sech"><h2>Make it yours</h2></div>
   <p class="prose">Every personal detail lives in one file, config/network.json. Change the candidate
     block and the whole pipeline, prompts included, works for you. Machine learning, robotics,
