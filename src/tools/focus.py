@@ -416,6 +416,10 @@ a.row:hover .ract { opacity:1 }
 [data-theme="dark"] .cal .l1 { background:#1e3b1e } [data-theme="dark"] .cal .l2 { background:#2c5c2c }
 [data-theme="dark"] .cal .l3 { background:#3f8a3f } [data-theme="dark"] .cal .l4 { background:#57c957 }
 .sech .coname { text-decoration:none; color:inherit } .sech .coname:hover h2 { color:var(--accent) }
+.search { width:100%; max-width:420px; font:inherit; font-size:14.5px; color:var(--ink); background:var(--panel);
+  border:1px solid var(--line); border-radius:10px; padding:9px 14px; margin:4px 0 10px; display:block }
+.search:focus { outline:none; border-color:var(--accent) }
+.qhide { display:none !important }
 .foot { max-width:1440px; margin:44px auto 0; padding:18px 40px 34px; display:flex; justify-content:space-between;
   align-items:baseline; gap:14px; flex-wrap:wrap; color:var(--mut); font-size:13.5px; border-top:1px solid var(--line) }
 .foot a { color:var(--mut); text-decoration:none; margin-left:18px } .foot a:hover { color:var(--accent) }
@@ -480,6 +484,25 @@ document.querySelectorAll('.sortable').forEach(hcell => hcell.addEventListener('
   rows.forEach((r, i) => { r.classList.toggle('hidden', i >= visible);
     if (more) box.insertBefore(r, more); else box.appendChild(r); });
 }));
+const q = document.getElementById('q');
+if (q) q.addEventListener('input', () => {
+  const term = q.value.trim().toLowerCase();
+  document.querySelectorAll('.rows .row').forEach(r => {
+    const hit = !term || r.textContent.toLowerCase().includes(term);
+    r.classList.toggle('qhide', !hit);
+    if (term && hit) r.classList.remove('hidden');
+  });
+  document.querySelectorAll('.rows').forEach(box => {
+    const rows = [...box.querySelectorAll('.row')];
+    if (!rows.length) return;
+    const any = !term || rows.some(r => !r.classList.contains('qhide') && !r.classList.contains('hidden'));
+    box.classList.toggle('qhide', !any);
+    const prev = box.previousElementSibling;
+    if (prev && prev.classList.contains('sech')) prev.classList.toggle('qhide', !any);
+    const more = box.querySelector('.more');
+    if (more) more.classList.toggle('qhide', !!term);
+  });
+});
 const saved = localStorage.getItem('theme');
 if (saved === 'dark') document.documentElement.dataset.theme = 'dark';
 const tbtn = document.querySelector('.theme');
@@ -816,6 +839,7 @@ def render_apply() -> str:
   <h1 class="serif" style="font-size:36px">Applications</h1>
   <div class="storyline">{story}Amber rows wait on a referral.</div>
   {_applied_panel()}
+  <input id="q" class="search" type="search" placeholder="Search company, role, track">
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
   <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Note</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
   <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span>
@@ -888,6 +912,7 @@ def render_network() -> str:
         blocks += (
             f'<div class="sech"><a class="coname" href="/company/{slug}"><h2>{esc(c["name"])}</h2></a>'
             f'<span class="pill {HEAT_PILL.get(heat, "p-mut")}">{esc(heat)}</span>'
+            f'<span class="pill p-mut">{esc((c.get("status") or "").replace("_", " "))}</span>'
             f'<span class="n">{fit_short}</span>'
             f'<a class="pbtn" style="margin-left:auto" href="/company/{slug}">full page</a></div>'
             f'<div class="rows">{prows}</div>')
@@ -899,6 +924,7 @@ def render_network() -> str:
     body = f"""<div class="wrap">
   <h1 class="serif" style="font-size:36px">Networking</h1>
   <div class="storyline">{story_line} Green rows have a message ready to copy.</div>
+  <input id="q" class="search" type="search" placeholder="Search companies and people">
   {blocks}
   {_network_charts(companies)}
   <div class="rows" style="margin-top:26px"><a class="row" href="/apply" style="justify-content:space-between">

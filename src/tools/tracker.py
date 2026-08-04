@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import re
+import tempfile
 from datetime import datetime
 
 from .. import config
@@ -72,8 +74,17 @@ def _load_applications() -> dict:
 
 
 def _save_db(db: dict) -> None:
+    """Atomic replace: a crash mid-write must never leave a truncated tracker file."""
     APPLICATIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    APPLICATIONS_PATH.write_text(json.dumps(db, indent=2))
+    fd, tmp = tempfile.mkstemp(dir=APPLICATIONS_PATH.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(json.dumps(db, indent=2))
+        os.replace(tmp, APPLICATIONS_PATH)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
 
 def _norm_url(url: str) -> str:
@@ -235,7 +246,13 @@ def _merge_records(group: list[dict]) -> dict:
 def dedupe_applications() -> int:
     """Collapse duplicate rows for the same job (same normalized company+role) into a
     single merged record. Returns how many duplicates were removed. Order is preserved
-    by the first occurrence of each job."""
+    by the first occurrence of each job. Locked: this is a load-modify-save like any
+    other tracker mutation."""
+    with _db_lock():
+        return _dedupe_locked()
+
+
+def _dedupe_locked() -> int:
     db = _load_applications()
     apps = db["applications"]
     groups: dict[tuple[str, str], list[dict]] = {}

@@ -181,3 +181,24 @@ def test_path_traversal_is_refused(server, job):
     with pytest.raises(urllib.error.HTTPError) as e:
         urllib.request.urlopen(server + "/../config/profile.json")
     assert e.value.code == 404
+
+
+def test_assets_served_and_traversal_refused(server):
+    r = urllib.request.urlopen(server + "/assets/trail/b1.jpg")
+    assert r.status == 200 and r.headers["Content-Type"] == "image/jpeg"
+    with pytest.raises(urllib.error.HTTPError) as e:
+        urllib.request.urlopen(server + "/assets/..%2Ffocus.py")
+    assert e.value.code == 404
+
+
+def test_about_page_served(server):
+    body = urllib.request.urlopen(server + "/about").read().decode()
+    assert "Interviews come from" in body and 'id="contact"' in body
+
+
+def test_tracker_save_is_atomic(tmp_data):
+    """_save_db must never leave a partial main file or stray tmp files behind."""
+    tracker.save_application(company="X", role="Y", url="https://x/1", status="found")
+    files = list(tracker.APPLICATIONS_PATH.parent.glob("*.tmp"))
+    assert files == []
+    json.loads(tracker.APPLICATIONS_PATH.read_text())  # valid JSON on disk
