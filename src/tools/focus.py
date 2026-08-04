@@ -317,10 +317,19 @@ document.querySelectorAll('.more[data-for]').forEach(m => m.addEventListener('cl
 document.querySelectorAll('.ract button').forEach(b => b.addEventListener('click', e => {
   e.preventDefault(); e.stopPropagation();
   const row = b.closest('a.row'), api = b.dataset.api;
-  fetch('/api/' + api, { method: 'POST', headers: {'Content-Type': 'application/json'},
+  const undo = api === 'applied' && row.classList.contains('rowdone');
+  const path = undo ? '/api/unapplied' : '/api/' + api;
+  fetch(path, { method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ url: row.href }) })
   .then(r => { if (!r.ok) throw 0;
-    if (api === 'applied') { row.classList.add('rowdone'); row.querySelector('.pill').textContent = 'applied'; }
+    if (api === 'applied' && !undo) {
+      window.open(row.href, '_blank');
+      row.classList.add('rowdone'); row.querySelector('.pill').textContent = 'applied';
+      b.textContent = 'undo';
+    } else if (undo) {
+      row.classList.remove('rowdone'); row.querySelector('.pill').textContent = 'ready';
+      b.textContent = 'apply';
+    }
     if (api === 'remove') row.style.display = 'none';
     if (api === 'reveal') { b.textContent = 'opened'; setTimeout(() => b.textContent = 'resume', 1500); } })
   .catch(() => { b.textContent = 'needs server'; setTimeout(() => b.textContent = api, 1500); });
@@ -398,7 +407,7 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool) -
             f'<span class="cell c-date">{posted}</span>'
             f'<span class="cell c-prof">{prof}</span>'
             f'<span class="why">{esc(why)}</span>'
-            f'<span class="ract"><button data-api="applied">applied</button>'
+            f'<span class="ract"><button data-api="applied">apply</button>'
             f'<button data-api="reveal">resume</button>'
             f'<button data-api="remove">hide</button></span>'
             f'<span class="pill {pill_cls}">{esc(pill)}</span></a>')
