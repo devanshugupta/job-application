@@ -316,7 +316,7 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .door h3 { font-family:Georgia,serif; font-size:25px; font-weight:600; margin-bottom:3px }
 .door p { color:var(--mut); font-size:15.5px }
 .door .cue { margin-top:14px; font-size:14.5px; font-weight:700; color:var(--accent) }
-.hint { text-align:center; color:var(--mut); padding-top:52px;
+.hint { text-align:center; color:var(--mut); padding-top:84px;
   animation:dip 2.2s ease-in-out infinite }
 .hint svg { display:inline-block }
 .foot { position:relative }
