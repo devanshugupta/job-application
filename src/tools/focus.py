@@ -1274,6 +1274,7 @@ def render_network() -> str:
             f'<div class="sech"><a class="coname" href="/company/{slug}"><h2>{esc(c["name"])}</h2></a>'
             f'<span class="pill {HEAT_PILL.get(heat, "p-mut")}">{esc(heat)}</span>'
             f'<span class="pill p-mut">{esc((c.get("status") or "").replace("_", " "))}</span>'
+            f'{f'<span class="pill p-go">{c["hiring_posts"]["count"]} hiring posts this week</span>' if c.get("hiring_posts", {}).get("count") else ''}'
             f'<span class="n">{fit_short}</span>'
             f'<a class="pbtn" style="margin-left:auto" href="/company/{slug}">full page</a></div>'
             f'<div class="rows">{prows}</div>')
@@ -1323,6 +1324,8 @@ def _find_more_people(c: dict) -> str:
         ("Google their people", f"https://www.google.com/search?q="
                                 + quote_plus(f'site:linkedin.com/in "{name}"')),
         ("org chart", f"https://theorg.com/org/{theorg_slug(c)}"),
+        ("hiring posts", "https://www.linkedin.com/search/results/content/?keywords="
+                         + quote_plus(f'"{name}" hiring') + "&sortBy=%22date_posted%22"),
     ]
     if c.get("website"):
         srcs.append(("team page", c["website"].rstrip("/") + "/about"))
@@ -1419,7 +1422,8 @@ def render_company(slug: str) -> str | None:
   <div class="metapills"><span class="pill {HEAT_PILL.get((c.get("heat") or "").upper(), "p-mut")}">{esc((c.get("heat") or "?").upper())}</span>
     <span class="pill p-mut">scouted {esc(c.get("last_scouted", "?"))}</span>
     {f'<a class="pbtn" href="{esc(c.get("website"))}" target="_blank">website</a>' if c.get("website") else ''}
-    {f'<a class="pbtn" href="mailto:{esc(c.get("generic_inbox"))}">{esc(c.get("generic_inbox"))}</a>' if c.get("generic_inbox") else ''}</div>
+    {f'<a class="pbtn" href="mailto:{esc(c.get("generic_inbox"))}">{esc(c.get("generic_inbox"))}</a>' if c.get("generic_inbox") else ''}
+    {f'<span class="pill p-go">{c["hiring_posts"]["count"]} hiring posts this week</span>' if c.get("hiring_posts", {}).get("count") else ''}</div>
   <div class="meta"><b>{esc(fit_main)}</b>{f' <span style="font-size:12.5px">{esc(fit_extra)}</span>' if fit_extra else ''}</div>
   {draft_html}{acts_html}{stats_html}
   <div class="sech"><h2>People</h2><span class="n">ranked by reachability</span></div>

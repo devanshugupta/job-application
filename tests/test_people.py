@@ -118,6 +118,35 @@ def test_search_parses_serper_organic(monkeypatch):
     assert got == ["Pat Recruiter - Acme | https://linkedin.com/in/pat | Talent at Acme"]
 
 
+def test_hiring_posts_gated_and_parsed(monkeypatch):
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
+    assert people.hiring_posts("Acme") == []
+    monkeypatch.setenv("SERPER_API_KEY", "k")
+    fake = {"organic": [{"title": "Jane Doe on LinkedIn: My team at Acme is hiring!",
+                         "link": "https://www.linkedin.com/posts/janedoe_x",
+                         "snippet": "We are hiring a backend engineer"}]}
+    got = people.hiring_posts("Acme", _post=lambda q: fake)
+    assert got[0]["link"].endswith("janedoe_x") and "hiring" in got[0]["title"]
+
+
+def test_hiring_posts_stored_on_company_and_shown(monkeypatch, company):
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
+    monkeypatch.delenv("HUNTER_API_KEY", raising=False)
+    posts = [{"title": "T", "link": "https://l", "snippet": "s"}] * 4
+    monkeypatch.setattr(people, "hiring_posts", lambda n, _post=None: posts)
+    people.find_people(company, [], FakeBrain(CANNED), fetch_fn=_fake_fetch,
+                       today=date(2026, 8, 4))
+    assert company["hiring_posts"]["count"] == 4
+    assert len(company["hiring_posts"]["top"]) == 3
+    from src.tools import focus, tracker
+    monkeypatch.setattr(focus, "_net_companies", lambda: [company])
+    monkeypatch.setattr(focus, "_heat_rows", lambda: {})
+    monkeypatch.setattr(tracker, "list_applications", lambda: [])
+    for html in (focus.render_network(), focus.render_company("acme")):
+        assert "4 hiring posts this week" in html
+    assert "linkedin.com/search/results/content" in focus.render_company("acme")
+
+
 def test_hunter_off_without_key(monkeypatch):
     monkeypatch.delenv("HUNTER_API_KEY", raising=False)
     assert people.hunter_pattern("acme.ai") == ""

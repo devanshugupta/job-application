@@ -255,6 +255,34 @@ def search_people(company: str, keywords: list[str], _post=None) -> list[str]:
     return snippets
 
 
+def hiring_posts(company: str, _post=None) -> list[dict]:
+    """LinkedIn hiring posts from the last week ('my team is hiring...'), via Google.
+
+    The highest-response networking signal there is: the poster has publicly opted
+    into being contacted about the role. Serper-gated like search_people; the
+    dashboard always offers the prefilled LinkedIn content-search link regardless."""
+    if search_provider() == "none":
+        return []
+    q = (f'site:linkedin.com/posts "{company}" '
+         f'("we\'re hiring" OR "my team is hiring" OR "I am hiring")')
+    body = json.dumps({"q": q, "num": 10, "tbs": "qdr:w"}).encode()
+    try:
+        if _post is not None:
+            data = _post(q)
+        else:
+            req = urllib.request.Request(
+                "https://google.serper.dev/search", data=body,
+                headers={"X-API-KEY": os.environ["SERPER_API_KEY"],
+                         "Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                data = json.loads(r.read().decode())
+    except Exception:
+        return []
+    return [{"title": i.get("title", ""), "link": i.get("link", ""),
+             "snippet": i.get("snippet", "")}
+            for i in (data or {}).get("organic", [])[:8]]
+
+
 def hunter_domain(domain: str, _get=None) -> dict:
     """Hunter domain search: the confirmed pattern plus OBSERVED emails with names,
     titles, and confidence. {} without a key. One call per domain, cached 30 days
@@ -400,6 +428,7 @@ def gather_signals(company: dict, jobs: list[dict], fetch_fn=fetch) -> dict:
         "org_chart": theorg_people(company, fetch_fn),
         "jd_hints": hints[:6],
         "snippets": search_people(company.get("name", ""), kw),
+        "hiring_posts": hiring_posts(company.get("name", "")),
         "hunter": hunter_domain(domain) if domain else {},
     }
 
@@ -444,6 +473,7 @@ def find_people(company: dict, jobs: list[dict], brain,
         "org_chart_people": sig["org_chart"],
         "jd_reporting_hints": sig["jd_hints"],
         "linkedin_search_snippets": sig["snippets"],
+        "recent_hiring_posts": sig["hiring_posts"],
         "email_pattern_confirmed": sig["hunter"].get("pattern", ""),
         "observed_emails": sig["hunter"].get("emails", []),
         "email_pattern_guesses": guesses,
@@ -491,6 +521,10 @@ def find_people(company: dict, jobs: list[dict], brain,
                 if found:
                     rec.update({"email": found["email"], "email_source": "hunter",
                                 "email_confidence": found["score"]})
+    if sig["hiring_posts"]:
+        company["hiring_posts"] = {"checked": today.isoformat(),
+                                   "count": len(sig["hiring_posts"]),
+                                   "top": sig["hiring_posts"][:3]}
     company["people_scouted"] = today.isoformat()
     if company.get("fit") == "pasted on /network, not yet scouted":
         company["fit"] = "pasted on /network"

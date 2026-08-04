@@ -390,5 +390,8 @@ claim in the candidate achievements given; include one concrete number; paste th
 when a role is listed; one clear ask (refer me for <role> / open to a 15 min chat). No em \
 dashes, no emojis. Referral and application go the same day; a draft may say the \
 application is already in.
+- recent_hiring_posts are the strongest evidence in the packet: the poster has publicly \
+opted into contact about a role. When one names a person, pick them, cite the post in the \
+hook, and let the message answer the post directly.
 - hook: one specific sentence about THEIR work or the company signal that opens the message.
 Be terse. No prose outside the JSON."""
