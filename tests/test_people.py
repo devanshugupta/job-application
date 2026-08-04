@@ -437,4 +437,16 @@ def test_network_copy_button_uses_scouted_draft(monkeypatch):
     from src.tools import focus
     comp = {"name": "Acme", "people": [{"name": "Sam Rivera", "title": "HM",
                                         "draft": "Hi Sam.", "outreach": []}]}
-    assert focus._person_draft(comp, comp["people"][0]) == "Hi Sam."
+    monkeypatch.setenv("OUTREACH_SIGNOFF", "Regards,\\nTest Person - 5551234567")
+    got = focus._person_draft(comp, comp["people"][0])
+    assert got == "Hi Sam.\n\nRegards,\nTest Person - 5551234567"
+
+
+def test_draft_signoff_is_hardcoded_and_not_duplicated(monkeypatch):
+    from src.tools import focus
+    monkeypatch.setenv("OUTREACH_SIGNOFF", "Regards,\\nTest Person - 5551234567")
+    signed = focus._sign("Hello there.")
+    assert signed.endswith("Regards,\nTest Person - 5551234567")
+    # signing an already-signed draft must not double the sign-off
+    assert focus._sign(signed) == signed
+    assert focus._sign("") == ""

@@ -389,7 +389,11 @@ pattern email (email_source "guessed") even when the site shows none.
 claim in the candidate achievements given; include one concrete number; paste the role URL \
 when a role is listed; one clear ask (refer me for <role> / open to a 15 min chat). No em \
 dashes, no emojis. Referral and application go the same day; a draft may say the \
-application is already in.
+application is already in. Tone: warm and respectful, never transactional or commanding. \
+Requests are invitations with an easy out ("if you're open to it", "no worries if not"), \
+never imperatives like "route my application" or "point me to the right recruiter". Thank \
+them for their time in the ask sentence itself, not as filler. Do NOT write any sign-off \
+or closing line (Regards/Best/name/phone); the app appends a fixed sign-off automatically.
 - recent_hiring_posts are the strongest evidence in the packet: the poster has publicly \
 opted into contact about a role. When one names a person, pick them, cite the post in the \
 hook, and let the message answer the post directly.

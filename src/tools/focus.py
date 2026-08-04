@@ -88,6 +88,28 @@ def _dossier_text(c: dict) -> str:
         return ""
 
 
+def _signoff() -> str:
+    """Hardcoded sign-off appended to every outreach draft, never LLM-written.
+    OUTREACH_SIGNOFF env wins; else outreach.signoff in config/network.json."""
+    import os
+    s = os.environ.get("OUTREACH_SIGNOFF", "").strip()
+    if not s:
+        try:
+            cfg = json.loads((config.ROOT / "config" / "network.json").read_text())
+            s = (cfg.get("outreach") or {}).get("signoff", "").strip()
+        except Exception:
+            s = ""
+    return s.replace("\\n", "\n")
+
+
+def _sign(draft: str) -> str:
+    draft = draft.strip()
+    s = _signoff()
+    if not draft or not s or s.splitlines()[-1] in draft:
+        return draft
+    return f"{draft}\n\n{s}"
+
+
 def _first_draft(c: dict) -> str:
     """First blockquote in the dossier = the primary outreach draft."""
     md = _dossier_text(c)
@@ -97,14 +119,14 @@ def _first_draft(c: dict) -> str:
             block.append(re.sub(r"^\s*>\s?", "", line))
         elif block:
             break
-    return " ".join(block).strip()
+    return _sign(" ".join(block).strip())
 
 
 def _person_draft(c: dict, p: dict) -> str:
     """The person's draft: people-scout writes it on the record, dossiers hold it as
     the blockquote under the person's ### heading."""
     if p.get("draft"):
-        return p["draft"]
+        return _sign(p["draft"])
     first = p["name"].split("[")[0].strip().split()[0].lower()
     for chunk in re.split(r"^### ", _dossier_text(c), flags=re.M)[1:]:
         lines = chunk.splitlines()
@@ -116,7 +138,7 @@ def _person_draft(c: dict, p: dict) -> str:
                 block.append(re.sub(r"^\s*>\s?", "", line))
             elif block:
                 break
-        return " ".join(block).strip()
+        return _sign(" ".join(block).strip())
     return ""
 
 
@@ -1230,7 +1252,7 @@ def render_network() -> str:
             copy = ""
             draft = _person_draft(c, p)
             if draft:
-                js = draft.replace("\\", "\\\\").replace("'", "\\'")
+                js = draft.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
                 copy = ('<button class="copybtn sm" onclick="copyText(this, '
                         f"'{esc(js)}')\">Copy message</button>")
             touch = ""
@@ -1244,7 +1266,7 @@ def render_network() -> str:
                          f' data-person="{esc(name)}">sent again</button>')
             email_btn = ""
             if p.get("email"):
-                ejs = p["email"].replace("\\", "\\\\").replace("'", "\\'")
+                ejs = p["email"].replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
                 note = {"guessed": " (guessed)", "hunter": " (verified)"}.get(
                     p.get("email_source"), "")
                 email_btn = (f'<button class="copybtn sm" onclick="copyText(this, '
@@ -1347,7 +1369,7 @@ def render_company(slug: str) -> str | None:
     draft = _first_draft(c)
     draft_html = ""
     if draft:
-        draft_js = draft.replace("\\", "\\\\").replace("'", "\\'")
+        draft_js = draft.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
         draft_html = (f'<div class="sech"><h2>The one move</h2></div>'
                       f'<div class="draftbox"><div class="lab">Primary draft from the dossier</div>'
                       f'{esc(draft)}'
@@ -1387,14 +1409,14 @@ def render_company(slug: str) -> str | None:
         email_note = " (guessed)" if p.get("email_source") == "guessed" else ""
         email_html = ""
         if email:
-            ejs = email.replace("\\", "\\\\").replace("'", "\\'")
+            ejs = email.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
             email_html = (f'<button class="copybtn" data-copied="{esc(email)}" '
                           f'onclick="event.preventDefault();event.stopPropagation();'
                           f'copyText(this, \'{esc(ejs)}\')">{esc(email)}{email_note}</button>')
         copy_html = ""
         draft = _person_draft(c, p)
         if draft:
-            djs = draft.replace("\\", "\\\\").replace("'", "\\'")
+            djs = draft.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
             copy_html = (f'<button class="copybtn" onclick="event.preventDefault();'
                          f'event.stopPropagation();copyText(this, \'{esc(djs)}\')">Copy message</button>')
         prows += (f'<a class="row {cls}" href="{esc(url)}" target="_blank">'
