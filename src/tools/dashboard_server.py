@@ -308,6 +308,12 @@ class _Handler(BaseHTTPRequestHandler):
             if net.is_file():
                 return self._send(200, net.read_bytes(), "text/html")
             return self._json(404, {"error": "no networking dashboard yet; run scripts/network_dashboard.py"})
+        if path == "favicon.ico":
+            # Safari asks for this path directly and ignores SVG favicons entirely
+            f = pathlib.Path(__file__).parent / "assets" / "favicon.png"
+            if f.is_file():
+                return self._send(200, f.read_bytes(), "image/png")
+            return self._json(404, {"error": "no favicon"})
         if path.startswith("assets/"):
             adir = (pathlib.Path(__file__).parent / "assets").resolve()
             f = (adir / path.split("/", 1)[1]).resolve()

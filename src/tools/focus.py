@@ -318,7 +318,9 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .door .cue { margin-top:18px; font-size:14.5px; font-weight:700; color:var(--accent) }
 .hint { text-align:center; color:var(--mut); padding-bottom:20px; animation:dip 2.2s ease-in-out infinite }
 .hint svg { display:inline-block }
-.footmark { text-align:center; color:var(--mut); padding:34px 0 4px }
+.footmark { text-align:center; padding:34px 0 4px }
+.footmark a { color:var(--mut); display:inline-block }
+.footmark a:hover { color:var(--ink) }
 a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline:none }
 @keyframes bob { 50% { transform:translateY(2px) } }
 @keyframes dip { 50% { transform:translateY(10px) } }
@@ -914,14 +916,16 @@ def _page(title: str, body: str, active: str = "") -> str:
     nav = "".join(
         f'<a href="{h}" class="{"on" if active == k else ""}">{t}</a>'
         for k, h, t in [("apply", "/apply", "Applications"), ("net", "/network", "Networking")])
-    foot = (f'<div class="footmark">{_mark(30)}</div>'
+    foot = (f'<div class="footmark"><a href="/" aria-label="home">{_mark(30)}</a></div>'
             '<div class="foot"><span>vouch. referrals first, applications second.</span>'
             '<span><a href="/about">about</a><a href="/about#contact">contact</a>'
             '<a href="/settings">settings</a></span></div>')
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{esc(title)}</title>'
-            f'<link rel="icon" href="{_FAVICON}">'f'<script>if(!matchMedia("(prefers-reduced-motion: reduce)").matches)'f'document.documentElement.classList.add("anim");</script>'f'<style>{CSS}</style></head>'
+            f'<link rel="icon" href="/assets/favicon.png" type="image/png">'
+            f'<link rel="icon" href="{_FAVICON}" type="image/svg+xml">'
+            f'<link rel="apple-touch-icon" href="/assets/favicon.png">'f'<script>if(!matchMedia("(prefers-reduced-motion: reduce)").matches)'f'document.documentElement.classList.add("anim");</script>'f'<style>{CSS}</style></head>'
             f'<body{" data-lane=1" if active else ""}>'
             f'<div class="bar"><b><a href="/">vouch.</a></b>'
             f'<span class="mid">{nav}</span>'
