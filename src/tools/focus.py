@@ -286,8 +286,8 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .bar .right { margin-left:auto } .bar .right a { font-size:13.5px }
 .wrap { max-width:1440px; margin:0 auto; padding:26px 40px 60px }
 .serif { font-family:Georgia,serif; font-weight:600; letter-spacing:-.5px }
-.heroblock { min-height:calc(110vh - 50px); display:flex; flex-direction:column; align-items:center;
-  justify-content:flex-start; text-align:center; padding:34vh 20px 20px; margin:0 auto; max-width:760px; position:relative }
+.heroblock { min-height:calc(96vh - 50px); display:flex; flex-direction:column; align-items:center;
+  justify-content:flex-start; text-align:center; padding:19vh 20px 20px; margin:0 auto; max-width:760px; position:relative }
 .aurora { position:absolute; top:50%; left:50%; width:520px; height:380px; transform:translate(-50%,-58%);
   background:conic-gradient(from 0deg, rgba(42,120,214,.16), rgba(201,133,0,.10), rgba(27,175,122,.10), rgba(42,120,214,.16));
   border-radius:48% 52% 55% 45% / 55% 45% 52% 48%; filter:blur(64px); z-index:-1;
