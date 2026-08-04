@@ -314,7 +314,6 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .hint { text-align:center; color:var(--mut); padding-bottom:20px; animation:bob 2.2s infinite }
 .hint svg { display:inline-block }
 a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline:none }
-body:not([data-lane]) { cursor:url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2222%22 height=%2228%22 viewBox=%220 0 22 28%22%3E%3Crect x=%221%22 y=%221%22 width=%2220%22 height=%2226%22 rx=%223%22 fill=%22white%22 stroke=%22%231c1b18%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%227%22 cy=%228%22 r=%222.2%22 fill=%22%238d8a80%22/%3E%3Crect x=%2211%22 y=%226.2%22 width=%226%22 height=%221.6%22 rx=%22.8%22 fill=%22%238d8a80%22/%3E%3Crect x=%2211%22 y=%229.2%22 width=%225%22 height=%221.6%22 rx=%22.8%22 fill=%22%23c8c4ba%22/%3E%3Crect x=%224.5%22 y=%2214.5%22 width=%2213%22 height=%221.6%22 rx=%22.8%22 fill=%22%23b5b0a4%22/%3E%3Crect x=%224.5%22 y=%2218%22 width=%2213%22 height=%221.6%22 rx=%22.8%22 fill=%22%23b5b0a4%22/%3E%3Crect x=%224.5%22 y=%2221.5%22 width=%229%22 height=%221.6%22 rx=%22.8%22 fill=%22%23b5b0a4%22/%3E%3C/svg%3E') 3 2, auto }
 @keyframes bob { 50% { transform:translateY(4px) } }
 .rows { background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 4px 18px rgba(30,20,0,.04) }
 .row { display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid var(--line); color:inherit; text-decoration:none }
@@ -380,7 +379,10 @@ a.row:hover .ract { opacity:1 }
   background:var(--panel); color:var(--mut); text-decoration:none; flex-shrink:0 }
 .pbtn:hover { color:var(--accent); border-color:var(--accent) }
 .scene { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden }
-.scene svg { position:absolute; bottom:-8vh; left:-5%; width:110%; height:54vh; will-change:transform }
+.scene svg.wave { position:absolute; bottom:-8vh; left:-5%; width:110%; height:54vh; will-change:transform }
+.scene .ship { position:absolute; left:7%; bottom:30vh; width:84px; will-change:transform }
+.trail { position:fixed; pointer-events:none; z-index:9; font-size:17px; animation:tr .9s ease-out forwards }
+@keyframes tr { to { opacity:0; transform:translateY(-30px) rotate(24deg) scale(.55) } }
 [data-theme="dark"] .scene { opacity:.55 }
 .metapills { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px }
 .v-hi { color:var(--go) !important } .v-mid { color:var(--hold) !important } .v-lo { color:var(--mut) !important }
@@ -483,21 +485,54 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
 }
 const scene = document.querySelector('.scene');
 if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  const layers = scene.querySelectorAll('svg');
+  const layers = scene.querySelectorAll('svg.wave');
+  const ship = scene.querySelector('.ship');
   addEventListener('scroll', () => {
     layers.forEach((l, i) => l.style.transform = 'translateY(' + scrollY * (0.24 + i * 0.16) + 'px)');
+    if (ship) ship.style.transform = 'translateX(' + scrollY * 0.55 + 'px) translateY(' +
+      (scrollY * 0.2 + Math.sin(scrollY / 55) * 5) + 'px) rotate(' + Math.sin(scrollY / 70) * 4 + 'deg)';
     scene.style.opacity = Math.max(1 - scrollY / 1600, 0.25);
   }, { passive: true });
+  const drops = ['\\ud83d\\udcc4', '\\ud83d\\udcbc', '\\ud83d\\ude80', '\\u2728', '\\u2615'];
+  let lastDrop = 0;
+  addEventListener('mousemove', e => {
+    const now = performance.now();
+    if (now - lastDrop < 110) return;
+    lastDrop = now;
+    const t = document.createElement('span');
+    t.className = 'trail';
+    t.textContent = drops[Math.floor(Math.random() * drops.length)];
+    t.style.left = (e.clientX + 10) + 'px'; t.style.top = (e.clientY + 12) + 'px';
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 950);
+  }, { passive: true });
+  const hero = document.querySelector('.heroblock');
+  if (hero) {
+    const els = [...hero.querySelectorAll(':scope > *:not(.aurora)'), document.querySelector('.hint')];
+    els.forEach(el => el && el.classList.add('rise'));
+    requestAnimationFrame(() => requestAnimationFrame(() => els.forEach((el, i) => {
+      if (!el) return;
+      el.style.transitionDelay = (i * 130) + 'ms';
+      el.classList.add('up');
+      setTimeout(() => el.style.transitionDelay = '', 2700 + i * 130);
+    })));
+  }
 }
 """
 
 
 SCENE = """<div class="scene">
-<svg viewBox="0 0 1440 420" preserveAspectRatio="none">
+<svg class="wave" viewBox="0 0 1440 420" preserveAspectRatio="none">
   <circle cx="1150" cy="80" r="64" fill="rgba(201,133,0,.20)"/>
   <path d="M0,300 C240,258 430,342 720,310 C1010,278 1210,332 1440,288 L1440,420 L0,420 Z" fill="rgba(42,120,214,.13)"/>
 </svg>
-<svg viewBox="0 0 1440 420" preserveAspectRatio="none">
+<svg class="ship" viewBox="0 0 84 64" fill="none">
+  <path d="M10 46 L74 46 L62 58 L22 58 Z" fill="#2a78d6" opacity=".8"/>
+  <line x1="42" y1="10" x2="42" y2="46" stroke="#1c1b18" stroke-width="2" opacity=".55"/>
+  <path d="M42 12 L64 40 L42 40 Z" fill="rgba(201,133,0,.55)"/>
+  <path d="M42 16 L26 40 L42 40 Z" fill="rgba(250,247,241,.9)" stroke="rgba(28,27,24,.2)"/>
+</svg>
+<svg class="wave" viewBox="0 0 1440 420" preserveAspectRatio="none">
   <path d="M0,338 C210,298 480,382 780,344 C1080,308 1270,372 1440,330 L1440,420 L0,420 Z" fill="rgba(42,120,214,.20)"/>
   <path d="M0,388 C260,358 560,410 860,384 C1130,361 1310,402 1440,376 L1440,420 L0,420 Z" fill="rgba(201,133,0,.13)"/>
 </svg>
