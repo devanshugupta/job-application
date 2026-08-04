@@ -287,7 +287,7 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .wrap { max-width:1440px; margin:0 auto; padding:26px 40px 60px }
 .serif { font-family:Georgia,serif; font-weight:600; letter-spacing:-.5px }
 .heroblock { min-height:calc(96vh - 50px); display:flex; flex-direction:column; align-items:center;
-  justify-content:flex-start; text-align:center; padding:19vh 20px 20px; margin:0 auto; max-width:760px; position:relative }
+  justify-content:flex-start; text-align:center; padding:9vh 20px 20px; margin:0 auto; max-width:760px; position:relative }
 .aurora { position:absolute; top:50%; left:50%; width:520px; height:380px; transform:translate(-50%,-58%);
   background:conic-gradient(from 0deg, rgba(42,120,214,.16), rgba(201,133,0,.10), rgba(27,175,122,.10), rgba(42,120,214,.16));
   border-radius:48% 52% 55% 45% / 55% 45% 52% 48%; filter:blur(64px); z-index:-1;
@@ -433,9 +433,8 @@ a.row:hover .ract { opacity:1 }
 .ccard b { font-family:Georgia,serif; font-size:19px }
 .ccard div { color:var(--mut); font-size:14.5px; margin:4px 0 10px }
 .ccard span { color:var(--accent); font-size:14.5px; font-weight:650 }
-.rise { opacity:0; transform:translateY(44px);
-  transition:opacity 1.4s ease, transform 3s cubic-bezier(.28,1.9,.42,1) }
-.rise.far { transform:translateY(170px); transition-duration:2s, 4s }
+.rise { opacity:0; transform:translateY(170px);
+  transition:opacity 2s ease, transform 4s cubic-bezier(.28,1.9,.42,1) }
 .rise.up { opacity:1; transform:none }
 @media (prefers-reduced-motion: reduce) { .rise { opacity:1; transform:none; transition:none } }
 """
