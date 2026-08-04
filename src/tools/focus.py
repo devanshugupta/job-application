@@ -253,6 +253,14 @@ a.row:hover, .row.click:hover { background:var(--panel-hov); cursor:pointer }
 .thead .h-prof { width:74px } .thead .h-why { flex:1 } .thead .h-st { width:70px; text-align:right }
 .cell { flex-shrink:0; font-size:12.5px; color:var(--mut); font-variant-numeric:tabular-nums }
 .c-date { width:66px } .c-prof { width:74px; overflow:hidden; text-overflow:ellipsis }
+.ract { display:none; gap:6px; flex-shrink:0 }
+a.row:hover .ract { display:inline-flex }
+.ract button { font:inherit; font-size:11.5px; font-weight:650; border:1px solid var(--line);
+  border-radius:7px; padding:3px 10px; cursor:pointer; background:var(--panel); color:var(--mut) }
+.ract button:hover { color:var(--accent); border-color:var(--accent) }
+.row.rowdone { opacity:.45 }
+.runbtn { font:inherit; font-size:12px; font-weight:650; color:var(--accent); background:none;
+  border:1px solid var(--accent); border-radius:999px; padding:3px 14px; cursor:pointer; margin-left:auto }
 .sortable { cursor:pointer } .sortable:hover { color:var(--ink) }
 .sortable.asc::after { content:" \2191" } .sortable.desc::after { content:" \2193" }
 .sech { display:flex; align-items:baseline; gap:10px; margin:26px 0 10px }
@@ -287,6 +295,17 @@ document.querySelectorAll('.more[data-for]').forEach(m => m.addEventListener('cl
   hid.slice(0, 20).forEach(r => r.classList.remove('hidden'));
   const left = Math.max(hid.length - 20, 0);
   if (left) m.textContent = 'show 20 more (' + left + ' hidden)'; else m.remove(); }));
+document.querySelectorAll('.ract button').forEach(b => b.addEventListener('click', e => {
+  e.preventDefault(); e.stopPropagation();
+  const row = b.closest('a.row'), api = b.dataset.api;
+  fetch('/api/' + api, { method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ url: row.href }) })
+  .then(r => { if (!r.ok) throw 0;
+    if (api === 'applied') { row.classList.add('rowdone'); row.querySelector('.pill').textContent = 'applied'; }
+    if (api === 'remove') row.style.display = 'none';
+    if (api === 'reveal') { b.textContent = 'opened'; setTimeout(() => b.textContent = 'resume', 1500); } })
+  .catch(() => { b.textContent = 'needs server'; setTimeout(() => b.textContent = api, 1500); });
+}));
 document.querySelectorAll('.sortable').forEach(hcell => hcell.addEventListener('click', () => {
   const box = hcell.closest('.rows'), key = hcell.dataset.key;
   const dir = hcell.classList.contains('asc') ? -1 : 1;
@@ -354,6 +373,9 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool) -
             f'{fit}<span class="cell c-date">{posted}</span>'
             f'<span class="cell c-prof">{prof}</span>'
             f'<span class="why">{esc(why)}</span>'
+            f'<span class="ract"><button data-api="applied">applied</button>'
+            f'<button data-api="reveal">resume</button>'
+            f'<button data-api="remove">x</button></span>'
             f'<span class="pill {pill_cls}">{esc(pill)}</span></a>')
 
 
@@ -462,7 +484,8 @@ def render_apply() -> str:
   <div class="storyline">{story}Referral holds are marked. Everything green is safe to send.</div>
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
   <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
-  <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span></div>
+  <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span>
+    <button class="runbtn" onclick="fetch('/api/run-pipeline').then(r => r.json()).then(d => this.textContent = 'running').catch(() => this.textContent = 'needs server')">run sweep</button></div>
   <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
   <div class="rows" style="margin-top:26px"><a class="row" href="/network" style="justify-content:space-between">
     <span class="who" style="width:auto"><b>Done applying?</b><div class="r">people are waiting in Networking</div></span>
