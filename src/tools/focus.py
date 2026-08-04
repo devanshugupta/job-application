@@ -25,6 +25,7 @@ from __future__ import annotations
 import html as _html
 import json
 import pathlib
+import random
 import re
 from collections import Counter
 from datetime import date, datetime, timedelta
@@ -199,6 +200,26 @@ def _app_rows() -> dict:
     return {"ready": ready, "holds": holds, "fresh": fresh}
 
 
+TEASERS = {
+    # entry-page sub-lines: generic on purpose (the entry routes, lanes hold the details).
+    # one is picked at random per visit so the door always sounds fresh.
+    "reply": ["Someone replied. Answer them today.",
+              "A door opened overnight. Walk through it.",
+              "There is a reply waiting. That is rare, use it."],
+    "send": ["So, what are we doing today? One message, then the rest.",
+             "A referral ask is written and ready to send.",
+             "One send today could skip the whole resume pile."],
+    "due": ["A follow-up is due today. Gentle, short, done.",
+            "Four days of silence somewhere. One nudge fixes it.",
+            "Today's plan starts with a follow-up."],
+    "ready": ["A tailored application is ready. Two clicks.",
+              "Today's plan: send what is already tailored.",
+              "Everything is prepped. Just press send."],
+    "clear": ["Nothing is waiting on you right now.",
+              "All threads are moving. Rest is allowed."],
+}
+
+
 def _story(people: dict, apps: dict) -> dict:
     """The one thing that matters most today, as headline / line / cta / href."""
     if people["replies"]:
@@ -207,7 +228,7 @@ def _story(people: dict, apps: dict) -> dict:
         return {"h": f"{esc(n)} said yes. <em>Answer today.</em>",
                 "p": f"A warm door at {esc(i['company']['name'])} is open right now. Momentum decays in days, not weeks.",
                 "cta": "Open the thread", "href": f"/company/{slugify(i['company']['name'])}",
-                "teaser": "Someone replied. Answer them today.",
+                "teaser": random.choice(TEASERS["reply"]),
                 "lane": "/network", "lane_name": "Networking"}
     if people["sends"]:
         i = people["sends"][0]
@@ -216,7 +237,7 @@ def _story(people: dict, apps: dict) -> dict:
         return {"h": f"{esc(n)} can open the door at {esc(co)}. <em>Ask.</em>",
                 "p": "The draft is written. One message, referral before application, always.",
                 "cta": "Show me the message", "href": f"/company/{slugify(co)}",
-                "teaser": "A referral ask is written and ready to send.",
+                "teaser": random.choice(TEASERS["send"]),
                 "lane": "/network", "lane_name": "Networking"}
     if people["due"]:
         i = people["due"][0]
@@ -224,19 +245,19 @@ def _story(people: dict, apps: dict) -> dict:
         return {"h": f"{esc(n)} went quiet. <em>One gentle nudge.</em>",
                 "p": f"Touch {len(_touches(i['person'])) + 1} of 3 at {esc(i['company']['name'])}. Most replies come from the follow-up.",
                 "cta": "Show me the nudge", "href": f"/company/{slugify(i['company']['name'])}",
-                "teaser": "A follow-up is due today.",
+                "teaser": random.choice(TEASERS["due"]),
                 "lane": "/network", "lane_name": "Networking"}
     if apps["ready"]:
         a = apps["ready"][0]
         return {"h": f"{esc(a.get('company'))} is ready. <em>Two clicks.</em>",
                 "p": f"{esc(a.get('role'))}. Resume tailored and verified, posting live.",
                 "cta": "Open the posting", "href": "/apply",
-                "teaser": "A tailored application is ready to send.",
+                "teaser": random.choice(TEASERS["ready"]),
                 "lane": "/apply", "lane_name": "Applications"}
     return {"h": "You're clear. <em>Well done.</em>",
             "p": "Every thread is moving. Come back after the next discovery sweep.",
             "cta": "See the pipeline", "href": "/apply",
-            "teaser": "Nothing is waiting on you right now.",
+            "teaser": random.choice(TEASERS["clear"]),
             "lane": "/apply", "lane_name": "Applications"}
 
 
