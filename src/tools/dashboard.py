@@ -144,7 +144,7 @@ def _dead_companies() -> set:
 def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     apps = tracker.list_applications()
     today = date.today().isoformat()
-    dead = _dead_companies()
+    not_hiring_cos = _dead_companies()   # companies rated DEAD by hiring-heat (not the 💀 dead-LINK flag)
 
     # Default order: most recently touched first (a job's `date` is bumped on every
     # upsert, so the job you just worked on leads). Columns stay click-sortable.
@@ -274,7 +274,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         # is_tailored was already computed above (gates the Tailored ATS cell); reused
         # here for the "tailored only" / "ready to apply" filters.
         ready = (is_tailored and a.get("status") not in _SUBMITTED
-                 and (a.get("company") or "").lower() not in dead
+                 and (a.get("company") or "").lower() not in not_hiring_cos
                  and not a.get("stale"))   # a dead-link (💀) row is not ready to apply
         high_fit = mats is not None and mats >= 70
         rows.append(
@@ -306,7 +306,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
                       and (a.get("date") or "")[:10] == today)
     tailored = sum(1 for a in live if _has_resume(a))
     ready = sum(1 for a in live if _has_resume(a) and a.get("status") not in _SUBMITTED
-                and (a.get("company") or "").lower() not in dead and not a.get("stale"))
+                and (a.get("company") or "").lower() not in not_hiring_cos and not a.get("stale"))
     applied = sum(1 for a in live if a.get("status") in _SUBMITTED)
     # "high fit" = Master ATS >= 70  the ONE deterministic, pre-LLM signal for whether
     # a role is worth spending tailoring effort on. This replaces the old blended AQS
