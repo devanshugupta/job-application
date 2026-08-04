@@ -191,6 +191,8 @@ def pipeline_status(tail_lines: int = 4) -> dict:
     return st
 
 
+_FOCUS_MTIME = None
+
 class _Handler(BaseHTTPRequestHandler):
     def _send(self, code: int, body: bytes, ctype: str) -> None:
         self.send_response(code)
@@ -212,6 +214,14 @@ class _Handler(BaseHTTPRequestHandler):
         # Focus UI (the official interface): /, /apply, /network, /company/<slug>.
         # Old dashboards remain at /classic and /network-classic.
         from . import focus
+        # hot-reload the focus module when its source changes, so UI edits
+        # show up on refresh without restarting the server
+        global _FOCUS_MTIME
+        _m = os.path.getmtime(focus.__file__)
+        if _FOCUS_MTIME is not None and _m != _FOCUS_MTIME:
+            import importlib
+            focus = importlib.reload(focus)
+        _FOCUS_MTIME = _m
         if not path:
             return self._send(200, focus.render_entry().encode(), "text/html")
         if path == "apply":
