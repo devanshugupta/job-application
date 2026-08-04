@@ -379,7 +379,7 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
     stale_count = sum(1 for a in apps if a.get("stale") and not a.get("removed"))
     if stale_count:
         status_chips += (f"<button class='chip chip-stale' onclick='toggleStale(this)'>"
-                         f"⚠ stale ({stale_count})</button>")
+                         f"💀 dead link ({stale_count})</button>")
     profile_opts = "".join(f"<option>{html.escape(p)}</option>"
                            for p in sorted(profiles_seen))
 
