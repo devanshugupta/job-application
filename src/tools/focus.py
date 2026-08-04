@@ -875,8 +875,7 @@ def render_network() -> str:
     people = _people_actions(companies)
     apps = _app_rows()
     s = _story(people, apps)
-    story_line = (f"<b>{s['h'].replace('<em>', '').replace('</em>', '')}</b>"
-                  if s.get("lane") == "/network" else "Referral before application, always.")
+    story_line = "<b>Referral before application, always.</b>"
 
     order = {"reply": 0, "send": 1, "nudge": 2, "waiting": 3}
     heat_rank = {"HOT": 0, "WARM": 1, "COOL": 2, "DEAD": 3}
