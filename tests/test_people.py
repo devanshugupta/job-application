@@ -231,6 +231,50 @@ def test_find_people_manual_brain_round_trip(tmp_path, company, monkeypatch):
     assert r["added"] == 1 and company["people_scouted"] == "2026-08-04"
 
 
+THEORG = ('{"props":{"people":[{"fullName":"Aravind Srinivas","profileImage":null,'
+          '"role":"Cofounder, President, CEO"},{"fullName":"Alexa DeAnda",'
+          '"profileImage":null,"role":"Head Of Talent"},{"fullName":"Contact Sales",'
+          '"profileImage":null,"role":"Button"},{"fullName":"Jos\\u00e9 Nunes",'
+          '"profileImage":null,"role":"Engineer"}]}}')
+
+
+def test_theorg_people_parses_pairs_and_filters_junk():
+    c = {"name": "Perplexity"}
+    got = people.theorg_people(c, fetch_fn=lambda url: THEORG if "theorg.com/org/perplexity" in url else "")
+    assert "Aravind Srinivas :: Cofounder, President, CEO" in got
+    assert "Alexa DeAnda :: Head Of Talent" in got
+    assert not any(g.startswith("Contact Sales") for g in got)
+
+
+def test_theorg_slug_override():
+    assert people.theorg_slug({"name": "PlayStation Global"}) == "playstation-global"
+    assert people.theorg_slug({"name": "PlayStation Global",
+                               "theorg_slug": "sony-interactive-entertainment"}) == \
+        "sony-interactive-entertainment"
+
+
+def test_gather_signals_includes_org_chart(monkeypatch):
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
+    monkeypatch.delenv("HUNTER_API_KEY", raising=False)
+    def fetch_fn(url):
+        return THEORG if "theorg.com" in url else HOME
+    sig = people.gather_signals({"name": "Acme", "website": "https://acme.ai"}, [], fetch_fn)
+    assert any("Aravind Srinivas" in x for x in sig["org_chart"])
+
+
+def test_company_page_find_more_people_sources(monkeypatch):
+    from src.tools import focus, tracker
+    comp = {"name": "Acme", "website": "https://acme.ai", "heat": "?", "people": []}
+    monkeypatch.setattr(focus, "_net_companies", lambda: [comp])
+    monkeypatch.setattr(focus, "_heat_rows", lambda: {})
+    monkeypatch.setattr(tracker, "list_applications", lambda: [])
+    html = focus.render_company("acme")
+    assert "Find more people" in html
+    for frag in ("linkedin.com/company/acme/people", "theorg.com/org/acme",
+                 "google.com/search", 'data-rescout="Acme"'):
+        assert frag in html, frag
+
+
 def test_company_from_url_website_and_linkedin():
     c = people.company_from_url("https://www.baseten.co/pricing")
     assert c["name"] == "Baseten" and c["website"] == "https://www.baseten.co"
@@ -251,6 +295,41 @@ def test_save_and_load_companies_atomic(tmp_path, monkeypatch):
 
 
 # ------------------------------------------------------------------ component: UI surfacing
+
+def test_tracked_people_ride_with_titles_and_get_email_guesses(monkeypatch, company):
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
+    monkeypatch.delenv("HUNTER_API_KEY", raising=False)
+    brain = FakeBrain(CANNED)
+    people.find_people(company, [], brain, fetch_fn=_fake_fetch, today=date(2026, 8, 4))
+    payload = json.loads(brain.seen[0][2])
+    assert payload["already_tracked_people"] == \
+        [{"name": "Jane Doe", "title": "CEO", "linkedin": ""}]
+    # tracked people get pattern guesses too, so small companies can email them
+    assert payload["email_pattern_guesses"]["Jane Doe"][0] == "jane@acme.ai"
+
+
+def test_network_and_company_show_find_people_row_when_empty(monkeypatch):
+    from src.tools import focus, tracker
+    comp = {"name": "Ghostco", "website": "https://ghostco.ai", "heat": "?", "people": []}
+    monkeypatch.setattr(focus, "_net_companies", lambda: [comp])
+    monkeypatch.setattr(focus, "_heat_rows", lambda: {})
+    monkeypatch.setattr(tracker, "list_applications", lambda: [])
+    for html in (focus.render_network(), focus.render_company("ghostco")):
+        assert "Nobody mapped yet" in html
+        assert "find a recruiter" in html and "find a hiring manager" in html
+        assert "linkedin.com/search/results/people" in html
+
+
+def test_network_person_row_shows_email_button(monkeypatch):
+    from src.tools import focus, tracker
+    comp = {"name": "Acme", "website": "https://acme.ai", "heat": "HOT",
+            "people": [{"name": "Sam Rivera", "title": "HM", "email": "sam@acme.ai",
+                        "email_source": "guessed", "hook": "x", "outreach": []}]}
+    monkeypatch.setattr(focus, "_net_companies", lambda: [comp])
+    monkeypatch.setattr(focus, "_heat_rows", lambda: {})
+    monkeypatch.setattr(tracker, "list_applications", lambda: [])
+    assert "sam@acme.ai (guessed)" in focus.render_network()
+
 
 def test_company_page_shows_email_and_inbox(monkeypatch):
     from src.tools import focus, tracker

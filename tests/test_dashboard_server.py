@@ -252,6 +252,17 @@ def test_add_company_tracks_and_queues_people_scout(server, tmp_path, monkeypatc
     assert status == 400
 
 
+def test_scout_people_queues_forced_rescan(server, monkeypatch):
+    spawned = []
+    monkeypatch.setattr(dashboard_server.subprocess, "Popen",
+                        lambda *a, **k: spawned.append(a[0]))
+    req = urllib.request.Request(server + "/api/scout-people",
+                                 data=json.dumps({"company": "Acme"}).encode(),
+                                 headers={"Content-Type": "application/json"})
+    assert urllib.request.urlopen(req).status == 200
+    assert spawned and spawned[0][-3:] == ["--company", "Acme", "--force"]
+
+
 def test_job_status_and_row_endpoints(server, job):
     url = "https://boards.greenhouse.io/acme/jobs/4951814008"
     r = urllib.request.urlopen(server + "/api/job-status?url=" + urllib.parse.quote(url, safe=""))

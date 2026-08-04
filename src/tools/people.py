@@ -122,9 +122,10 @@ def team_links(base_url: str, html: str) -> list[str]:
     return out[:4]
 
 
-_NAME_LINE = re.compile(r"^[A-Z][a-z'’.-]+(?: [A-Z][a-z'’.-]+){1,2}$")
+_NAME_LINE = re.compile(r"^[A-Z][a-zA-Z'’.-]+(?: [A-Z][a-zA-Z'’.-]+){1,2}$")
 _NOT_A_NAME = re.compile(r"^(senior|chief|vice|head|general|executive|principal|staff|"
-                         r"global|worldwide|managing|apple|about|meet|our|the)\b", re.I)
+                         r"global|worldwide|managing|apple|about|meet|our|the|contact|"
+                         r"sales|register|learn|join|see|get|book|request|start)\b", re.I)
 
 
 def looks_like_name(text: str) -> bool:
@@ -171,6 +172,34 @@ def guess_emails(name: str, domain: str) -> list[str]:
     first, last = parts[0], parts[-1]
     guesses = [f"{first}@{domain}", f"{first}.{last}@{domain}", f"{first[0]}{last}@{domain}"]
     return list(dict.fromkeys(guesses)) if last != first else [guesses[0]]
+
+
+_THEORG_PAIR = re.compile(r'"fullName":"([^"]{2,60})"(?:[^{}]{0,120}?)"role":"([^"]{2,80})"')
+
+
+def theorg_slug(company: dict) -> str:
+    return company.get("theorg_slug") or re.sub(
+        r"[^a-z0-9]+", "-", (company.get("name") or "").lower()).strip("-")
+
+
+def theorg_people(company: dict, fetch_fn=None) -> list[str]:
+    """Name :: Role pairs from theorg.com public org charts (server-rendered, no auth).
+
+    Probed Aug 2026: real leadership/team data for most tracked companies, including
+    startups. The single best free source of named people with titles."""
+    slug = theorg_slug(company)
+    if not slug:
+        return []
+    html = (fetch_fn or fetch)(f"https://theorg.com/org/{slug}")
+    out, seen = [], set()
+    for name, role in _THEORG_PAIR.findall(html):
+        name = name.encode().decode("unicode_escape", "ignore").strip()
+        role = role.encode().decode("unicode_escape", "ignore").strip()
+        if name.lower() in seen or not looks_like_name(name):
+            continue
+        seen.add(name.lower())
+        out.append(f"{name} :: {role}")
+    return out[:25]
 
 
 # ------------------------------------------------------------------ optional providers
@@ -313,6 +342,7 @@ def gather_signals(company: dict, jobs: list[dict], fetch_fn=fetch) -> dict:
         "domain": domain,
         "emails": emails[:10],
         "chunks": chunks[:40],
+        "org_chart": theorg_people(company, fetch_fn),
         "jd_hints": hints[:6],
         "snippets": search_people(company.get("name", ""), kw),
         "hunter_pattern": hunter_pattern(domain) if domain else "",
@@ -331,12 +361,18 @@ def find_people(company: dict, jobs: list[dict], brain,
 
     sig = gather_signals(company, jobs, fetch_fn)
     roles = [{"role": j.get("role"), "url": j.get("url")} for j in jobs[:6]]
-    existing = [p.get("name") for p in company.get("people", [])]
+    existing = [{"name": p.get("name", ""), "title": p.get("title", ""),
+                 "linkedin": p.get("linkedin", "")} for p in company.get("people", [])]
     guesses = {}
-    for line in sig["chunks"][:12]:
-        m = re.match(r"([A-Z][a-z'’.-]+ [A-Z][a-z'’.-]+)", line.strip())
-        if m and sig["domain"] and looks_like_name(m.group(1)):
-            guesses[m.group(1)] = guess_emails(m.group(1), sig["domain"])
+    if sig["domain"]:
+        for line in (sig["chunks"] + sig["org_chart"])[:24]:
+            m = re.match(r"([A-Z][a-z'’.-]+ [A-Z][a-z'’.-]+)", line.strip())
+            if m and looks_like_name(m.group(1)):
+                guesses[m.group(1)] = guess_emails(m.group(1), sig["domain"])
+        for p in existing:  # tracked people can be emailed too at small companies
+            if p["name"] and p["name"] not in guesses:
+                guesses[p["name"]] = guess_emails(p["name"].split("[")[0].strip(),
+                                                  sig["domain"])
 
     # candidate + achievements are byte-identical for every company in a run, so they
     # ride as cache blocks: in API mode only the first company pays for them (prompt
@@ -350,6 +386,7 @@ def find_people(company: dict, jobs: list[dict], brain,
         "open_roles": roles,
         "site_emails": sig["emails"],
         "site_text_lines": sig["chunks"],
+        "org_chart_people": sig["org_chart"],
         "jd_reporting_hints": sig["jd_hints"],
         "linkedin_search_snippets": sig["snippets"],
         "email_pattern_confirmed": sig["hunter_pattern"],
@@ -386,6 +423,8 @@ def find_people(company: dict, jobs: list[dict], brain,
             "found": today.isoformat(),
         })
     company["people_scouted"] = today.isoformat()
+    if company.get("fit") == "pasted on /network, not yet scouted":
+        company["fit"] = "pasted on /network"
     company["company_size"] = out.get("company_size", company.get("company_size", ""))
     # a hello@/support@ inbox only matters where a human reads it: small companies
     if sig["emails"] and company["company_size"] == "small" and not company.get("generic_inbox"):

@@ -423,6 +423,17 @@ class _Handler(BaseHTTPRequestHandler):
                     [sys.executable, "-m", "src.cli", "people", "--company", entry["name"]],
                     cwd=config.ROOT, stdout=log, stderr=log, start_new_session=True)
                 return self._json(200, {"queued": True, "company": entry["name"]})
+            if self.path.startswith("/api/scout-people"):
+                # The company page's re-scout button: re-run the free-signal people
+                # finder for one tracked company, bypassing the 30-day cache.
+                company = (payload.get("company") or "").strip()
+                if not company:
+                    return self._json(400, {"error": "need a company name"})
+                log = open(config.DATA_DIR / "people_scout.log", "ab")
+                subprocess.Popen(
+                    [sys.executable, "-m", "src.cli", "people", "--company", company, "--force"],
+                    cwd=config.ROOT, stdout=log, stderr=log, start_new_session=True)
+                return self._json(200, {"queued": True, "company": company})
             if self.path.startswith("/api/touch"):
                 # Log one outreach touch on a person, so reply rate has real data.
                 company = (payload.get("company") or "").strip()

@@ -379,6 +379,10 @@ page lists everyone, under ~100 people). When unsure say "large".
 (email_source "site"). Otherwise choose the single most likely pattern from the provided \
 guesses (email_source "guessed"). Large company or no basis: email "" and source "none".
 - linkedin: only a URL that appears in the evidence, else "".
+- ALREADY-TRACKED people are evidence by definition: return them too when you can add \
+value (an email for a small company, a sharper hook, a draft), and they do not count \
+against the 3 new slots. At a small company, give the best-ranked tracked person a \
+pattern email (email_source "guessed") even when the site shows none.
 - message: 3 to 4 sentences in the candidate's voice. Never fake familiarity. Ground every \
 claim in the candidate achievements given; include one concrete number; paste the role URL \
 when a role is listed; one clear ask (refer me for <role> / open to a 15 min chat). No em \

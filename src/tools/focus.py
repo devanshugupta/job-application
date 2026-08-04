@@ -565,6 +565,13 @@ document.querySelectorAll('button[data-boot]').forEach(b => b.addEventListener('
 }));
 if (document.getElementById('readybox'))
   fetch('/api/deadcheck-ready').catch(() => {});
+document.querySelectorAll('[data-rescout]').forEach(b => b.addEventListener('click', () => {
+  b.textContent = 'scouting';
+  fetch('/api/scout-people', { method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ company: b.dataset.rescout }) })
+  .then(r => { if (!r.ok) throw 0; b.textContent = 'queued, refresh in a minute'; })
+  .catch(() => { b.textContent = 'needs server'; setTimeout(() => b.textContent = 're-scout', 1500); });
+}));
 const addCo = document.getElementById('addco');
 if (addCo) addCo.addEventListener('submit', e => {
   e.preventDefault();
@@ -1129,6 +1136,23 @@ def render_apply() -> str:
     return _page("Applications", body, "apply")
 
 
+def _find_people_row(c: dict) -> str:
+    """A company with nobody mapped still gets one actionable connect path: prefilled
+    LinkedIn people searches (recruiter + hiring manager), no login automation."""
+    name = c["name"]
+    rec = ("https://www.linkedin.com/search/results/people/?keywords="
+           + quote_plus(f"{name} technical recruiter"))
+    hm = ("https://www.linkedin.com/search/results/people/?keywords="
+          + quote_plus(f"{name} engineering manager"))
+    return (f'<div class="row go"><span class="mono">?</span>'
+            f'<span class="who"><b>Nobody mapped yet</b>'
+            f'<div class="r">open a prefilled LinkedIn search and pick one person</div></span>'
+            f'<span class="ract" style="opacity:1">'
+            f'<a class="pbtn" href="{esc(rec)}" target="_blank">find a recruiter</a>'
+            f'<a class="pbtn" href="{esc(hm)}" target="_blank">find a hiring manager</a></span>'
+            f'<span class="pill p-go">search</span></div>')
+
+
 def render_network() -> str:
     companies = _net_companies()
     people = _people_actions(companies)
@@ -1172,15 +1196,21 @@ def render_network() -> str:
                          f' data-person="{esc(name)}">got reply</button>'
                          f'<button class="pbtn" data-touch="sent" data-co="{esc(c["name"])}"'
                          f' data-person="{esc(name)}">sent again</button>')
+            email_btn = ""
+            if p.get("email"):
+                ejs = p["email"].replace("\\", "\\\\").replace("'", "\\'")
+                note = " (guessed)" if p.get("email_source") == "guessed" else ""
+                email_btn = (f'<button class="copybtn sm" onclick="copyText(this, '
+                             f"'{esc(ejs)}')\">{esc(p['email'])}{note}</button>")
             prows += (f'<div class="row {cls}">'
                       f'<span class="mono">{esc(_monogram(name))}</span>'
                       f'<span class="who"><b>{esc(name)}</b><div class="r">{esc(p.get("title", ""))}</div></span>'
                       f'<span class="why">{esc(why or hook)}</span>'
-                      f'<span class="ract" style="opacity:1">{copy}{touch}'
+                      f'<span class="ract" style="opacity:1">{copy}{email_btn}{touch}'
                       f'<a class="pbtn" href="{esc(url)}" target="_blank">profile</a></span>'
                       f'<span class="pill {pcls}">{state}</span></div>')
         if not prows:
-            prows = '<div class="row"><span class="why">no people mapped yet</span></div>'
+            prows = _find_people_row(c)
         links = []
         for src_line in _sources(c)[:3]:
             tok = src_line.split()[0].strip().rstrip(",")
@@ -1220,6 +1250,34 @@ def render_network() -> str:
     <span class="pill p-nav">Applications</span></a></div>
 </div>"""
     return _page("Networking", body, "net")
+
+
+def _find_more_people(c: dict) -> str:
+    """Every source that can surface more humans at this company, one click each.
+    Links open in the user's own browser (their LinkedIn session, no automation);
+    re-scout re-runs the free-signal finder (site + TheOrg + JD hints) in the back."""
+    from ..tools.people import theorg_slug
+    name = c["name"]
+    q = quote_plus(name)
+    li_slug = quote_plus(name.lower().replace(" ", ""))
+    srcs = [
+        ("LinkedIn employees", f"https://www.linkedin.com/company/{li_slug}/people/"),
+        ("recruiter search", "https://www.linkedin.com/search/results/people/?keywords="
+                             + quote_plus(f"{name} technical recruiter")),
+        ("hiring manager search", "https://www.linkedin.com/search/results/people/?keywords="
+                                  + quote_plus(f"{name} engineering manager")),
+        ("Google their people", f"https://www.google.com/search?q="
+                                + quote_plus(f'site:linkedin.com/in "{name}"')),
+        ("org chart", f"https://theorg.com/org/{theorg_slug(c)}"),
+    ]
+    if c.get("website"):
+        srcs.append(("team page", c["website"].rstrip("/") + "/about"))
+    btns = "".join(f'<a class="pbtn" href="{esc(u)}" target="_blank">{esc(t)}</a>'
+                   for t, u in srcs)
+    return (f'<div class="sech"><h2>Find more people</h2>'
+            f'<span class="n">pick a source, or re-run the scout</span></div>'
+            f'<div class="row" style="flex-wrap:wrap; gap:8px">{btns}'
+            f'<button class="pbtn" style="margin-left:auto" data-rescout="{esc(name)}">re-scout</button></div>')
 
 
 def render_company(slug: str) -> str | None:
@@ -1305,7 +1363,8 @@ def render_company(slug: str) -> str | None:
   <div class="meta"><b>{esc(fit_main)}</b>{f' <span style="font-size:12.5px">{esc(fit_extra)}</span>' if fit_extra else ''}</div>
   {draft_html}{acts_html}{stats_html}
   <div class="sech"><h2>People</h2><span class="n">ranked by reachability</span></div>
-  <div class="rows">{prows or '<div class="row"><span class="why">none mapped yet</span></div>'}</div>
+  <div class="rows">{prows or _find_people_row(c)}</div>
+  {_find_more_people(c)}
   <div class="sech"><h2>Roles here</h2></div>
   <div class="rows">{arows}</div>
 </div>"""
