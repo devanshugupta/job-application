@@ -1325,7 +1325,7 @@ def _find_more_people(c: dict) -> str:
                                 + quote_plus(f'site:linkedin.com/in "{name}"')),
         ("org chart", f"https://theorg.com/org/{theorg_slug(c)}"),
         ("hiring posts", "https://www.linkedin.com/search/results/content/?keywords="
-                         + quote_plus(f'"{name}" hiring') + "&sortBy=%22date_posted%22"),
+                         + quote_plus(f'{name} "my team is hiring"') + "&sortBy=%22date_posted%22"),
     ]
     if c.get("website"):
         srcs.append(("team page", c["website"].rstrip("/") + "/about"))
