@@ -389,7 +389,11 @@ pattern email (email_source "guessed") even when the site shows none.
 claim in the candidate achievements given; include one concrete number; paste the role URL \
 when a role is listed; one clear ask (refer me for <role> / open to a 15 min chat). No em \
 dashes, no emojis. Referral and application go the same day; a draft may say the \
-application is already in. Tone: warm and respectful, never transactional or commanding. \
+application is already in.
+- roles cited in a message: name at most the TOP 2 roles, ranked by fit rating first and \
+recency of posting second (a 3-point-lower fit posted this week beats a stale one from two \
+months ago). Never cite a role as applied unless the packet marks it applied; cite weaker \
+or stale roles only when nothing better exists at the company. Tone: warm and respectful, never transactional or commanding. \
 Requests are invitations with an easy out ("if you're open to it", "no worries if not"), \
 never imperatives like "route my application" or "point me to the right recruiter". Thank \
 them for their time in the ask sentence itself, not as filler. Do NOT write any sign-off \
