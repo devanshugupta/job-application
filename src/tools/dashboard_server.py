@@ -260,11 +260,16 @@ class _Handler(BaseHTTPRequestHandler):
                 # On-demand liveness probe: re-fetch the JD (deterministic, no LLM) and
                 # decide dead = the page carries no real posting body. Persist the result
                 # as `stale` so the pipeline skips it, and return it so the button updates.
+                from datetime import datetime
                 from . import jd_fetch
                 r = jd_fetch.fetch_jd(url, allow_browser=True)
                 dead = not r["looks_complete"]
-                tracker.update_application(url, stale=dead)
-                return self._json(200, {"dead": dead, "chars": len(r["text"].strip())})
+                chars = len(r["text"].strip())
+                # Persist the full result so the button state survives a page reload.
+                tracker.update_application(url, stale=dead, deadcheck={
+                    "status": "dead" if dead else "live", "chars": chars,
+                    "at": datetime.now().strftime("%Y-%m-%d %H:%M")})
+                return self._json(200, {"dead": dead, "chars": chars})
             if self.path.startswith("/api/reveal"):
                 pdf = resume_path(rec)
                 reveal(pdf)

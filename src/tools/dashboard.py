@@ -230,11 +230,21 @@ def render(out_path: str | pathlib.Path = OUT_PATH) -> str:
         # row is marked stale so the pipeline skips it). Re-click to re-check (refresh)
         # useful for flaky CDN sites that sometimes serve a shell.
         stale = bool(a.get("stale"))
+        # Persisted dead-check result (survives reloads). `deadcheck` = {status, chars, at}.
+        dc = a.get("deadcheck") or {}
+        dc_status = "dead" if stale else dc.get("status")   # stale flag is authoritative for dead
         if url:
             u = html.escape(url, quote=True)
-            label = "💀" if stale else "is dead?"
-            cls = "dead" if stale else ""
-            stale_btn = (f"<button class='deadbtn {cls}' title='re-check if this link is live' "
+            if dc_status == "dead":
+                label, cls = "💀", "dead"
+            elif dc_status == "live":
+                label, cls = "🟢 live", "live"
+            else:
+                label, cls = "is dead?", ""
+            tip = "re-check if this link is live"
+            if dc.get("at"):
+                tip = f"checked {dc.get('at')} ({dc.get('chars', '?')} chars)  click to re-check"
+            stale_btn = (f"<button class='deadbtn {cls}' title=\"{html.escape(tip)}\" "
                          f"data-url=\"{u}\" onclick='deadCheck(this)'>{label}</button>")
         else:
             stale_btn = ""
