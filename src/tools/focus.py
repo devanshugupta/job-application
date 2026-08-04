@@ -1388,12 +1388,18 @@ def render_company(slug: str) -> str | None:
             email_html = (f'<button class="copybtn" data-copied="{esc(email)}" '
                           f'onclick="event.preventDefault();event.stopPropagation();'
                           f'copyText(this, \'{esc(ejs)}\')">{esc(email)}{email_note}</button>')
+        copy_html = ""
+        draft = _person_draft(c, p)
+        if draft:
+            djs = draft.replace("\\", "\\\\").replace("'", "\\'")
+            copy_html = (f'<button class="copybtn" onclick="event.preventDefault();'
+                         f'event.stopPropagation();copyText(this, \'{esc(djs)}\')">Copy message</button>')
         prows += (f'<a class="row {cls}" href="{esc(url)}" target="_blank">'
                   f'<span class="mono">{esc(_monogram(name))}</span>'
                   f'<span class="who"><b>{esc(name)}</b><div class="r">{esc(p.get("title", ""))}</div></span>'
                   f'<span class="why">{esc(p.get("hook", ""))[:80]}'
                   f'{f"<br><span style=\"font-size:11.5px\">{esc(log)}</span>" if log else ""}</span>'
-                  f'{email_html}'
+                  f'{copy_html}{email_html}'
                   f'<span class="pill {pcls}">{state}</span></a>')
 
     apps = [a for a in tracker.list_applications()
