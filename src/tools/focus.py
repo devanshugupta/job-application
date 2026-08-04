@@ -679,8 +679,8 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
       if (i < a.length) tn.textContent = a.slice(0, ++i);
       else if (i < a.length + b.length) em.textContent = b.slice(0, ++i - a.length);
       else { setTimeout(() => caret.classList.add('done'), 1200); return; }
-      setTimeout(tick, 26 + Math.random() * 34);
-    }, 700);
+      setTimeout(tick, 55 + Math.random() * 50);
+    }, 1000);
   }
   const landing = [];
   new Set([
