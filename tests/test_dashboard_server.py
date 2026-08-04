@@ -65,7 +65,7 @@ def job(tmp_data):
 def test_get_root_serves_focus_entry(server, job):
     # "/" is the official focus UI (story + doors); the old dashboard moved to /classic
     body = urllib.request.urlopen(server + "/").read().decode()
-    assert "professionaldude." in body and 'class="door"' in body
+    assert "produde." in body and 'class="door"' in body
 
 
 def test_get_classic_serves_freshly_rendered_dashboard(server, job):

@@ -703,13 +703,13 @@ def _page(title: str, body: str, active: str = "") -> str:
     nav = "".join(
         f'<a href="{h}" class="{"on" if active == k else ""}">{t}</a>'
         for k, h, t in [("apply", "/apply", "Applications"), ("net", "/network", "Networking")])
-    foot = ('<div class="foot"><span>professionaldude. referrals first, applications second.</span>'
+    foot = ('<div class="foot"><span>produde. referrals first, applications second.</span>'
             '<span><a href="/about">about</a><a href="/about#contact">contact</a></span></div>')
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{esc(title)}</title><style>{CSS}</style></head>'
             f'<body{" data-lane=1" if active else ""}>'
-            f'<div class="bar"><b><a href="/">professionaldude.</a></b>{nav}'
+            f'<div class="bar"><b><a href="/">produde.</a></b>{nav}'
             f'<span class="right">'
             f'<button class="theme" title="theme"></button></span></div>'
             f'{body}{foot}<script>{JS}</script></body></html>')
@@ -829,7 +829,7 @@ def render_entry() -> str:
   </div>
 </div>
 <div class="lastcall"><a class="cta" href="{esc(story['lane'])}">Open {esc(story['lane_name'])}</a></div>"""
-    return _page("professionaldude", body)
+    return _page("produde", body)
 
 
 def render_apply() -> str:
