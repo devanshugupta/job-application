@@ -524,6 +524,9 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
 SCENE = """<div class="scene">
 <svg class="wave" viewBox="0 0 1440 420" preserveAspectRatio="none">
   <circle cx="1150" cy="80" r="64" fill="rgba(201,133,0,.20)"/>
+  <path d="M950,310 L1120,130 L1230,250 L1290,190 L1440,310 Z" fill="rgba(90,107,128,.22)"/>
+  <path d="M1100,310 L1290,90 L1370,180 L1440,140 L1440,310 Z" fill="rgba(90,107,128,.32)"/>
+  <path d="M1262,122 L1290,90 L1318,122 L1290,138 Z" fill="rgba(250,247,241,.85)"/>
   <path d="M0,300 C240,258 430,342 720,310 C1010,278 1210,332 1440,288 L1440,420 L0,420 Z" fill="rgba(42,120,214,.13)"/>
 </svg>
 <svg class="ship" viewBox="0 0 84 64" fill="none">
@@ -637,7 +640,7 @@ def _page(title: str, body: str, active: str = "") -> str:
             f'<title>{esc(title)}</title><style>{CSS}</style></head>'
             f'<body{" data-lane=1" if active else ""}>'
             f'<div class="bar"><b><a href="/">pipeline.</a></b>{nav}'
-            f'<span class="right"><a href="/classic">classic view</a>'
+            f'<span class="right">'
             f'<button class="theme" title="theme"></button></span></div>'
             f'{body}<script>{JS}</script></body></html>')
 
