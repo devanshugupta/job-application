@@ -209,6 +209,11 @@ def _review_and_revise(brain, *, patch: dict, jd_text: str, profile: str,
                        verbose: bool) -> tuple[dict, list]:
     """Brain call 2  REVIEW the tailored resume (repeated bullets? does the experience
     actually fit the JD? does the summary cohere?) and apply at most one correction.
+
+    No cache_blocks here on purpose: everything in this prompt (JD, tailored resume)
+    is unique per job, and Anthropic cache hits need an identical prefix including the
+    system prompt  so the JD from the tailor call can never hit from a review call.
+    Only the system prompt is cacheable, and llm.structured always marks it.
     Returns (patch, review_issues); the patch is re-applied to disk when a revision is
     adopted, so the caller can re-read the tailored Markdown afterwards."""
     tailored_md = _read_tailored_md()

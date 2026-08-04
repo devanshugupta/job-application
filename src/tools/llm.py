@@ -138,6 +138,10 @@ def structured(*, provider: str, model: str, system: str, user: str,
     cache_control'd too, since it never changes within a run. OpenAI has no manual
     cache_control knob (it caches automatically based on prefix match), so there we
     just concatenate cache_blocks + user into one string.
+
+    NOT done (decided Aug 2026): the Anthropic Batches API (50% discount, async) for
+    pipeline runs  worth wiring only if API-mode volume grows; the interactive
+    paste-a-job flow needs synchronous calls, so batching would be pipeline-only.
     """
     if provider == "anthropic":
         import anthropic

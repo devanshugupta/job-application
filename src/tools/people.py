@@ -320,6 +320,11 @@ def find_people(company: dict, jobs: list[dict], brain,
         if m and sig["domain"] and looks_like_name(m.group(1)):
             guesses[m.group(1)] = guess_emails(m.group(1), sig["domain"])
 
+    # candidate + achievements are byte-identical for every company in a run, so they
+    # ride as cache blocks: in API mode only the first company pays for them (prompt
+    # caching); later companies read them from cache at a fraction of the input price.
+    cache_blocks = [f"CANDIDATE:\n{_candidate_block()}",
+                    f"ACHIEVEMENTS (ground every draft claim here):\n{_achievements_excerpt()}"]
     user = json.dumps({
         "company": {"name": company.get("name"), "website": company.get("website"),
                     "heat": company.get("heat"), "funding": company.get("funding"),
@@ -332,12 +337,11 @@ def find_people(company: dict, jobs: list[dict], brain,
         "email_pattern_confirmed": sig["hunter_pattern"],
         "email_pattern_guesses": guesses,
         "already_tracked_people": existing,
-        "candidate": json.loads(_candidate_block()) if _candidate_block().startswith("{") else _candidate_block(),
-        "achievements": _achievements_excerpt(),
     }, indent=1)
 
     out = brain.structured("people", system=PEOPLE_SYSTEM, user=user,
-                           schema=PEOPLE_SCHEMA, max_tokens=2500)
+                           schema=PEOPLE_SCHEMA, max_tokens=2500,
+                           cache_blocks=cache_blocks)
 
     by_name = {p.get("name", "").lower(): p for p in company.setdefault("people", [])}
     added = 0

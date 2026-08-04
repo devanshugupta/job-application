@@ -133,6 +133,7 @@ class FakeBrain:
 
     def structured(self, name, *, system, user, schema, **kw):
         self.seen.append((name, system, user, schema))
+        self.cache_blocks = kw.get("cache_blocks")
         return self.out
 
 
@@ -188,6 +189,10 @@ def test_find_people_merges_and_stamps(monkeypatch, company):
         ["Platform Engineer: reports to Head of Engineering"]
     assert "Sam Rivera" in payload["email_pattern_guesses"]
     assert schema["required"] == ["company_size", "people", "notes"]
+    # candidate + achievements ride as cache blocks (identical across companies,
+    # prompt-cached in API mode), never inside the per-company user payload
+    assert brain.cache_blocks and brain.cache_blocks[0].startswith("CANDIDATE:")
+    assert "candidate" not in payload and "achievements" not in payload
 
 
 def test_find_people_skips_when_fresh_and_force_overrides(company):
