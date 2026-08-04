@@ -27,7 +27,7 @@ import subprocess
 import sys
 import webbrowser
 from datetime import date, datetime
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote
 
 from .. import config
@@ -304,7 +304,9 @@ def serve(port: int = 8765, open_browser: bool = True) -> None:
     url = f"http://localhost:{port}"
     print(f"Dashboard live at {url}  (Ctrl-C to stop)")
     print(f"Resumes filed under {config.APPLICATIONS_DIR}/<Company>/<job-id>/")
-    server = HTTPServer(("127.0.0.1", port), _Handler)
+    # Threading: one slow/idle browser connection must never block the next
+    # page load (the single-threaded HTTPServer made pages queue behind keep-alives).
+    server = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
     # Open the RIGHT page automatically so the buttons reach this backend  landing on
     # the file:// page or an IDE preview instead is exactly what breaks apply/reveal.
     if open_browser:
