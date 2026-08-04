@@ -418,9 +418,9 @@ a.row:hover .ract { opacity:1 }
 .foot { max-width:1440px; margin:44px auto 0; padding:18px 40px 34px; display:flex; justify-content:space-between;
   align-items:baseline; gap:14px; flex-wrap:wrap; color:var(--mut); font-size:13.5px; border-top:1px solid var(--line) }
 .foot a { color:var(--mut); text-decoration:none; margin-left:18px } .foot a:hover { color:var(--accent) }
-.rise { opacity:0; transform:translateY(110px);
-  transition:opacity .8s ease, transform 1s cubic-bezier(.05,.7,.1,1) }
-.rise.far { transform:translateY(170px); transition-duration:1s, 1.35s }
+.rise { opacity:0; transform:translateY(44px);
+  transition:opacity 1.4s ease, transform 3s cubic-bezier(.28,1.9,.42,1) }
+.rise.far { transform:translateY(170px); transition-duration:1.5s, 3.3s }
 .rise.up { opacity:1; transform:none }
 @media (prefers-reduced-motion: reduce) { .rise { opacity:1; transform:none; transition:none } }
 """
@@ -528,7 +528,7 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       if (!el) return;
       el.style.transitionDelay = (i * 90) + 'ms';
       el.classList.add('up');
-      setTimeout(() => el.style.transitionDelay = '', 1600 + i * 90);
+      setTimeout(() => el.style.transitionDelay = '', 3600 + i * 90);
     })));
   }
 }
