@@ -250,7 +250,9 @@ a.row:hover, .row.click:hover { background:var(--panel-hov); cursor:pointer }
 .thead { display:flex; gap:14px; padding:8px 18px 6px; font-size:10.5px; font-weight:700;
   letter-spacing:.6px; text-transform:uppercase; color:var(--mut); border-bottom:1px solid var(--line) }
 .thead .h-who { width:230px } .thead .h-fit { width:105px } .thead .h-date { width:66px }
-.thead .h-prof { width:74px } .thead .h-why { flex:1 } .thead .h-st { width:70px; text-align:right }
+.thead .h-prof { width:74px } .thead .h-tats { width:64px } .thead .h-score { width:58px }
+.thead .h-why { flex:1 } .thead .h-st { width:70px; text-align:right }
+.c-tats { width:64px } .c-score { width:58px; font-weight:650; color:var(--ink) }
 .cell { flex-shrink:0; font-size:12.5px; color:var(--mut); font-variant-numeric:tabular-nums }
 .c-date { width:66px } .c-prof { width:74px; overflow:hidden; text-overflow:ellipsis }
 .ract { display:inline-flex; gap:6px; flex-shrink:0; opacity:.55 }
@@ -363,14 +365,20 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool) -
     url = esc(a.get("url") or "#")
     posted_full = esc((a.get("posted_date") or a.get("date") or "")[:10])
     posted = posted_full[5:]  # MM-DD display
+    tats = a.get("match_score") if _dash._has_resume(a) else None
+    score = a.get("resume_score")
     data = (f' data-co="{esc(a.get("company", ""))}"'
             f' data-fit="{mats if isinstance(mats, (int, float)) else -1}"'
+            f' data-tats="{tats if isinstance(tats, (int, float)) else -1}"'
+            f' data-score="{score if isinstance(score, (int, float)) else -1}"'
             f' data-posted="{posted_full}" data-prof="{esc(a.get("profile") or "")}"')
     prof = esc((a.get("profile") or "").replace("_", " "))
     return (f'<a class="row {cls}{hide}"{grp}{data} href="{url}" target="_blank">'
             f'<span class="mono">{esc(_monogram(a.get("company", "?")))}</span>'
             f'<span class="who"><b>{esc(a.get("company"))}</b><div class="r">{esc(a.get("role"))}</div></span>'
-            f'{fit}<span class="cell c-date">{posted}</span>'
+            f'{fit}<span class="cell c-tats">{tats if tats is not None else ""}</span>'
+            f'<span class="cell c-score">{f"{score}/10" if score is not None else ""}</span>'
+            f'<span class="cell c-date">{posted}</span>'
             f'<span class="cell c-prof">{prof}</span>'
             f'<span class="why">{esc(why)}</span>'
             f'<span class="ract"><button data-api="applied">applied</button>'
@@ -483,10 +491,10 @@ def render_apply() -> str:
   <h1 class="serif" style="font-size:30px">Applications</h1>
   <div class="storyline">{story}Referral holds are marked. Everything green is safe to send.</div>
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
-  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
+  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
   <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span>
     <button class="runbtn" onclick="fetch('/api/run-pipeline').then(r => r.json()).then(d => this.textContent = 'running').catch(() => this.textContent = 'needs server')">run sweep</button></div>
-  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
+  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Why it is here</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
   <div class="rows" style="margin-top:26px"><a class="row" href="/network" style="justify-content:space-between">
     <span class="who" style="width:auto"><b>Done applying?</b><div class="r">people are waiting in Networking</div></span>
     <span class="pill p-nav">Networking</span></a></div>
