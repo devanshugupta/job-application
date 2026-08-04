@@ -478,9 +478,8 @@ function copyText(btn, txt) { navigator.clipboard.writeText(txt).then(() => {
   btn.textContent = 'Copied'; setTimeout(() => btn.textContent = was, 1400); }); }
 document.querySelectorAll('.more[data-for]').forEach(m => m.addEventListener('click', () => {
   const hid = [...document.querySelectorAll('.hidden[data-grp="' + m.dataset.for + '"]')];
-  hid.slice(0, 20).forEach(r => r.classList.remove('hidden'));
-  const left = Math.max(hid.length - 20, 0);
-  if (left) m.textContent = 'show ' + Math.min(20, left) + ' more'; else m.remove(); }));
+  hid.slice(0, 5).forEach(r => r.classList.remove('hidden'));
+  if (hid.length <= 5) m.remove(); }));
 document.addEventListener('click', e => {
   const b = e.target.closest('.ract button');
   if (!b) return;
@@ -660,15 +659,16 @@ document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click'
 refreshCatalog();
 const comore = document.getElementById('comore');
 if (comore) comore.addEventListener('click', () => {
-  document.querySelectorAll('.cofold').forEach(el => el.style.display = '');
-  window.coExpanded = true; comore.remove();
+  [...document.querySelectorAll('.cofold')].slice(0, 5).forEach(el => {
+    el.classList.remove('cofold'); el.style.display = '';
+  });
+  if (!document.querySelector('.cofold')) comore.remove();
 });
 const q = document.getElementById('q');
 if (q) q.addEventListener('input', () => {
   const term = q.value.trim().toLowerCase();
   // folded companies join the search; refold when the box empties
-  document.querySelectorAll('.cofold').forEach(el =>
-    el.style.display = (term || window.coExpanded) ? '' : 'none');
+  document.querySelectorAll('.cofold').forEach(el => el.style.display = term ? '' : 'none');
   const cm = document.getElementById('comore');
   if (cm) cm.classList.toggle('qhide', !!term);
   document.querySelectorAll('.rows:not(#catalog) .row').forEach(r => {
@@ -1120,13 +1120,13 @@ def render_apply() -> str:
         rows += _app_row(a, "go", "ready", "p-go", "",
                          "ready" if i >= 5 else "")
     if len(ready) > 5:
-        rows += f'<div class="more" data-for="ready">show {min(20, len(ready) - 5)} more</div>'
+        rows += '<div class="more" data-for="ready">show more</div>'
     frows = ""
     for i, a in enumerate(fresh):
         frows += _app_row(a, "", "tailor", "p-mut", "",
                           "fresh" if i >= 5 else "")
     if len(fresh) > 5:
-        frows += f'<div class="more" data-for="fresh">show {min(20, len(fresh) - 5)} more</div>'
+        frows += '<div class="more" data-for="fresh">show more</div>'
 
     body = f"""<div class="wrap">
   <h1 class="serif" style="font-size:36px">Applications</h1>
@@ -1250,7 +1250,7 @@ def render_network() -> str:
     blocks += "".join(f'<div class="coblock cofold" style="display:none">{b}</div>'
                       for b in blist[5:])
     if len(blist) > 5:
-        blocks += f'<div class="more" id="comore">show {len(blist) - 5} more companies</div>'
+        blocks += '<div class="more" id="comore">show more</div>'
     if not blist:
         blocks = ('<div class="rows"><div class="row"><span class="why">No companies '
                   'scouted yet. Paste one above to start.</span></div></div>')
