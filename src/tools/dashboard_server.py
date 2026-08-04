@@ -196,6 +196,50 @@ def pipeline_status(tail_lines: int = 4) -> dict:
 
 _FOCUS_MTIME = None
 
+
+_DEADCHECK_MARKER = "deadcheck_ready.json"
+_DEADCHECK_TTL = 1800  # at most one sweep per 30 min, however often /apply loads
+
+
+def _deadcheck_ready_sync() -> dict:
+    """Re-probe every ready row's posting via the ATS JSON APIs and mark vanished
+    ones stale. API-backed URLs only (greenhouse/lever/ashby/workday): a 404 or
+    empty payload there IS the posting being gone; plain pages are skipped because
+    login walls read as dead."""
+    checked = marked = 0
+    for a in tracker.list_applications():
+        if (a.get("removed") or a.get("stale") or not dashboard._has_resume(a)
+                or a.get("status") in dashboard._SUBMITTED):
+            continue
+        r = jd_fetch.fetch_jd(a.get("url") or "", allow_browser=False)
+        if not r["source"].endswith("-api"):
+            continue  # only trust the ATS API's word on liveness
+        checked += 1
+        if not r["looks_complete"]:
+            marked += 1
+            tracker.update_application(a["url"], stale=True, deadcheck={
+                "status": "dead", "chars": len(r["text"].strip()),
+                "at": datetime.now().strftime("%Y-%m-%d %H:%M")})
+    return {"checked": checked, "marked_stale": marked}
+
+
+def start_deadcheck_ready() -> dict:
+    """Fire-and-forget liveness sweep, throttled by a marker file."""
+    import threading
+    import time
+    marker = config.DATA_DIR / _DEADCHECK_MARKER
+    try:
+        last = json.loads(marker.read_text())["at"]
+    except (OSError, ValueError, KeyError):
+        last = 0
+    if time.time() - last < _DEADCHECK_TTL:
+        return {"started": False, "reason": "checked recently"}
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(json.dumps({"at": time.time()}))
+    threading.Thread(target=_deadcheck_ready_sync, daemon=True).start()
+    return {"started": True}
+
+
 class _Handler(BaseHTTPRequestHandler):
     def _send(self, code: int, body: bytes, ctype: str) -> None:
         self.send_response(code)
@@ -210,6 +254,8 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         # Company folders contain spaces, so served paths arrive percent-encoded.
         path = unquote(self.path.split("?")[0]).lstrip("/")
+        if path == "api/deadcheck-ready":
+            return self._json(200, start_deadcheck_ready())
         if path == "api/ping":
             return self._json(200, {"ok": True})
         if path in ("api/job-status", "api/job-row"):
@@ -227,7 +273,7 @@ class _Handler(BaseHTTPRequestHandler):
                     "awaiting_brain": bool(pending_packets()),
                     "score": rec.get("resume_score"), "match": rec.get("match_pct")})
             return self._json(200, {"html": focus._app_row(
-                rec, "go", "ready", "p-go", "just added, tailored and verified", "")})
+                rec, "go", "ready", "p-go", "", "")})
         if path == "api/pipeline-status":
             return self._json(200, pipeline_status())
         # Focus UI (the official interface): /, /apply, /network, /company/<slug>.

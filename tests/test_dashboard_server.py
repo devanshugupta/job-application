@@ -277,3 +277,31 @@ def test_settings_brain_and_keys(server, tmp_data, monkeypatch):
     assert json.loads((root / "config" / "settings.json").read_text())["brain"] == "api"
     env = (root / ".env").read_text()
     assert "ANTHROPIC_API_KEY=sk-test-123" in env and "OPENAI_API_KEY" not in env
+
+
+def test_deadcheck_ready_marks_api_backed_dead_rows(tmp_data, monkeypatch, job):
+    # the tracked Acme job is greenhouse; simulate its API saying the posting is gone
+    monkeypatch.setattr(dashboard_server.jd_fetch, "fetch_jd",
+                        lambda url, allow_browser=True: {"text": "", "source": "greenhouse-api",
+                                                         "looks_complete": False})
+    out = dashboard_server._deadcheck_ready_sync()
+    assert out["checked"] == 1 and out["marked_stale"] == 1
+    rec = tracker.list_applications()[-1]
+    assert rec["stale"] is True and rec["deadcheck"]["status"] == "dead"
+
+
+def test_deadcheck_ready_skips_non_api_sources(tmp_data, monkeypatch, job):
+    monkeypatch.setattr(dashboard_server.jd_fetch, "fetch_jd",
+                        lambda url, allow_browser=True: {"text": "", "source": "http",
+                                                         "looks_complete": False})
+    out = dashboard_server._deadcheck_ready_sync()
+    assert out["checked"] == 0 and out["marked_stale"] == 0
+    assert not tracker.list_applications()[-1].get("stale")
+
+
+def test_deadcheck_ready_endpoint_throttles(server, tmp_data, monkeypatch):
+    monkeypatch.setattr(dashboard_server, "_deadcheck_ready_sync", lambda: {"checked": 0})
+    r = json.loads(urllib.request.urlopen(server + "/api/deadcheck-ready").read())
+    assert r["started"] is True
+    r2 = json.loads(urllib.request.urlopen(server + "/api/deadcheck-ready").read())
+    assert r2["started"] is False

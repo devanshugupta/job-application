@@ -552,6 +552,8 @@ document.querySelectorAll('button[data-boot]').forEach(b => b.addEventListener('
   .then(r => { if (!r.ok) throw 0; b.textContent = 'created, refresh'; })
   .catch(() => b.textContent = 'needs server');
 }));
+if (document.getElementById('readybox'))
+  fetch('/api/deadcheck-ready').catch(() => {});
 const addForm = document.getElementById('addjob');
 if (addForm) addForm.addEventListener('submit', e => {
   e.preventDefault();
@@ -870,7 +872,7 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
             f'<span class="cell c-score{score_cls}">{f"{score}/10" if score is not None else ""}</span>'
             f'<span class="cell c-date">{posted}</span>'
             f'<span class="cell c-prof">{prof}</span>'
-            f'<span class="why">{esc(why)}</span>'
+            f'{f'<span class="why">{esc(why)}</span>' if why else ''}'
             f'<span class="ract">{acts or default_acts}</span>'
             f'<span class="pill {pill_cls}">{esc(pill)}</span></a>')
 
@@ -882,7 +884,7 @@ def _person_row(item: dict, cls: str, pill: str, pill_cls: str, why: str) -> str
     return (f'<a class="row {cls}" href="/company/{slug}">'
             f'<span class="mono">{esc(_monogram(name))}</span>'
             f'<span class="who"><b>{esc(name)}</b><div class="r">{esc(c["name"])} · {esc(p.get("title", ""))}</div></span>'
-            f'<span class="why">{esc(why)}</span>'
+            f'{f'<span class="why">{esc(why)}</span>' if why else ''}'
             f'<span class="pill {pill_cls}">{esc(pill)}</span></a>')
 
 
@@ -966,7 +968,7 @@ THEAD = ('<div class="thead"><span style="width:34px"></span>'
          '<span class="h-score sortable" data-key="score">Score</span>'
          '<span class="h-date sortable" data-key="posted">Posted</span>'
          '<span class="h-prof sortable" data-key="prof">Track</span>'
-         '<span class="h-why">Note</span><span class="h-st">Status</span></div>')
+         '<span class="h-st">Status</span></div>')
 
 
 def _catalog() -> tuple[str, dict]:
@@ -1024,7 +1026,7 @@ def render_apply() -> str:
         rows += f'<div class="more" data-for="ready">show {min(20, len(ready) - 5)} more</div>'
     frows = ""
     for i, a in enumerate(fresh):
-        frows += _app_row(a, "", "tailor", "p-mut", "found today",
+        frows += _app_row(a, "", "tailor", "p-mut", "",
                           "fresh" if i >= 5 else "")
     if len(fresh) > 5:
         frows += f'<div class="more" data-for="fresh">show {min(20, len(fresh) - 5)} more</div>'
@@ -1035,10 +1037,10 @@ def render_apply() -> str:
   {_applied_panel()}
   <input id="q" class="search" type="search" placeholder="Search company, role, track">
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
-  <div class="rows" id="readybox"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Note</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
+  <div class="rows" id="readybox"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing tailored yet. Run the pipeline.</span></div>'}</div>
   <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span>
     <button class="runbtn" onclick="fetch('/api/run-pipeline').then(r => r.json()).then(d => this.textContent = 'running').catch(() => this.textContent = 'needs server')">run sweep</button></div>
-  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-why">Note</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
+  <div class="rows"><div class="thead"><span style="width:34px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
   {_catalog_section()}
   {_apply_charts()}
   <div class="rows" style="margin-top:26px"><a class="row" href="/network" style="justify-content:space-between">
