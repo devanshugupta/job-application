@@ -885,7 +885,7 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
     prof = esc((a.get("profile") or "").replace("_", " "))
     default_acts = ('<button data-api="applied">apply</button>'
                     '<button data-api="reveal">resume</button>'
-                    '<button data-api="remove">hide</button>')
+                    '<button data-api="remove" title="remove from the list">&minus;</button>')
     tats_cls = ("" if not isinstance(tats, (int, float))
                 else " v-hi" if tats >= 85 else " v-mid" if tats >= 70 else " v-lo")
     score_cls = ("" if not isinstance(score, (int, float))
@@ -934,6 +934,10 @@ def render_entry() -> str:
     story = _story(people, apps)
     n_send = len(people["replies"]) + len(people["sends"]) + len(people["due"])
     n_ready = len(apps["ready"])
+    # doors = ways in: every ready application plus ONE per company with a pending
+    # networking action (3 people at one company is still one door)
+    n_co = len({i["company"]["name"]
+                for k in ("replies", "sends", "due") for i in people[k]})
     applied = sum(1 for a in tracker.list_applications()
                   if a.get("status") in _dash._SUBMITTED and not a.get("removed"))
     touches = [o for c in companies for p in c.get("people", []) for o in _touches(p)]
@@ -944,7 +948,7 @@ def render_entry() -> str:
     touches_today = sum(1 for o in touches if o.get("date") == today_iso)
     apps_today = sum(1 for a in tracker.list_applications()
                      if (a.get("applied_date") or "")[:10] == today_iso and not a.get("removed"))
-    open_loops = n_send + min(n_ready, 3)
+    open_loops = n_ready + n_co
     hour = datetime.now().hour
     greet = ("Morning" if 5 <= hour < 14 else "Afternoon" if 14 <= hour < 17
              else "Evening" if 17 <= hour < 20 else "Damn.")
@@ -991,7 +995,7 @@ def render_entry() -> str:
     <a class="door" href="/apply"><h3>Applications</h3>
       <p>tailored, verified, ready to send</p><div class="cue">{f"{n_ready} ready" if n_ready else "sweep runs tonight"}</div></a>
     <a class="door" href="/network"><h3>Networking</h3>
-      <p>people who can open doors for you</p><div class="cue">{f"{n_send} waiting" if n_send else "scout a company"}</div></a>
+      <p>people who can open doors for you</p><div class="cue">{f"{n_co} compan{'ies' if n_co != 1 else 'y'}, {n_send} people waiting" if n_co else "scout a company"}</div></a>
   </div>
 </div>
 <div class="hint">v</div>
