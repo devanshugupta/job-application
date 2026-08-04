@@ -316,10 +316,12 @@ body::after { background:radial-gradient(520px 380px at 82% 92%, rgba(201,133,0,
 .door h3 { font-family:Georgia,serif; font-size:25px; font-weight:600; margin-bottom:3px }
 .door p { color:var(--mut); font-size:15.5px }
 .door .cue { margin-top:18px; font-size:14.5px; font-weight:700; color:var(--accent) }
-.hint { text-align:center; color:var(--mut); padding-bottom:20px; animation:bob 3s ease-in-out infinite }
+.hint { text-align:center; color:var(--mut); padding-bottom:20px; animation:dip 2.2s ease-in-out infinite }
 .hint svg { display:inline-block }
+.footmark { text-align:center; color:var(--mut); padding:34px 0 4px }
 a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline:none }
 @keyframes bob { 50% { transform:translateY(2px) } }
+@keyframes dip { 50% { transform:translateY(10px) } }
 .rows { background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 4px 18px rgba(30,20,0,.04) }
 .row { display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid var(--line); color:inherit; text-decoration:none }
 .row:last-child { border-bottom:none }
@@ -889,16 +891,37 @@ def _candidate() -> dict:
         return {}
 
 
+def _mark(size: int, ink: str = "currentColor") -> str:
+    """The vouch mark: two interlocked Vs, your word (ink) woven with theirs (blue)."""
+    return (f'<svg width="{size}" height="{round(size * 40 / 64)}" viewBox="0 0 64 40" '
+            f'fill="none" aria-hidden="true">'
+            f'<path d="M4 6 L26 36 L48 6" stroke="{ink}" stroke-width="7" '
+            f'stroke-linecap="round" stroke-linejoin="round"/>'
+            f'<path d="M16 6 L38 36 L60 6" stroke="var(--accent)" stroke-width="7" '
+            f'stroke-linecap="round" stroke-linejoin="round"/></svg>')
+
+
+_FAVICON = "data:image/svg+xml," + (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 40" fill="none">'
+    '<path d="M4 6 L26 36 L48 6" stroke="#1c1b18" stroke-width="9" '
+    'stroke-linecap="round" stroke-linejoin="round"/>'
+    '<path d="M16 6 L38 36 L60 6" stroke="#2a78d6" stroke-width="9" '
+    'stroke-linecap="round" stroke-linejoin="round"/></svg>'
+).replace('<', '%3C').replace('>', '%3E').replace('#', '%23').replace('"', "'").replace(' ', '%20')
+
+
 def _page(title: str, body: str, active: str = "") -> str:
     nav = "".join(
         f'<a href="{h}" class="{"on" if active == k else ""}">{t}</a>'
         for k, h, t in [("apply", "/apply", "Applications"), ("net", "/network", "Networking")])
-    foot = ('<div class="foot"><span>vouch. referrals first, applications second.</span>'
+    foot = (f'<div class="footmark">{_mark(30)}</div>'
+            '<div class="foot"><span>vouch. referrals first, applications second.</span>'
             '<span><a href="/about">about</a><a href="/about#contact">contact</a>'
             '<a href="/settings">settings</a></span></div>')
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>{esc(title)}</title>'f'<script>if(!matchMedia("(prefers-reduced-motion: reduce)").matches)'f'document.documentElement.classList.add("anim");</script>'f'<style>{CSS}</style></head>'
+            f'<title>{esc(title)}</title>'
+            f'<link rel="icon" href="{_FAVICON}">'f'<script>if(!matchMedia("(prefers-reduced-motion: reduce)").matches)'f'document.documentElement.classList.add("anim");</script>'f'<style>{CSS}</style></head>'
             f'<body{" data-lane=1" if active else ""}>'
             f'<div class="bar"><b><a href="/">vouch.</a></b>'
             f'<span class="mid">{nav}</span>'
@@ -1044,7 +1067,7 @@ def render_entry() -> str:
       <p>people who can open doors for you</p><div class="cue">{f"{n_co} compan{'ies' if n_co != 1 else 'y'}, {n_send} people to message" if n_co else "scout a company"}</div></a>
   </div>
 </div>
-<div class="hint">v</div>
+<div class="hint">{_mark(30)}</div>
 <div class="glance">
   <h2>The moves that matter.</h2>
   <div class="gs">Everything else can wait.</div>
@@ -1265,7 +1288,7 @@ def render_network() -> str:
   <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap">
     <input id="q" class="search" type="search" placeholder="Search companies and people" style="flex:1; min-width:260px">
     <form id="addco" class="addbar" style="margin:14px 0 18px auto; min-width:220px">
-      <input id="addcourl" type="url" required placeholder="paste url" style="width:150px">
+      <input id="addcourl" type="url" required placeholder="random company url" style="width:170px">
       <button class="runbtn" style="margin-left:0">find people</button></form>
   </div>
   {blocks}
