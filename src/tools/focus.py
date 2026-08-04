@@ -493,7 +493,7 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     if (ship) ship.style.transform = 'translateX(' + Math.min(scrollY * 0.55, innerWidth * 0.72) + 'px) translateY(' +
       (dip(0) + Math.sin(scrollY / 55) * 5) + 'px) rotate(' + Math.sin(scrollY / 70) * 4 + 'deg)';
   }, { passive: true });
-  const drops = ['\\ud83d\\udcc4', '\\ud83d\\udcbc', '\\ud83d\\ude80', '\\u2728', '\\u2615'];
+  const drops = ['\\ud83d\\udc7b', '\\ud83e\\udd21', '\\ud83e\\udd72', '\\ud83e\\udd1e', '\\ud83d\\udcb8', '\\ud83d\\udea9'];
   let lastDrop = 0;
   addEventListener('mousemove', e => {
     const now = performance.now();
