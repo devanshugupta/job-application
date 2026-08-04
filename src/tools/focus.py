@@ -915,6 +915,18 @@ def _person_row(item: dict, cls: str, pill: str, pill_cls: str, why: str) -> str
 
 # ------------------------------------------------------------------ pages
 
+def _progress_line(touches_today: int, apps_today: int) -> str:
+    """Concrete tally of what actually went out today; no fake countdown."""
+    parts = []
+    if touches_today:
+        parts.append(f"{touches_today} ask{'s' if touches_today != 1 else ''} sent")
+    if apps_today:
+        parts.append(f"{apps_today} application{'s' if apps_today != 1 else ''} in")
+    if not parts:
+        return ""
+    return f'<div class="progress"><b>Today so far:</b> {", ".join(parts)}.</div>'
+
+
 def render_entry() -> str:
     companies = _net_companies()
     people = _people_actions(companies)
@@ -929,9 +941,9 @@ def render_entry() -> str:
     rate = f"{round(100 * replies / len(touches))}%" if touches else "-"
 
     today_iso = date.today().isoformat()
-    done_today = sum(1 for o in touches if o.get("date") == today_iso)
-    done_today += sum(1 for a in tracker.list_applications()
-                      if (a.get("applied_date") or "")[:10] == today_iso and not a.get("removed"))
+    touches_today = sum(1 for o in touches if o.get("date") == today_iso)
+    apps_today = sum(1 for a in tracker.list_applications()
+                     if (a.get("applied_date") or "")[:10] == today_iso and not a.get("removed"))
     open_loops = n_send + min(n_ready, 3)
     hour = datetime.now().hour
     greet = ("Morning" if 5 <= hour < 14 else "Afternoon" if 14 <= hour < 17
@@ -974,7 +986,7 @@ def render_entry() -> str:
   <div class="count">{esc(greet_line)}</div>
   <h1 id="typer" data-a="{esc(head_a)}" data-b="{esc(head_b)}">{esc(head_a)}<em>{esc(head_b)}</em></h1>
   <div class="sub">{esc(story['teaser'])}</div>
-  {f'<div class="progress"><b>{done_today} done today.</b> {f"{open_loops} to go." if open_loops else "Clean slate."}</div>' if done_today else ''}
+  {_progress_line(touches_today, apps_today)}
   <div class="doors">
     <a class="door" href="/apply"><h3>Applications</h3>
       <p>tailored, verified, ready to send</p><div class="cue">{f"{n_ready} ready" if n_ready else "sweep runs tonight"}</div></a>
@@ -984,12 +996,12 @@ def render_entry() -> str:
 </div>
 <div class="hint">v</div>
 <div class="glance">
-  <h2>Here is the whole day.</h2>
-  <div class="gs">Done when this list is empty.</div>
+  <h2>The moves that matter.</h2>
+  <div class="gs">Everything else can wait.</div>
   <div class="rows">{glance_rows or '<div class="row"><span class="why">Nothing urgent. The sweep runs tonight.</span></div>'}</div>
 </div>
 <div class="glance">
-  <h2>It is working.</h2>
+  <h2>{"It is working." if replies or applied else "Proof piles up here."}</h2>
   <div class="momentum">
     <div><b>{rate}</b><span>reply rate</span></div>
     <div><b>{replies}</b><span>replies</span></div>
