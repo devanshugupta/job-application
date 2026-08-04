@@ -271,12 +271,16 @@ def test_settings_brain_and_keys(server, tmp_data, monkeypatch):
     req = urllib.request.Request(server + "/api/settings",
                                  data=json.dumps({"section": "brain",
                                                   "data": {"brain": "api", "ANTHROPIC_API_KEY": "sk-test-123",
-                                                           "OPENAI_API_KEY": ""}}).encode(),
+                                                           "OPENAI_API_KEY": "",
+                                                           "SERPER_API_KEY": "serp-456",
+                                                           "HUNTER_API_KEY": ""}}).encode(),
                                  headers={"Content-Type": "application/json"})
     assert urllib.request.urlopen(req).status == 200
     assert json.loads((root / "config" / "settings.json").read_text())["brain"] == "api"
     env = (root / ".env").read_text()
     assert "ANTHROPIC_API_KEY=sk-test-123" in env and "OPENAI_API_KEY" not in env
+    # people-finder provider keys ride the same save; blank still means keep/absent
+    assert "SERPER_API_KEY=serp-456" in env and "HUNTER_API_KEY" not in env
 
 
 def test_deadcheck_ready_marks_api_backed_dead_rows(tmp_data, monkeypatch, job):

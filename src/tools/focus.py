@@ -101,7 +101,10 @@ def _first_draft(c: dict) -> str:
 
 
 def _person_draft(c: dict, p: dict) -> str:
-    """The blockquote under this person's ### heading in the dossier."""
+    """The person's draft: people-scout writes it on the record, dossiers hold it as
+    the blockquote under the person's ### heading."""
+    if p.get("draft"):
+        return p["draft"]
     first = p["name"].split("[")[0].strip().split()[0].lower()
     for chunk in re.split(r"^### ", _dossier_text(c), flags=re.M)[1:]:
         lines = chunk.splitlines()
@@ -468,7 +471,8 @@ html.anim .momentum, html.anim .metapills, html.anim .heroblock > *:not(.aurora)
 
 JS = """
 function copyText(btn, txt) { navigator.clipboard.writeText(txt).then(() => {
-  btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy message', 1400); }); }
+  const was = btn.textContent;
+  btn.textContent = 'Copied'; setTimeout(() => btn.textContent = was, 1400); }); }
 document.querySelectorAll('.more[data-for]').forEach(m => m.addEventListener('click', () => {
   const hid = [...document.querySelectorAll('.hidden[data-grp="' + m.dataset.for + '"]')];
   hid.slice(0, 20).forEach(r => r.classList.remove('hidden'));
@@ -1220,11 +1224,20 @@ def render_company(slug: str) -> str | None:
                                     + quote_plus(f"{name} {c['name']}"))
         log = "; ".join(f'{o.get("date","")} {o.get("channel","")} touch {o.get("touch_n","")}'
                         f' {o.get("outcome","")}' for o in t_) if t_ else ""
+        email = p.get("email") or ""
+        email_note = " (guessed)" if p.get("email_source") == "guessed" else ""
+        email_html = ""
+        if email:
+            ejs = email.replace("\\", "\\\\").replace("'", "\\'")
+            email_html = (f'<button class="copybtn" data-copied="{esc(email)}" '
+                          f'onclick="event.preventDefault();event.stopPropagation();'
+                          f'copyText(this, \'{esc(ejs)}\')">{esc(email)}{email_note}</button>')
         prows += (f'<a class="row {cls}" href="{esc(url)}" target="_blank">'
                   f'<span class="mono">{esc(_monogram(name))}</span>'
                   f'<span class="who"><b>{esc(name)}</b><div class="r">{esc(p.get("title", ""))}</div></span>'
                   f'<span class="why">{esc(p.get("hook", ""))[:80]}'
                   f'{f"<br><span style=\"font-size:11.5px\">{esc(log)}</span>" if log else ""}</span>'
+                  f'{email_html}'
                   f'<span class="pill {pcls}">{state}</span></a>')
 
     apps = [a for a in tracker.list_applications()
@@ -1243,7 +1256,8 @@ def render_company(slug: str) -> str | None:
     <h1 class="serif">{esc(c["name"])}</h1></div>
   <div class="metapills"><span class="pill {HEAT_PILL.get((c.get("heat") or "").upper(), "p-mut")}">{esc((c.get("heat") or "?").upper())}</span>
     <span class="pill p-mut">scouted {esc(c.get("last_scouted", "?"))}</span>
-    {f'<a class="pbtn" href="{esc(c.get("website"))}" target="_blank">website</a>' if c.get("website") else ''}</div>
+    {f'<a class="pbtn" href="{esc(c.get("website"))}" target="_blank">website</a>' if c.get("website") else ''}
+    {f'<a class="pbtn" href="mailto:{esc(c.get("generic_inbox"))}">{esc(c.get("generic_inbox"))}</a>' if c.get("generic_inbox") else ''}</div>
   <div class="meta"><b>{esc(fit_main)}</b>{f' <span style="font-size:12.5px">{esc(fit_extra)}</span>' if fit_extra else ''}</div>
   {draft_html}{acts_html}{stats_html}
   <div class="sech"><h2>People</h2><span class="n">ranked by reachability</span></div>
@@ -1368,6 +1382,12 @@ def render_settings() -> str:
     <div class="fld"><label>OpenAI API key</label>
       <input name="OPENAI_API_KEY" type="password" placeholder="{esc(_mask_key(env_text, "OPENAI_API_KEY") or "sk-...")}" autocomplete="off">
       <span class="hint2">{esc(_mask_key(env_text, "OPENAI_API_KEY") or "not set")} · optional, for per-task routing</span></div>
+    <div class="fld"><label>Serper API key</label>
+      <input name="SERPER_API_KEY" type="password" placeholder="{esc(_mask_key(env_text, "SERPER_API_KEY") or "optional")}" autocomplete="off">
+      <span class="hint2">{esc(_mask_key(env_text, "SERPER_API_KEY") or "not set")} · optional, gives the people finder Google search (serper.dev, free tier)</span></div>
+    <div class="fld"><label>Hunter API key</label>
+      <input name="HUNTER_API_KEY" type="password" placeholder="{esc(_mask_key(env_text, "HUNTER_API_KEY") or "optional")}" autocomplete="off">
+      <span class="hint2">{esc(_mask_key(env_text, "HUNTER_API_KEY") or "not set")} · optional, confirms company email patterns (hunter.io, free tier)</span></div>
   </div><button class="savebtn">Save</button> <span class="n" id="brainmsg"></span></form>
 
   <div class="sech"><h2>Setup checklist</h2><span class="n">what the pipeline needs before it can work for you</span></div>

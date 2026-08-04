@@ -360,7 +360,8 @@ class _Handler(BaseHTTPRequestHandler):
                     os.replace(tmp, sf)
                     envf = config.ROOT / ".env"
                     lines = envf.read_text().splitlines() if envf.exists() else []
-                    for name in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+                    for name in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY",
+                                 "SERPER_API_KEY", "HUNTER_API_KEY"):
                         val = (data.get(name) or "").strip()
                         if not val:
                             continue  # blank = keep whatever is there

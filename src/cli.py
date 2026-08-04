@@ -27,7 +27,7 @@ from .brain import BrainPending, get_brain, pending_packets
 from .tools import dashboard as dash
 from .sources import scoutbetter
 from .tools import (artifacts, ashby, ats, dashboard_server, discover, feeds, finder,
-                    lever, profiles, runlog, scoring, tailor, tracker, usage)
+                    lever, people, profiles, runlog, scoring, tailor, tracker, usage)
 from .tools.browser import Browser
 from .tools import greenhouse as gh
 
@@ -404,6 +404,58 @@ def cmd_scout(query: str, hours: int, h1b: bool, limit: int, save: bool) -> None
         print(f"\nSaved to tracker. Tailor with: python -m src.cli pipeline --from-tracker")
 
 
+def cmd_people(query: str | None, force: bool, brain_mode: str | None) -> None:
+    """Find who to contact (hiring manager, recruiter) per company, free signals only.
+
+    Scouts every company that currently has an open tracked job, or just the one
+    matching --company. Site + JD signals, optional Serper/Hunter keys, one brain
+    call per company, cached 30 days. In manual mode each company pauses on a
+    data/brain packet; answer it and re-run."""
+    mode = brain_mode or config.brain_mode()
+    if mode == "api":
+        _require_key()
+    brain = get_brain(mode)
+    db = people.load_companies()
+    companies = db.get("companies", [])
+
+    open_by_company: dict[str, list[dict]] = {}
+    for a in tracker.list_applications():
+        if a.get("removed") or a.get("status") in dash._SUBMITTED or a.get("stale"):
+            continue
+        open_by_company.setdefault((a.get("company") or "").lower(), []).append(a)
+
+    if query:
+        targets = [c for c in companies if query.lower() in (c.get("name") or "").lower()]
+        if not targets:
+            print(f"No tracked company matches '{query}'. Companies live in "
+                  f"data/network/companies.json (run the scout first).")
+            return
+    else:
+        targets = [c for c in companies if (c.get("name") or "").lower() in open_by_company]
+
+    if not targets:
+        print("No companies with open tracked jobs to scout.")
+        return
+    pending = 0
+    for c in targets:
+        jobs = open_by_company.get((c.get("name") or "").lower(), [])
+        try:
+            r = people.find_people(c, jobs, brain, force=force)
+        except BrainPending as e:
+            pending += 1
+            print(f"  ⏸ {c.get('name')}: {e}")
+            continue
+        if r.get("skipped"):
+            print(f"  = {r['company']}: scouted in the last 30 days, skipping (--force overrides)")
+        else:
+            print(f"  + {r['company']}: {r['added']} new, {r['total']} tracked, "
+                  f"size={r.get('size')}  {r.get('notes', '')[:70]}")
+    people.save_companies(db)
+    if pending:
+        print(f"\n{pending} brain packet(s) await answers in data/brain/. "
+              f"Answer them and re-run this command.")
+
+
 def cmd_status(verbose: bool = False) -> None:
     apps = tracker.list_applications()
     if not apps:
@@ -627,6 +679,13 @@ def main(argv: list[str] | None = None) -> None:
     p_scout.add_argument("--limit", type=int, default=20)
     p_scout.add_argument("--save", action="store_true", help="record results as 'found' rows")
 
+    p_people = sub.add_parser("people",
+                              help="Find who to contact per company (hiring manager, "
+                                   "recruiter), free signals, no LinkedIn login")
+    p_people.add_argument("--company", default=None, help="one company (name substring)")
+    p_people.add_argument("--force", action="store_true", help="ignore the 30-day cache")
+    p_people.add_argument("--brain", choices=["api", "manual"], default=None)
+
     p_status = sub.add_parser("status", help="Show application history")
     p_status.add_argument("--verbose", action="store_true")
     p_dash = sub.add_parser("dashboard", help="Regenerate the scores dashboard")
@@ -681,6 +740,8 @@ def main(argv: list[str] | None = None) -> None:
         cmd_apply(args.url, args.model, args.headless, args.profile)
     elif args.command == "scout":
         cmd_scout(args.query, args.hours, args.h1b, args.limit, args.save)
+    elif args.command == "people":
+        cmd_people(args.company, args.force, args.brain)
     elif args.command == "status":
         cmd_status(verbose=args.verbose)
     elif args.command == "dashboard":
