@@ -565,6 +565,23 @@ document.querySelectorAll('button[data-boot]').forEach(b => b.addEventListener('
 }));
 if (document.getElementById('readybox'))
   fetch('/api/deadcheck-ready').catch(() => {});
+const addCo = document.getElementById('addco');
+if (addCo) addCo.addEventListener('submit', e => {
+  e.preventDefault();
+  const inp = document.getElementById('addcourl'), url = inp.value.trim();
+  const btn = addCo.querySelector('button');
+  if (!url) return;
+  fetch('/api/add-company', { method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ url }) })
+  .then(r => r.json().then(d => ({ ok: r.ok, d })))
+  .then(({ ok, d }) => {
+    if (!ok) { alert(d.error || 'could not add'); return; }
+    if (d.already) { alert(d.company + ' is already tracked. Find it below.'); return; }
+    inp.value = ''; inp.placeholder = d.company + ' added, scouting people. Refresh in a minute.';
+    btn.textContent = 'added'; setTimeout(() => btn.textContent = 'add + scout', 2500);
+  })
+  .catch(() => { btn.textContent = 'needs server'; setTimeout(() => btn.textContent = 'add + scout', 1500); });
+});
 const addForm = document.getElementById('addjob');
 if (addForm) addForm.addEventListener('submit', e => {
   e.preventDefault();
@@ -1184,14 +1201,18 @@ def render_network() -> str:
             f'<a class="pbtn" style="margin-left:auto" href="/company/{slug}">full page</a></div>'
             f'<div class="rows">{prows}</div>')
     if not blocks:
-        blocks = ('<div class="sech"><h2>Companies</h2></div><div class="rows">'
-                  '<div class="row"><span class="why">No companies scouted yet. '
-                  'Run /scout with a company name.</span></div></div>')
+        blocks = ('<div class="rows"><div class="row"><span class="why">No companies '
+                  'scouted yet. Paste one above to start.</span></div></div>')
 
     body = f"""<div class="wrap">
   <h1 class="serif" style="font-size:36px">Networking</h1>
   <div class="storyline">{story_line} Green rows have a message ready to copy.</div>
-  <input id="q" class="search" type="search" placeholder="Search companies and people">
+  <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap">
+    <input id="q" class="search" type="search" placeholder="Search companies and people" style="flex:1; min-width:260px">
+    <form id="addco" class="addbar" style="margin:14px 0 18px; min-width:300px">
+      <input id="addcourl" type="url" required placeholder="Paste a company site or LinkedIn company URL">
+      <button class="runbtn" style="margin-left:0">add + scout</button></form>
+  </div>
   {blocks}
   {_network_charts(companies)}
   <div class="rows" style="margin-top:26px"><a class="row" href="/apply" style="justify-content:space-between">

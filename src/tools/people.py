@@ -227,6 +227,24 @@ def hunter_pattern(domain: str, _get=None) -> str:
 
 # ------------------------------------------------------------------ tracker io
 
+def company_from_url(url: str) -> dict | None:
+    """A fresh tracker entry from a pasted company website or LinkedIn company URL."""
+    p = urllib.parse.urlparse(url)
+    host = p.netloc.lower().removeprefix("www.")
+    if not host:
+        return None
+    if host.endswith("linkedin.com"):
+        m = re.match(r"/company/([^/]+)", p.path)
+        if not m:
+            return None  # a profile or post URL names a person, not a company
+        slug = urllib.parse.unquote(m.group(1))
+        name = re.sub(r"[-_]+", " ", slug).strip().title()
+        return {"name": name, "website": "", "linkedin": f"https://www.linkedin.com/company/{slug}/",
+                "heat": "?", "fit": "pasted on /network, not yet scouted", "people": []}
+    name = host.split(".")[0].replace("-", " ").title()
+    return {"name": name, "website": f"{p.scheme}://{p.netloc}",
+            "heat": "?", "fit": "pasted on /network, not yet scouted", "people": []}
+
 def load_companies() -> dict:
     try:
         return json.loads(COMPANIES_PATH.read_text())

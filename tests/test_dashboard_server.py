@@ -235,6 +235,23 @@ def test_add_job_queues_background_tailor(server, monkeypatch):
     assert status == 400
 
 
+def test_add_company_tracks_and_queues_people_scout(server, tmp_path, monkeypatch):
+    from src.tools import people
+    monkeypatch.setattr(people, "COMPANIES_PATH", tmp_path / "companies.json")
+    spawned = []
+    monkeypatch.setattr(dashboard_server.subprocess, "Popen",
+                        lambda *a, **k: spawned.append(a[0]))
+    status, body = _post(server, "/api/add-company", "https://www.acme.ai/about")
+    assert status == 200 and body["queued"] is True and body["company"] == "Acme"
+    assert spawned and spawned[0][-2:] == ["--company", "Acme"]
+    assert people.load_companies()["companies"][0]["website"] == "https://www.acme.ai"
+    # pasting it again dedupes instead of double-tracking
+    status, body = _post(server, "/api/add-company", "https://acme.ai")
+    assert status == 200 and body["already"] is True and len(spawned) == 1
+    status, body = _post(server, "/api/add-company", "https://www.linkedin.com/in/person/")
+    assert status == 400
+
+
 def test_job_status_and_row_endpoints(server, job):
     url = "https://boards.greenhouse.io/acme/jobs/4951814008"
     r = urllib.request.urlopen(server + "/api/job-status?url=" + urllib.parse.quote(url, safe=""))

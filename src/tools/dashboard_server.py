@@ -400,6 +400,29 @@ class _Handler(BaseHTTPRequestHandler):
                     [sys.executable, "-m", "src.cli", "add", url],
                     cwd=config.ROOT, stdout=log, stderr=log, start_new_session=True)
                 return self._json(200, {"queued": True})
+            if self.path.startswith("/api/add-company"):
+                # Paste a company website or LinkedIn company URL on /network: track it
+                # and scout its people in the background (manual mode leaves a packet).
+                url = (payload.get("url") or "").strip()
+                if not url.startswith(("http://", "https://")):
+                    return self._json(400, {"error": "need a full http(s) company URL"})
+                from .people import company_from_url, load_companies, save_companies
+                entry = company_from_url(url)
+                if not entry:
+                    return self._json(400, {"error": "could not read a company from that URL"})
+                db = load_companies()
+                existing = next((c for c in db.get("companies", [])
+                                 if c.get("name", "").lower() == entry["name"].lower()), None)
+                if existing is not None:
+                    return self._json(200, {"queued": False, "already": True,
+                                            "company": existing.get("name")})
+                db.setdefault("companies", []).append(entry)
+                save_companies(db)
+                log = open(config.DATA_DIR / "people_scout.log", "ab")
+                subprocess.Popen(
+                    [sys.executable, "-m", "src.cli", "people", "--company", entry["name"]],
+                    cwd=config.ROOT, stdout=log, stderr=log, start_new_session=True)
+                return self._json(200, {"queued": True, "company": entry["name"]})
             if self.path.startswith("/api/touch"):
                 # Log one outreach touch on a person, so reply rate has real data.
                 company = (payload.get("company") or "").strip()

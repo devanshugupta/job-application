@@ -231,6 +231,18 @@ def test_find_people_manual_brain_round_trip(tmp_path, company, monkeypatch):
     assert r["added"] == 1 and company["people_scouted"] == "2026-08-04"
 
 
+def test_company_from_url_website_and_linkedin():
+    c = people.company_from_url("https://www.baseten.co/pricing")
+    assert c["name"] == "Baseten" and c["website"] == "https://www.baseten.co"
+    c = people.company_from_url("https://www.linkedin.com/company/jack-and-jill-ai/about/")
+    assert c["name"] == "Jack And Jill Ai"
+    assert c["linkedin"] == "https://www.linkedin.com/company/jack-and-jill-ai/"
+    assert c["website"] == ""
+    # a person profile is not a company
+    assert people.company_from_url("https://www.linkedin.com/in/someone/") is None
+    assert people.company_from_url("not a url") is None
+
+
 def test_save_and_load_companies_atomic(tmp_path, monkeypatch):
     monkeypatch.setattr(people, "COMPANIES_PATH", tmp_path / "net" / "companies.json")
     db = {"companies": [{"name": "Acme"}]}
