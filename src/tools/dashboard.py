@@ -662,7 +662,7 @@ function deadCheck(btn) {{
     var dead = res && res.dead;
     btn.closest('tr').dataset.stale = dead ? '1' : '0';
     btn.classList.toggle('dead', dead); btn.classList.toggle('live', !dead);
-    btn.textContent = dead ? '💀' : '🟢';
+    btn.textContent = dead ? '💀' : '🟢 live';
     toast(dead ? 'Link is DEAD (' + (res.chars||0) + ' chars) — pipeline will skip it.'
                : 'Link is live (' + (res.chars||0) + ' chars).');
   }}).catch(function(e) {{ btn.disabled = false; btn.textContent = old;
