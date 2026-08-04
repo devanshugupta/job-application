@@ -350,6 +350,21 @@
       "ats": "greenhouse",
       "token": "speechify",
       "board": "https://speechify.com/careers/"
+    },
+    {
+      "name": "Glean",
+      "ats": "greenhouse",
+      "token": "gleanwork"
+    },
+    {
+      "name": "Baseten",
+      "ats": "ashby",
+      "token": "baseten"
+    },
+    {
+      "name": "PlayStation Global",
+      "ats": "greenhouse",
+      "token": "sonyinteractiveentertainmentglobal"
     }
   ]
 }

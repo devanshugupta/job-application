@@ -351,7 +351,7 @@ a.row:hover .ract { opacity:1 }
 .runbtn { font:inherit; font-size:13.5px; font-weight:650; color:var(--accent); background:none;
   border:1px solid var(--accent); border-radius:999px; padding:3px 14px; cursor:pointer; margin-left:auto }
 .sortable { cursor:pointer } .sortable:hover { color:var(--ink) }
-.sortable.asc::after { content:" \2191" } .sortable.desc::after { content:" \2193" }
+.sortable.asc::after { content:" ↑" } .sortable.desc::after { content:" ↓" }
 .sech { display:flex; align-items:baseline; gap:10px; margin:26px 0 10px }
 .sech h2 { font-family:Georgia,serif; font-size:24px; font-weight:600 }
 .sech .n { color:var(--mut); font-size:14.5px }
@@ -477,12 +477,29 @@ document.querySelectorAll('.sortable').forEach(hcell => hcell.addEventListener('
   const visible = rows.filter(r => !r.classList.contains('hidden')).length;
   rows.sort((a, b) => {
     const av = a.dataset[key] || '', bv = b.dataset[key] || '';
-    const an = parseFloat(av), bn = parseFloat(bv);
-    return (!isNaN(an) && !isNaN(bn)) ? (an - bn) * dir : av.localeCompare(bv) * dir;
+    const an = Number(av), bn = Number(bv);
+    const numeric = av !== '' && bv !== '' && !isNaN(an) && !isNaN(bn);
+    return numeric ? (an - bn) * dir : av.localeCompare(bv) * dir;
   });
   const more = box.querySelector('.more[data-for]');
   rows.forEach((r, i) => { r.classList.toggle('hidden', i >= visible);
     if (more) box.insertBefore(r, more); else box.appendChild(r); });
+}));
+document.querySelectorAll('button[data-touch]').forEach(b => b.addEventListener('click', e => {
+  e.preventDefault(); e.stopPropagation();
+  fetch('/api/touch', { method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ company: b.dataset.co, person: b.dataset.person, outcome: b.dataset.touch }) })
+  .then(r => { if (!r.ok) throw 0;
+    const row = b.closest('.row'), pill = row.querySelector('.pill');
+    if (b.dataset.touch === 'sent') {
+      pill.textContent = 'waiting'; pill.className = 'pill p-hold';
+      row.classList.remove('go'); row.classList.add('hold');
+    } else {
+      pill.textContent = 'reply'; pill.className = 'pill p-go';
+      row.classList.remove('hold'); row.classList.add('go');
+    }
+    b.textContent = 'logged'; setTimeout(() => b.remove(), 900); })
+  .catch(() => { b.textContent = 'needs server'; });
 }));
 const q = document.getElementById('q');
 if (q) q.addEventListener('input', () => {
@@ -686,13 +703,13 @@ def _page(title: str, body: str, active: str = "") -> str:
     nav = "".join(
         f'<a href="{h}" class="{"on" if active == k else ""}">{t}</a>'
         for k, h, t in [("apply", "/apply", "Applications"), ("net", "/network", "Networking")])
-    foot = ('<div class="foot"><span>pipeline. referrals first, applications second.</span>'
+    foot = ('<div class="foot"><span>professionaldude. referrals first, applications second.</span>'
             '<span><a href="/about">about</a><a href="/about#contact">contact</a></span></div>')
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{esc(title)}</title><style>{CSS}</style></head>'
             f'<body{" data-lane=1" if active else ""}>'
-            f'<div class="bar"><b><a href="/">pipeline.</a></b>{nav}'
+            f'<div class="bar"><b><a href="/">professionaldude.</a></b>{nav}'
             f'<span class="right">'
             f'<button class="theme" title="theme"></button></span></div>'
             f'{body}{foot}<script>{JS}</script></body></html>')
@@ -812,7 +829,7 @@ def render_entry() -> str:
   </div>
 </div>
 <div class="lastcall"><a class="cta" href="{esc(story['lane'])}">Open {esc(story['lane_name'])}</a></div>"""
-    return _page("Pipeline", body)
+    return _page("professionaldude", body)
 
 
 def render_apply() -> str:
@@ -888,11 +905,20 @@ def render_network() -> str:
                 js = draft.replace("\\", "\\\\").replace("'", "\\'")
                 copy = ('<button class="copybtn sm" onclick="copyText(this, '
                         f"'{esc(js)}')\">Copy message</button>")
+            touch = ""
+            if state == "send":
+                touch = (f'<button class="pbtn" data-touch="sent" data-co="{esc(c["name"])}"'
+                         f' data-person="{esc(name)}">sent</button>')
+            elif _touches(p) and state in ("nudge", "waiting"):
+                touch = (f'<button class="pbtn" data-touch="replied" data-co="{esc(c["name"])}"'
+                         f' data-person="{esc(name)}">got reply</button>'
+                         f'<button class="pbtn" data-touch="sent" data-co="{esc(c["name"])}"'
+                         f' data-person="{esc(name)}">sent again</button>')
             prows += (f'<div class="row {cls}">'
                       f'<span class="mono">{esc(_monogram(name))}</span>'
                       f'<span class="who"><b>{esc(name)}</b><div class="r">{esc(p.get("title", ""))}</div></span>'
                       f'<span class="why">{esc(why or hook)}</span>'
-                      f'<span class="ract" style="opacity:1">{copy}'
+                      f'<span class="ract" style="opacity:1">{copy}{touch}'
                       f'<a class="pbtn" href="{esc(url)}" target="_blank">profile</a></span>'
                       f'<span class="pill {pcls}">{state}</span></div>')
         if not prows:

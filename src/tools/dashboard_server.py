@@ -267,6 +267,35 @@ class _Handler(BaseHTTPRequestHandler):
             # run-pipeline takes no job url  handle before the record lookup
             if self.path.startswith("/api/run-pipeline"):
                 return self._json(200, start_pipeline())
+            if self.path.startswith("/api/touch"):
+                # Log one outreach touch on a person, so reply rate has real data.
+                company = (payload.get("company") or "").strip()
+                person = (payload.get("person") or "").strip()
+                outcome = payload.get("outcome")
+                if outcome not in ("sent", "replied") or not company or not person:
+                    return self._json(400, {"error": "need company, person, outcome sent|replied"})
+                net = config.DATA_DIR / "network" / "companies.json"
+                try:
+                    db = json.loads(net.read_text())
+                except (OSError, json.JSONDecodeError):
+                    return self._json(404, {"error": "no networking data"})
+                for c in db.get("companies", []):
+                    if c.get("name", "").lower() != company.lower():
+                        continue
+                    for p in c.get("people", []):
+                        if p.get("name", "").split("[")[0].strip().lower() != person.lower():
+                            continue
+                        touches = p.setdefault("outreach", [])
+                        touches.append({"date": date.today().isoformat(), "channel": "dm",
+                                        "mode": "", "touch_n": len(touches) + 1,
+                                        "outcome": outcome})
+                        if outcome == "sent" and c.get("status") == "outreach_drafted":
+                            c["status"] = "contacted"
+                        tmp = net.with_suffix(".tmp")
+                        tmp.write_text(json.dumps(db, indent=1))
+                        os.replace(tmp, net)
+                        return self._json(200, {"logged": outcome, "touch_n": len(touches)})
+                return self._json(404, {"error": "person not found"})
             url = (payload.get("url") or "").strip()
             key = tracker._norm_url(url)
             rec = next((r for r in tracker.list_applications()

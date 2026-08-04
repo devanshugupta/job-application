@@ -65,7 +65,7 @@ def job(tmp_data):
 def test_get_root_serves_focus_entry(server, job):
     # "/" is the official focus UI (story + doors); the old dashboard moved to /classic
     body = urllib.request.urlopen(server + "/").read().decode()
-    assert "pipeline." in body and 'class="door"' in body
+    assert "professionaldude." in body and 'class="door"' in body
 
 
 def test_get_classic_serves_freshly_rendered_dashboard(server, job):
@@ -202,3 +202,22 @@ def test_tracker_save_is_atomic(tmp_data):
     files = list(tracker.APPLICATIONS_PATH.parent.glob("*.tmp"))
     assert files == []
     json.loads(tracker.APPLICATIONS_PATH.read_text())  # valid JSON on disk
+
+
+def test_touch_logs_outreach(server, tmp_data):
+    net = tmp_data / "network"
+    net.mkdir(exist_ok=True)
+    (net / "companies.json").write_text(json.dumps({"companies": [
+        {"name": "Acme", "status": "outreach_drafted",
+         "people": [{"name": "Jane Roe", "outreach": []}]}]}))
+    req = urllib.request.Request(server + "/api/touch",
+                                 data=json.dumps({"company": "Acme", "person": "Jane Roe",
+                                                  "outcome": "sent"}).encode(),
+                                 headers={"Content-Type": "application/json"})
+    r = urllib.request.urlopen(req)
+    assert r.status == 200 and json.loads(r.read())["logged"] == "sent"
+    db = json.loads((net / "companies.json").read_text())
+    assert db["companies"][0]["people"][0]["outreach"][0]["outcome"] == "sent"
+    assert db["companies"][0]["status"] == "contacted"
+    status, body = _post(server, "/api/touch", "")
+    assert status == 400

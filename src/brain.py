@@ -82,7 +82,13 @@ class ManualBrain:
         response_path = self.base / f"{pid}.response.json"
 
         if response_path.exists():
-            return self._parse_response(response_path)
+            parsed = self._parse_response(response_path)
+            missing = [k for k in schema.get("required", []) if k not in parsed]
+            if missing:
+                raise ValueError(
+                    f"{response_path.name} is missing required keys {missing}; "
+                    f"fix the response file and re-run.")
+            return parsed
 
         prompt_path.write_text(
             f"# Brain packet: {name}\n\n"

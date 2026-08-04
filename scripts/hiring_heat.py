@@ -166,6 +166,19 @@ def main() -> None:
     )
     errors = [r for r in results if "error" in r]
 
+    # --company runs MERGE into the existing file (a partial sweep must never
+    # wipe every other company's heat data); full sweeps replace it.
+    if args.company and OUT.exists():
+        try:
+            prev = json.loads(OUT.read_text()).get("companies", [])
+        except Exception:
+            prev = []
+        fresh = {r["company"] for r in scored}
+        scored = sorted(
+            scored + [r for r in prev if r.get("company") not in fresh],
+            key=lambda r: (order[r["heat"]], -r["match_new_30d"], -r["new_30d"]),
+        )
+
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps({
         "computed_at": datetime.now(timezone.utc).isoformat(),
