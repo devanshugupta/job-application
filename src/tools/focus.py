@@ -409,7 +409,7 @@ a.row:hover .ract { opacity:1 }
 [data-theme="dark"] .cal .l3 { background:#3f8a3f } [data-theme="dark"] .cal .l4 { background:#57c957 }
 .sech .coname { text-decoration:none; color:inherit } .sech .coname:hover h2 { color:var(--accent) }
 .rise { opacity:0; transform:translateY(44px);
-  transition:opacity 1s ease, transform 2.1s cubic-bezier(.28,1.9,.42,1) }
+  transition:opacity 1.2s ease, transform 2.6s cubic-bezier(.28,1.9,.42,1) }
 .rise.up { opacity:1; transform:none }
 @media (prefers-reduced-motion: reduce) { .rise { opacity:1; transform:none; transition:none } }
 """
