@@ -419,8 +419,8 @@ a.row:hover .ract { opacity:1 }
   align-items:baseline; gap:14px; flex-wrap:wrap; color:var(--mut); font-size:13.5px; border-top:1px solid var(--line) }
 .foot a { color:var(--mut); text-decoration:none; margin-left:18px } .foot a:hover { color:var(--accent) }
 .rise { opacity:0; transform:translateY(30px);
-  transition:opacity .5s ease, transform .6s cubic-bezier(.22,1.08,.36,1) }
-.rise.far { transform:translateY(44px); transition-duration:.6s, .75s }
+  transition:opacity .45s ease, transform .5s cubic-bezier(.05,.7,.1,1) }
+.rise.far { transform:translateY(44px); transition-duration:.55s, .7s }
 .rise.up { opacity:1; transform:none }
 @media (prefers-reduced-motion: reduce) { .rise { opacity:1; transform:none; transition:none } }
 """
