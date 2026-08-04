@@ -418,6 +418,16 @@ a.row:hover .ract { opacity:1 }
 .foot { max-width:1440px; margin:44px auto 0; padding:18px 40px 34px; display:flex; justify-content:space-between;
   align-items:baseline; gap:14px; flex-wrap:wrap; color:var(--mut); font-size:13.5px; border-top:1px solid var(--line) }
 .foot a { color:var(--mut); text-decoration:none; margin-left:18px } .foot a:hover { color:var(--accent) }
+.statement { font-family:Georgia,serif; font-weight:600; font-size:46px; line-height:1.2; letter-spacing:-.5px; margin:10px 0 26px }
+.statement em { font-style:italic; color:var(--accent) }
+.prose { font-size:18px; line-height:1.75; color:var(--ink); max-width:66ch; margin:0 0 18px }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin-top:12px }
+.ccard { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px 22px;
+  text-decoration:none; color:var(--ink); box-shadow:0 4px 18px rgba(30,20,0,.04); transition:.15s }
+.ccard:hover { transform:translateY(-2px); box-shadow:0 10px 26px rgba(30,20,0,.08) }
+.ccard b { font-family:Georgia,serif; font-size:19px }
+.ccard div { color:var(--mut); font-size:14.5px; margin:4px 0 10px }
+.ccard span { color:var(--accent); font-size:14.5px; font-weight:650 }
 .rise { opacity:0; transform:translateY(44px);
   transition:opacity 1.4s ease, transform 3s cubic-bezier(.28,1.9,.42,1) }
 .rise.far { transform:translateY(170px); transition-duration:1.5s, 3.3s }
@@ -527,7 +537,7 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     requestAnimationFrame(() => requestAnimationFrame(() => els.forEach((el, i) => {
       if (!el) return;
       el.style.transitionDelay = (i * 90) + 'ms';
-      if (i === 0) el.style.transitionDuration = '3.5s, 8s';
+      if (i === 0) el.style.transitionDuration = '2.5s, 5s';
       el.classList.add('up');
       setTimeout(() => el.style.transitionDelay = '', 3600 + i * 90);
     })));
@@ -983,27 +993,37 @@ def render_company(slug: str) -> str | None:
     return _page(c["name"], body, "net")
 
 def render_about() -> str:
-    email = _candidate().get("email")
-    contact = (f'<div class="sech"><h2>Contact</h2></div>'
-               f'<div class="rows"><a class="row" href="mailto:{esc(email)}">'
-               f'<span class="who" style="width:auto"><b>Say hello</b>'
-               f'<div class="r">{esc(email)}</div></span>'
-               f'<span class="pill p-nav">email</span></a></div>' if email else "")
-    body = f"""<div class="wrap" style="max-width:820px">
-  <h1 class="serif" style="font-size:36px">About</h1>
-  <div class="storyline">A job pipeline built on one belief: interviews come from people, not portals.</div>
-  <div class="sech"><h2>What it does</h2></div>
-  <div class="rows">
-    <div class="row"><span class="why">Finds fresh roles every night from free ATS feeds and scores the fit deterministically.</span></div>
-    <div class="row"><span class="why">Tailors and verifies a resume for every role worth the effort, grounded in real achievements.</span></div>
-    <div class="row"><span class="why">Scouts each company for the two or three people who can actually open the door.</span></div>
-    <div class="row"><span class="why">Holds the application until the referral ask lands. Referral first, always.</span></div>
-  </div>
+    cand = _candidate()
+    channels = []
+    if cand.get("email"):
+        channels.append(("Email", "The fastest way to reach a human.", f"mailto:{cand['email']}", cand["email"]))
+    if cand.get("linkedin"):
+        channels.append(("LinkedIn", "Connect, or just say the pipeline sent you.",
+                         cand["linkedin"], "open profile"))
+    if cand.get("github"):
+        channels.append(("GitHub", "The code behind all of this. Issues welcome.",
+                         cand["github"], "view repository"))
+    cards = "".join(
+        f'<a class="ccard" href="{esc(href)}" target="_blank"><b>{esc(t)}</b>'
+        f'<div>{esc(line)}</div><span>{esc(label)}</span></a>'
+        for t, line, href, label in channels) or (
+        '<div class="ccard"><b>Not set up yet</b>'
+        '<div>Add email, linkedin, or github to the candidate block in config/network.json '
+        'and they appear here.</div></div>')
+    body = f"""<div class="wrap" style="max-width:900px">
+  <div class="count" style="margin-top:26px">About</div>
+  <h1 class="statement">Interviews come from <em>people</em>, not portals.</h1>
+  <p class="prose">That is the whole belief. Every night this pipeline finds fresh roles from public
+    ATS feeds and scores the fit deterministically, so effort only goes where it counts. Anything worth
+    pursuing gets a resume tailored to the posting and verified before it ever leaves the house.</p>
+  <p class="prose">Then comes the part most tools skip: for each company it maps the two or three
+    people who can actually open the door, writes the outreach, and holds the application until the
+    referral ask lands. Referral first, always.</p>
   <div class="sech"><h2>Make it yours</h2></div>
-  <div class="rows">
-    <div class="row"><span class="why">Every personal detail lives in config/network.json. Change the candidate block and the whole
-      pipeline, prompts included, works for you, whatever your field.</span></div>
-  </div>
-  {contact}
+  <p class="prose">Every personal detail lives in one file, config/network.json. Change the candidate
+    block and the whole pipeline, prompts included, works for you. Machine learning, robotics,
+    whatever your field.</p>
+  <div class="sech"><h2>Contact</h2></div>
+  <div class="cards">{cards}</div>
 </div>"""
     return _page("About", body)

@@ -29,7 +29,9 @@
     ],
     "visa_note": "needs H1B sponsorship (set to \"\" if not applicable)",
     "one_liner": "Jane is a robotics engineer at Acme Dynamics. She shipped the SLAM stack on 500+ deployed robots and holds two patents in visual odometry.",
-    "email": ""
+    "email": "",
+    "linkedin": "",
+    "github": ""
   },
   "keywords": [
     "robotics",
