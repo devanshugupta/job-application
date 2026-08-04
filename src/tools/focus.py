@@ -667,10 +667,8 @@ def _page(title: str, body: str, active: str = "") -> str:
     nav = "".join(
         f'<a href="{h}" class="{"on" if active == k else ""}">{t}</a>'
         for k, h, t in [("apply", "/apply", "Applications"), ("net", "/network", "Networking")])
-    email = _candidate().get("email")
-    contact = (f'<a href="mailto:{esc(email)}">contact</a>' if email else "")
-    foot = (f'<div class="foot"><span>pipeline. referrals first, applications second.</span>'
-            f'<span><a href="/about">about</a>{contact}</span></div>')
+    foot = ('<div class="foot"><span>pipeline. referrals first, applications second.</span>'
+            '<span><a href="/about">about</a><a href="/about#contact">contact</a></span></div>')
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{esc(title)}</title><style>{CSS}</style></head>'
@@ -1025,7 +1023,7 @@ def render_about() -> str:
   <p class="prose">Every personal detail lives in one file, config/network.json. Change the candidate
     block and the whole pipeline, prompts included, works for you. Machine learning, robotics,
     whatever your field.</p>
-  <div class="sech"><h2>Contact</h2></div>
+  <div class="sech" id="contact"><h2>Contact</h2></div>
   <div class="cards">{cards}</div>
 </div>"""
     return _page("About", body)
