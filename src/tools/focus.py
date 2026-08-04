@@ -499,7 +499,7 @@ def render_apply() -> str:
     story = (f"<b>{esc(ready[0].get('company'))} first.</b> " if ready else "")
     rows = ""
     for i, a in enumerate(ready):
-        rows += _app_row(a, "go", "apply", "p-go", "tailored and verified, posting live",
+        rows += _app_row(a, "go", "ready", "p-go", "tailored and verified, posting live",
                          "ready" if i >= 5 else "")
     for a in holds:
         rows += _app_row(a, "hold", "hold", "p-hold",
