@@ -513,8 +513,8 @@ if (scene && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     if (ship) ship.style.transform = 'translateX(' + Math.min(scrollY * 0.55, innerWidth * 0.72) + 'px) translateY(' +
       (dip(0) + Math.sin(scrollY / 55) * 5) + 'px) rotate(' + Math.sin(scrollY / 70) * 4 + 'deg)';
   }, { passive: true });
-  const minis = ['/assets/trail/b1.jpg?v=3', '/assets/trail/b2.jpg?v=3', '/assets/trail/b3.jpg?v=3',
-    '/assets/trail/b4.jpg?v=3', '/assets/trail/b5.jpg?v=3'];
+  const minis = ['/assets/trail/b1.jpg?v=4', '/assets/trail/b2.jpg?v=4', '/assets/trail/b3.jpg?v=4',
+    '/assets/trail/b4.jpg?v=4', '/assets/trail/b5.jpg?v=4'];
   let lastX = -99, lastY = -99, nImg = 0;
   addEventListener('mousemove', e => {
     if (Math.hypot(e.clientX - lastX, e.clientY - lastY) < 72) return;
