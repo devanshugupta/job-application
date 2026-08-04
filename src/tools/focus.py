@@ -750,13 +750,13 @@ def render_entry() -> str:
     hour = datetime.now().hour
     greet = ("Morning" if 5 <= hour < 14 else "Afternoon" if 14 <= hour < 17
              else "Evening" if 17 <= hour < 20 else "Damn.")
-    greet_line = f"Damn. {first}" if greet == "Damn." else f"{greet}, {first}"
     first = "there"
     try:
         net_cfg = json.loads((config.ROOT / "config" / "network.json").read_text())
         first = net_cfg.get("candidate", {}).get("first_name", first)
     except Exception:
         pass
+    greet_line = f"Damn. {first}" if greet == "Damn." else f"{greet}, {first}"
 
     glance_rows = ""
     for item in (people["replies"] + people["sends"])[:2]:
