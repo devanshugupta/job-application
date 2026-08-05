@@ -140,6 +140,38 @@ def _first_draft(c: dict) -> str:
     return _sign(" ".join(block).strip())
 
 
+def _company_display(c: dict) -> str:
+    """The company's real, human name for search queries and display. The pasted URL
+    gives us a compressed token (rocketmoney.com -> "Rocketmoney"); a stored
+    display_name carries the corrected spelling ("Rocket Money") without changing the
+    record key/slug the rest of the pipeline matches on."""
+    return (c.get("display_name") or c.get("name") or "").strip()
+
+
+def _person_li_links(c: dict, p: dict) -> list[tuple[str, str]]:
+    """The LinkedIn links for a person, as (label, url) pairs. We show TWO because the
+    free org-chart sources (theorg) give names + titles but almost never a profile URL:
+    (1) the company's OWN People page scoped to the name
+        (linkedin.com/company/<slug>/people/?keyword=<name>) -- searches the company's
+        actual current employees, the most reliable resolver; and
+    (2) a global people search on name + the corrected company name. Both open in the
+    user's logged-in session (no API, no automation). A real profile URL, when the
+    evidence has one, is shown first."""
+    name = p["name"].split("[")[0].strip()
+    display = _company_display(c)
+    slug = quote_plus((c.get("name") or "").lower().replace(" ", ""))
+    links: list[tuple[str, str]] = []
+    real = (p.get("linkedin") or "").strip()
+    if real:
+        links.append(("profile", real))
+    links.append(("company people",
+                  f"https://www.linkedin.com/company/{slug}/people/?keyword={quote_plus(name)}"))
+    links.append(("name search",
+                  "https://www.linkedin.com/search/results/people/?keywords="
+                  + quote_plus(f"{name} {display}")))
+    return links
+
+
 def _person_draft(c: dict, p: dict) -> str:
     """The person's draft: people-scout writes it on the record, dossiers hold it as
     the blockquote under the person's ### heading."""
@@ -1293,8 +1325,8 @@ def render_network() -> str:
             state, cls, pcls, why = _person_state(c, p)
             name = p["name"].split("[")[0].strip()
             hook = (p.get("hook") or "").split(";")[0].strip()
-            url = p.get("linkedin") or ("https://www.linkedin.com/search/results/people/?keywords="
-                                        + quote_plus(f"{name} {c['name']}"))
+            li_html = "".join(f'<a class="pbtn" href="{esc(u)}" target="_blank">{esc(lbl)}</a>'
+                              for lbl, u in _person_li_links(c, p))
             copy = ""
             draft = _person_draft(c, p)
             if draft:
@@ -1322,7 +1354,7 @@ def render_network() -> str:
                       f'<span class="who"><b>{esc(name)}</b><div class="r">{esc(p.get("title", ""))}</div></span>'
                       f'<span class="why">{esc(why or hook)}</span>'
                       f'<span class="ract" style="opacity:1">{copy}{email_btn}{touch}'
-                      f'<a class="pbtn" href="{esc(url)}" target="_blank">profile</a></span>'
+                      f'{li_html}</span>'
                       f'<span class="pill {pcls}">{state}</span></div>')
         if not prows:
             prows = _find_people_row(c)
@@ -1339,7 +1371,7 @@ def render_network() -> str:
                       + ", ".join(links) + "</span></div>")
         fit_short = esc((c.get("fit") or "").split(";")[0])
         blist.append(
-            f'<div class="sech"><a class="coname" href="/company/{slug}"><h2>{esc(c["name"])}</h2></a>'
+            f'<div class="sech"><a class="coname" href="/company/{slug}"><h2>{esc(_company_display(c))}</h2></a>'
             f'<span class="pill {HEAT_PILL.get(heat, "p-mut")}">{esc(heat)}</span>'
             f'<span class="pill p-mut">{esc((c.get("status") or "").replace("_", " "))}</span>'
             f'{f'<span class="pill p-go">{c["hiring_posts"]["count"]} hiring posts this week</span>' if c.get("hiring_posts", {}).get("count") else ''}'
@@ -1462,8 +1494,8 @@ def render_company(slug: str) -> str | None:
         state = ("replied" if t_ and t_[-1].get("outcome") in ("replied", "referred")
                  else "contacted" if t_ else "send")
         cls, pcls = ("go", "p-go") if state != "contacted" else ("hold", "p-hold")
-        url = p.get("linkedin") or ("https://www.linkedin.com/search/results/people/?keywords="
-                                    + quote_plus(f"{name} {c['name']}"))
+        li_html = "".join(f'<a class="pbtn" href="{esc(u)}" target="_blank">{esc(lbl)}</a>'
+                          for lbl, u in _person_li_links(c, p))
         log = "; ".join(f'{o.get("date","")} {o.get("channel","")} touch {o.get("touch_n","")}'
                         f' {o.get("outcome","")}' for o in t_) if t_ else ""
         email = p.get("email") or ""
@@ -1487,13 +1519,13 @@ def render_company(slug: str) -> str | None:
                 f'<button class="copybtn" onclick="copyText(this, '
                 f'document.getElementById(\'{mid}\').querySelector(\'textarea\').value)">'
                 f'{_COPY_ICON} Copy</button></div>')
-        prows += (f'<a class="row {cls}" href="{esc(url)}" target="_blank">'
+        prows += (f'<div class="row {cls}">'
                   f'<span class="mono">{esc(_monogram(name))}</span>'
                   f'<span class="who"><b>{esc(name)}</b><div class="r">{esc(p.get("title", ""))}</div></span>'
                   f'<span class="why">{esc(p.get("hook", ""))[:80]}'
                   f'{f"<br><span style=\"font-size:11.5px\">{esc(log)}</span>" if log else ""}</span>'
-                  f'{copy_html}{email_html}'
-                  f'<span class="pill {pcls}">{state}</span></a>{editor_html}')
+                  f'<span class="ract" style="opacity:1">{copy_html}{email_html}{li_html}</span>'
+                  f'<span class="pill {pcls}">{state}</span></div>{editor_html}')
 
     apps = [a for a in tracker.list_applications()
             if slugify(a.get("company", "")) == slug and not a.get("removed")]
@@ -1508,7 +1540,7 @@ def render_company(slug: str) -> str | None:
 
     body = f"""<div class="wrap">
   <div class="cohead"><span class="mono">{esc(_monogram(c["name"]))}</span>
-    <h1 class="serif">{esc(c["name"])}.</h1></div>
+    <h1 class="serif">{esc(_company_display(c))}.</h1></div>
   <div class="metapills"><span class="pill {HEAT_PILL.get((c.get("heat") or "").upper(), "p-mut")}">{esc((c.get("heat") or "?").upper())}</span>
     <span class="pill p-mut">scouted {esc(c.get("last_scouted", "?"))}</span>
     {f'<a class="pbtn" href="{esc(c.get("website"))}" target="_blank">website</a>' if c.get("website") else ''}
