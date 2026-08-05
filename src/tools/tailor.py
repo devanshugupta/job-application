@@ -28,11 +28,20 @@ import re
 
 from .. import config, prompts
 from ..brain import BrainPending
-from . import artifacts, ats, final_check, jd_fetch, latex, profiles, resume, scorer, tracker
+from . import (artifacts, ats, final_check, jd_fetch, latex, profiles, resume,
+               role_cache, scorer, tracker)
 
 PATCH_SCHEMA = {
     "type": "object",
     "properties": {
+        # STEP 2 output: the 3-5 ranked priorities extracted from THIS JD (all
+        # requirement types equal-class: technical, general/soft, scale/metrics).
+        "jd_priorities": {"type": "array", "items": {"type": "string"}},
+        # STEP 3 output: which priority each of the two lead bullets proves,
+        # e.g. {"B1": "<priority text>", "B2": "..."} - the forcing function that
+        # makes the priority extraction load-bearing instead of ignorable.
+        "bullet_mapping": {"type": "object",
+                           "additionalProperties": {"type": "string"}},
         "summary": {"type": "string"},
         "technical_skills": {"type": "string"},
         "top_bullets": {"type": "array", "items": {"type": "string"}},
@@ -56,8 +65,8 @@ PATCH_SCHEMA = {
         "self_match_pct": {"type": "integer"},
         "self_gaps": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["summary", "technical_skills", "top_bullets",
-                 "experience_section_index", "projects", "reasoning",
+    "required": ["jd_priorities", "bullet_mapping", "summary", "technical_skills",
+                 "top_bullets", "experience_section_index", "projects", "reasoning",
                  "self_score", "self_verdict", "self_match_pct", "self_gaps"],
     "additionalProperties": False,
 }
@@ -94,6 +103,14 @@ def _tailor_system() -> str:
 def _validate_patch(patch: dict) -> list[str]:
     problems = []
     bullets = patch.get("top_bullets") or []
+    # The priority pipeline's forcing function: priorities extracted, lead bullets
+    # mapped to them. Without these the selection step was skipped, not done.
+    pris = patch.get("jd_priorities") or []
+    if not 3 <= len(pris) <= 5:
+        problems.append(f"jd_priorities must have 3-5 ranked entries (got {len(pris)}).")
+    mapping = patch.get("bullet_mapping") or {}
+    if not (mapping.get("B1") or "").strip() or not (mapping.get("B2") or "").strip():
+        problems.append("bullet_mapping must map B1 and B2 to the priorities they prove.")
     chosen_idx = int(patch.get("experience_section_index", 0) or 0)
     lo, hi = latex.min_bullets_for_block(chosen_idx), latex.MAX_BULLETS_PER_BLOCK
     if not lo <= len(bullets) <= hi:  # density floor: a thin chosen block reads as a weak resume
@@ -178,9 +195,13 @@ def _patch_and_lint(brain, *, master: str, jd_text: str, profile: str,
 
     The master resume is the SINGLE source and is byte-identical for every job tailored
     against this profile in a run, so it's sent as a cache block (prompt caching): only
-    the first call per profile pays full price."""
+    the first call per profile pays full price. The role-family brief rides as a SECOND
+    cache block after it - byte-identical for every job in the same family - so the
+    master caches across all jobs and master+brief across a family."""
+    brief = role_cache.get_or_create(role, jd_text, brain)  # BrainPending on first miss
     cache_blocks = [f"MASTER RESUME (the full pool of the candidate's real work  every "
-                    f"bullet you select or reframe MUST come from here):\n{master.strip()}"]
+                    f"bullet you select or reframe MUST come from here):\n{master.strip()}",
+                    role_cache.as_context(brief)]
     user = f"JOB DESCRIPTION:\n{jd_text.strip()}"
     patch = brain.structured("tailor", system=_tailor_system(), user=user,
                              schema=PATCH_SCHEMA, cache_blocks=cache_blocks)
@@ -219,11 +240,17 @@ def _review_and_revise(brain, *, patch: dict, jd_text: str, profile: str,
     adopted, so the caller can re-read the tailored Markdown afterwards."""
     tailored_md = _read_tailored_md()
     numbered = "\n".join(f"{n}. {b}" for n, b in enumerate(patch["top_bullets"], 1))
+    claimed = ""
+    if patch.get("jd_priorities"):
+        claimed = ("\n\nWRITER'S CLAIMED JD PRIORITIES (ranked):\n- "
+                   + "\n- ".join(patch["jd_priorities"])
+                   + "\nBULLET MAPPING: " + json.dumps(patch.get("bullet_mapping") or {}))
     review_user = (
         f"JOB DESCRIPTION:\n{jd_text.strip()}\n\n"
         f"TAILORED RESUME (Markdown  full document):\n{tailored_md.strip()}\n\n"
         f"The tailored experience block is index {patch.get('experience_section_index', 0)} "
-        f"(0 = most recent). Its rewritten bullets (most relevant first) are:\n{numbered}")
+        f"(0 = most recent). Its rewritten bullets (most relevant first) are:\n{numbered}"
+        + claimed)
     review = brain.structured("review", system=prompts.REVIEW_SYSTEM, user=review_user,
                              schema=REVIEW_SCHEMA)
     review_issues = list(review.get("issues") or [])
@@ -438,6 +465,9 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
             "summary": patch.get("summary"),
             "technical_skills": patch.get("technical_skills"),
             "top_bullets": patch.get("top_bullets"),
+            "experience_section_index": patch.get("experience_section_index"),
+            "jd_priorities": patch.get("jd_priorities"),
+            "bullet_mapping": patch.get("bullet_mapping"),
         },
         source=source, posted_date=posted_date, profile=profile,
         tailored_pdf=pdf_path,

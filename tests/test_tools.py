@@ -144,8 +144,13 @@ def test_validate_patch_density_rules():
     ok = {"summary": "s", "technical_skills": "A: x | B: y | C: z | D: w | E: v",
           "top_bullets": ["one two three four five six seven eight nine ten eleven twelve",
                           "b", "c", "d", "e"],
-          "experience_section_index": 0, "projects": []}
+          "experience_section_index": 0, "projects": [],
+          "jd_priorities": ["p1", "p2", "p3"],
+          "bullet_mapping": {"B1": "p1", "B2": "p2"}}
     assert _validate_patch(ok) == []
+    # the priority pipeline is load-bearing: missing extraction/mapping must fail
+    assert any("jd_priorities" in p for p in _validate_patch({**ok, "jd_priorities": []}))
+    assert any("bullet_mapping" in p for p in _validate_patch({**ok, "bullet_mapping": {"B1": "p1"}}))
     # 3 bullets is fine for a LATER block but not for the first one
     assert _validate_patch({**ok, "experience_section_index": 1,
                             "top_bullets": ["a", "b", "c"]}) == []
