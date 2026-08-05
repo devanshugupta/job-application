@@ -554,11 +554,10 @@ document.addEventListener('click', e => {
     if (api === 'recompile') { b.textContent = 'rebuilt'; setTimeout(() => b.textContent = 'rebuild', 1500); } })
   .catch(() => { const lbl = b.textContent; b.textContent = 'needs server'; setTimeout(() => b.textContent = lbl, 1500); });
 });
-// The apply button is gone: clicking a job row cycles it through states instead.
-//   idle  -> applied (row dims, pill 'applied', recorded on the server)
-//   applied -> undo   (row back to normal, pill 'ready', un-recorded)
-//   undone -> opens the posting in a new tab
-// then the cycle repeats. People rows and nav links are untouched.
+// The apply button is gone: clicking a job row toggles applied state instead.
+//   not applied -> opens the posting in a new tab AND marks it applied (row dims)
+//   applied     -> undo (row back to normal, un-recorded), no new tab
+// People rows and nav links are untouched.
 document.addEventListener('click', e => {
   if (e.target.closest('.ract button') || e.target.closest('.copybtn')) return;
   const row = e.target.closest('a.row');
@@ -568,18 +567,15 @@ document.addEventListener('click', e => {
   const post = (path, done) => fetch(path, { method: 'POST',
     headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ url: row.href }) })
     .then(r => { if (r.ok) done(); }).catch(() => {});
-  const state = row.dataset.cyc || 'idle';
-  if (state === 'idle') {
+  if (row.dataset.cyc === 'applied') {
+    post('/api/unapplied', () => {
+      row.classList.remove('rowdone'); if (pill) pill.textContent = 'ready';
+      row.dataset.cyc = ''; });
+  } else {
+    window.open(row.href, '_blank');            // open the posting on the first click
     post('/api/applied', () => {
       row.classList.add('rowdone'); if (pill) pill.textContent = 'applied';
       row.dataset.cyc = 'applied'; });
-  } else if (state === 'applied') {
-    post('/api/unapplied', () => {
-      row.classList.remove('rowdone'); if (pill) pill.textContent = 'ready';
-      row.dataset.cyc = 'open'; });
-  } else {                                        // 'open'
-    window.open(row.href, '_blank');
-    row.dataset.cyc = 'idle';
   }
 });
 document.querySelectorAll('.sortable').forEach(hcell => hcell.addEventListener('click', () => {
