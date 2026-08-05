@@ -545,40 +545,42 @@ document.addEventListener('click', e => {
   if (!b) return;
   e.preventDefault(); e.stopPropagation();
   const row = b.closest('a.row'), api = b.dataset.api;
-  const undo = api === 'applied' && row.classList.contains('rowdone');
-  const path = undo ? '/api/unapplied' : '/api/' + api;
-  fetch(path, { method: 'POST', headers: {'Content-Type': 'application/json'},
+  fetch('/api/' + api, { method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ url: row.href }) })
   .then(r => { if (!r.ok) throw 0;
-    if (api === 'applied' && !undo) {
-      row.classList.add('rowdone'); row.querySelector('.pill').textContent = 'applied';
-      b.textContent = 'undo';
-    } else if (undo) {
-      row.classList.remove('rowdone'); row.querySelector('.pill').textContent = 'ready';
-      b.textContent = 'apply';
-    }
     if (api === 'remove') row.style.display = 'none';
     if (api === 'restore') { row.querySelector('.pill').textContent = 'restored'; b.remove(); }
-    if (api === 'unapplied') { row.querySelector('.pill').textContent = 'ready'; b.remove(); }
     if (api === 'reveal') { b.textContent = 'opened'; setTimeout(() => b.textContent = 'resume', 1500); }
     if (api === 'recompile') { b.textContent = 'rebuilt'; setTimeout(() => b.textContent = 'rebuild', 1500); } })
   .catch(() => { const lbl = b.textContent; b.textContent = 'needs server'; setTimeout(() => b.textContent = lbl, 1500); });
 });
-// Opening a job row's link (clicking the row body) marks it applied, same as the old
-// apply button did. Only for job rows that have an apply control and aren't done yet.
+// The apply button is gone: clicking a job row cycles it through states instead.
+//   idle  -> applied (row dims, pill 'applied', recorded on the server)
+//   applied -> undo   (row back to normal, pill 'ready', un-recorded)
+//   undone -> opens the posting in a new tab
+// then the cycle repeats. People rows and nav links are untouched.
 document.addEventListener('click', e => {
   if (e.target.closest('.ract button') || e.target.closest('.copybtn')) return;
   const row = e.target.closest('a.row');
-  if (!row) return;
-  const b = row.querySelector('.ract button[data-api="applied"]');
-  if (!b || row.classList.contains('rowdone')) return;
-  fetch('/api/applied', { method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ url: row.href }) })
-  .then(r => { if (!r.ok) return;
-    row.classList.add('rowdone');
-    const pill = row.querySelector('.pill'); if (pill) pill.textContent = 'applied';
-    b.textContent = 'undo'; })
-  .catch(() => {});
+  if (!row || !row.dataset.co) return;          // only job rows carry data-co
+  e.preventDefault();
+  const pill = row.querySelector('.pill');
+  const post = (path, done) => fetch(path, { method: 'POST',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ url: row.href }) })
+    .then(r => { if (r.ok) done(); }).catch(() => {});
+  const state = row.dataset.cyc || 'idle';
+  if (state === 'idle') {
+    post('/api/applied', () => {
+      row.classList.add('rowdone'); if (pill) pill.textContent = 'applied';
+      row.dataset.cyc = 'applied'; });
+  } else if (state === 'applied') {
+    post('/api/unapplied', () => {
+      row.classList.remove('rowdone'); if (pill) pill.textContent = 'ready';
+      row.dataset.cyc = 'open'; });
+  } else {                                        // 'open'
+    window.open(row.href, '_blank');
+    row.dataset.cyc = 'idle';
+  }
 });
 document.querySelectorAll('.sortable').forEach(hcell => hcell.addEventListener('click', () => {
   const box = hcell.closest('.rows'), key = hcell.dataset.key;
@@ -1021,9 +1023,9 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
             f' data-posted="{posted_full}" data-prof="{esc(a.get("profile") or "")}"')
     prof = esc((a.get("profile") or "").replace("_", " "))
     is_applied = a.get("status") in ("applied", "submitted")
-    default_acts = ((('<button data-api="applied" disabled>applied</button>') if is_applied
-                     else '<button data-api="applied">apply</button>')
-                    + '<button data-api="reveal">resume</button>'
+    # No apply button: applied state is driven by clicking the row itself (see JS). The
+    # row cycles idle -> applied (dimmed) -> undo -> open the posting.
+    default_acts = ('<button data-api="reveal">resume</button>'
                     '<button data-api="recompile" title="re-render the PDF after a tex edit">rebuild</button>')
     # the remove control leads the row (classic layout); actions stay on the right
     minus = ('' if acts else '<span class="ract rml">'
@@ -1032,7 +1034,9 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
                 else " v-hi" if tats >= 85 else " v-mid" if tats >= 70 else " v-lo")
     score_cls = ("" if not isinstance(score, (int, float))
                  else " v-hi" if score >= 8 else " v-mid" if score >= 6 else " v-lo")
-    return (f'<a class="row {cls}{hide}"{grp}{data} href="{url}" target="_blank">'
+    done_cls = " rowdone" if is_applied else ""
+    cyc = ' data-cyc="applied"' if is_applied else ""
+    return (f'<a class="row {cls}{hide}{done_cls}"{grp}{data}{cyc} href="{url}" target="_blank">'
             f'{minus}'
             f'<span class="mono">{esc(_monogram(a.get("company", "?")))}</span>'
             f'<span class="who"><b>{esc(a.get("company"))}</b><div class="r">{esc(a.get("role"))}</div></span>'
