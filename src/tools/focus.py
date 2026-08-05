@@ -564,6 +564,22 @@ document.addEventListener('click', e => {
     if (api === 'recompile') { b.textContent = 'rebuilt'; setTimeout(() => b.textContent = 'rebuild', 1500); } })
   .catch(() => { const lbl = b.textContent; b.textContent = 'needs server'; setTimeout(() => b.textContent = lbl, 1500); });
 });
+// Opening a job row's link (clicking the row body) marks it applied, same as the old
+// apply button did. Only for job rows that have an apply control and aren't done yet.
+document.addEventListener('click', e => {
+  if (e.target.closest('.ract button') || e.target.closest('.copybtn')) return;
+  const row = e.target.closest('a.row');
+  if (!row) return;
+  const b = row.querySelector('.ract button[data-api="applied"]');
+  if (!b || row.classList.contains('rowdone')) return;
+  fetch('/api/applied', { method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ url: row.href }) })
+  .then(r => { if (!r.ok) return;
+    row.classList.add('rowdone');
+    const pill = row.querySelector('.pill'); if (pill) pill.textContent = 'applied';
+    b.textContent = 'undo'; })
+  .catch(() => {});
+});
 document.querySelectorAll('.sortable').forEach(hcell => hcell.addEventListener('click', () => {
   const box = hcell.closest('.rows'), key = hcell.dataset.key;
   const dir = hcell.classList.contains('asc') ? -1 : 1;
