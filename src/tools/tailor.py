@@ -94,7 +94,8 @@ def _tailor_system() -> str:
 def _validate_patch(patch: dict) -> list[str]:
     problems = []
     bullets = patch.get("top_bullets") or []
-    lo, hi = latex.MIN_BULLETS_PER_BLOCK, latex.MAX_BULLETS_PER_BLOCK
+    chosen_idx = int(patch.get("experience_section_index", 0) or 0)
+    lo, hi = latex.min_bullets_for_block(chosen_idx), latex.MAX_BULLETS_PER_BLOCK
     if not lo <= len(bullets) <= hi:  # density floor: a thin chosen block reads as a weak resume
         problems.append(f"top_bullets must have {lo}-{hi} entries (got {len(bullets)}).")
     for key in ("summary", "technical_skills"):

@@ -193,16 +193,26 @@ TEX2 = r"""
 
 def test_edit_tex_targets_block_and_takes_n_bullets():
     # select-and-prune: the chosen block renders EXACTLY top_bullets; other block kept.
-    out = latex.edit_tex(TEX2, {"top_bullets": ["New A1", "New A2", "New A3"],
+    # The first block (index 0) carries a 5-bullet floor, so give 5.
+    out = latex.edit_tex(TEX2, {"top_bullets": ["New A1", "New A2", "New A3", "New A4", "New A5"],
                                 "experience_section_index": 0})
-    assert "New A1" in out and "New A3" in out
+    assert "New A1" in out and "New A5" in out
     assert "Amazon bullet one original" not in out
     assert "TCS bullet one original" in out
     # chosen block renders exactly the given bullets (both T1 and T2), Amazon untouched
-    out = latex.edit_tex(TEX2, {"top_bullets": ["New T1", "New T2"],
+    out = latex.edit_tex(TEX2, {"top_bullets": ["New T1", "New T2", "New T3"],
                                 "experience_section_index": 1})
     assert "New T1" in out and "New T2" in out
     assert "Amazon bullet one original" in out
+
+
+def test_first_block_floor_pads_thin_patch():
+    # a 3-bullet patch for block 0 gets padded from the pool up to the 5 floor;
+    # TEX2's Amazon pool has 3 originals, so at least one is pulled back in.
+    out = latex.edit_tex(TEX2, {"top_bullets": ["New A1", "New A2", "New A3"],
+                                "experience_section_index": 0})
+    assert "New A1" in out and "New A2" in out and "New A3" in out
+    assert "Amazon bullet one original" in out or "Amazon bullet two original" in out
 
 
 TEX3 = r"""

@@ -336,10 +336,22 @@ def _render_experience_selected(tex: str, chosen_idx: int, top_bullets: list[str
     result = tex[:spans[0][0]]
     for idx, (s, e) in enumerate(spans):
         block = tex[s:e]
+        floor = min_bullets_for_block(idx)
+        pool = _extract_items(block)
         if idx == chosen_idx and top_bullets:
             raw = [latex_escape(b.strip()) for b in top_bullets]
+            # honor this block's floor: pad from the JD-ranked pool with points not
+            # already chosen, so e.g. the first block never renders below 5.
+            if len(raw) < floor:
+                chosen_norm = {re.sub(r"\s+", " ", latex_escape(b.strip())).lower()
+                               for b in top_bullets}
+                for extra in ats.rank_snippets(jd_text or "", pool, len(pool)):
+                    if re.sub(r"\s+", " ", extra).lower() not in chosen_norm:
+                        raw.append(extra)
+                    if len(raw) >= floor:
+                        break
         else:
-            raw = ats.rank_snippets(jd_text or "", _extract_items(block), k)
+            raw = ats.rank_snippets(jd_text or "", pool, max(k, floor))
         result += _set_block_items(block, raw)
     result += tex[spans[-1][1]:]
     return result
@@ -500,9 +512,17 @@ def _replace_skills_block(tex: str, skills: str) -> str:
 # project). The fit-retry trims only the CHOSEN block's tail toward MIN_BULLETS, never
 # the secondary blocks or projects below their floors.
 MIN_BULLETS_PER_BLOCK = 3
+# The first (most recent) experience block carries the resume; it gets a higher floor
+# so the top job never reads thin. Later blocks stay at MIN_BULLETS_PER_BLOCK.
+MIN_BULLETS_FIRST_BLOCK = 5
 MAX_BULLETS_PER_BLOCK = 7
 NUM_PROJECTS = 3
 NUM_SKILL_GROUPS = 5
+
+
+def min_bullets_for_block(idx: int) -> int:
+    """Per-position bullet floor: block 0 (first/most recent job) = 5, others = 3."""
+    return MIN_BULLETS_FIRST_BLOCK if idx == 0 else MIN_BULLETS_PER_BLOCK
 
 
 def edit_tex(tex_source: str, patch: dict, jd_text: str = "",
@@ -530,9 +550,10 @@ def edit_tex(tex_source: str, patch: dict, jd_text: str = "",
     if k_proj is None:
         k_proj = config.int_setting("num_projects", NUM_PROJECTS)
     k_proj = max(NUM_PROJECTS, k_proj)
+    chosen_idx = int(patch.get("experience_section_index", 0) or 0)
     top = list(patch.get("top_bullets") or [])
     if primary_k is not None:
-        top = top[:max(MIN_BULLETS_PER_BLOCK, primary_k)]
+        top = top[:max(min_bullets_for_block(chosen_idx), primary_k)]
     tex = tex_source
     if patch.get("summary"):
         tex = _replace_section_body(tex, "Summary", patch["summary"])
@@ -561,9 +582,10 @@ def check_resume_structure(edited_tex: str) -> list[str]:
         block = edited_tex[sp[0]:sp[1]]
         n = len([ln for ln in block.split("\n")
                  if re.search(r"\\resumeItem\s*\{", ln) and not ln.strip().startswith("%")])
-        if n < MIN_BULLETS_PER_BLOCK or n > MAX_BULLETS_PER_BLOCK:
+        lo = min_bullets_for_block(i)
+        if n < lo or n > MAX_BULLETS_PER_BLOCK:
             problems.append(f"experience block {i} has {n} bullets "
-                            f"(need {MIN_BULLETS_PER_BLOCK}-{MAX_BULLETS_PER_BLOCK}).")
+                            f"(need {lo}-{MAX_BULLETS_PER_BLOCK}).")
         i += 1
     sec = re.search(r"\\section\{Projects\}", edited_tex)
     if sec:

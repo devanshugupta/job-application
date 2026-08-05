@@ -140,10 +140,16 @@ def test_structure_lint_flags_violations():
 
 def test_validate_patch_density_rules():
     from src.tools.tailor import _validate_patch
+    # chosen block 0 (the first/most recent job) now needs at least 5 bullets
     ok = {"summary": "s", "technical_skills": "A: x | B: y | C: z | D: w | E: v",
-          "top_bullets": ["one two three four five six seven eight nine ten eleven twelve", "b", "c"],
-          "projects": []}
+          "top_bullets": ["one two three four five six seven eight nine ten eleven twelve",
+                          "b", "c", "d", "e"],
+          "experience_section_index": 0, "projects": []}
     assert _validate_patch(ok) == []
+    # 3 bullets is fine for a LATER block but not for the first one
+    assert _validate_patch({**ok, "experience_section_index": 1,
+                            "top_bullets": ["a", "b", "c"]}) == []
+    assert any("top_bullets" in p for p in _validate_patch({**ok, "top_bullets": ["a", "b", "c"]}))
     assert any("top_bullets" in p for p in _validate_patch({**ok, "top_bullets": ["a", "b"]}))
     assert any("technical_skills" in p for p in _validate_patch({**ok, "technical_skills": "A: x | B: y"}))
     assert any("projects" in p for p in _validate_patch(

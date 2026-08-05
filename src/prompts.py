@@ -78,13 +78,14 @@ real work in the JD's language, not adding a new skill  still bound by HONESTY: 
 label a concept the candidate could defend explaining in an interview from what they \
 actually built. Never add a DIFFERENT tool/technique they did not use.
 
-TOP_BULLETS (3 to 7  the rewritten/reordered bullets of the chosen experience block):
+TOP_BULLETS (the rewritten/reordered bullets of the chosen experience block):
   These become the ENTIRE bullet list of the chosen block (it renders exactly these, in \
-order  everything else in that block is dropped for this JD). ALWAYS give at least the \
-top 3, and give the top 5 when the candidate genuinely has 5 strong, JD-relevant bullets \
-for this block  never fewer than 3, and never pad to reach 5 with weak or generic lines \
-(a real 4 beats a padded 5). Draw the best-matching bullets from the block's full pool in \
-the master. Every bullet must earn its line; the renderer trims the weakest tail bullets \
+order  everything else in that block is dropped for this JD). FLOOR BY POSITION: if the \
+chosen block is the FIRST (most recent) experience block, give at least 5 bullets; for any \
+LATER block, at least 3. Never exceed 7. The first job carries the resume, so it should be \
+the fullest. Draw the best-matching bullets from the block's full pool in the master; a \
+real, JD-relevant 5 beats a padded one, so prefer genuine points, but the first block must \
+not read thin. Every bullet must earn its line; the renderer trims the weakest tail bullets \
 first if the page overflows, but never below 3. The \
 first two are the whole game  a reviewer must think "this person has done exactly what \
 we need" in a 10-second skim. Pick the TRUE experience that best proves each priority \
