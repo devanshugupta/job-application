@@ -555,6 +555,13 @@ def edit_tex(tex_source: str, patch: dict, jd_text: str = "",
     if primary_k is not None:
         top = top[:max(min_bullets_for_block(chosen_idx), primary_k)]
     tex = tex_source
+    if patch.get("employer_title"):
+        # Retitle the FIRST experience block's role (the "Company $|$ Title" heading)
+        # to the target role family's expected title  the block's real role is a
+        # rolling one, so the family-appropriate framing is applied at render time.
+        tex = re.sub(r"(\\resumeSubheadingg\s*\{[^{}]*?\$\|\$\s*)[^{}]*?(\})",
+                     lambda m: m.group(1) + patch["employer_title"] + m.group(2),
+                     tex, count=1)
     if patch.get("summary"):
         tex = _replace_section_body(tex, "Summary", patch["summary"])
     if patch.get("technical_skills"):

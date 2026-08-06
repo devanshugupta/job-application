@@ -208,6 +208,10 @@ def _patch_and_lint(brain, *, master: str, jd_text: str, profile: str,
     problems = _validate_patch(patch)
     if problems:
         raise RuntimeError(f"Brain returned an invalid patch: {problems}")
+    # First-block title follows the target role family (the real role is a rolling
+    # one, so SDE / MLE / forward-deployed are all true framings of the same job).
+    patch = dict(patch)
+    patch["employer_title"] = role_cache.amazon_title(role)
 
     resume.apply_patch(dict(patch), profile=profile, company=company,
                        role=role, url=url, jd_text=jd_text)

@@ -66,6 +66,7 @@ _STOPWORDS = {
     "devices", "device", "profile", "sign", "login", "careers", "career",
     "footer", "window", "opens", "wallet", "shop", "gift", "cards", "card",
     # weak prose words that ride along in bigrams
+    "hiring", "process", "practical", "understanding", "familiarity", "proficiency",
     "every", "single", "one", "two", "three", "want", "wants", "someone", "take",
     "takes", "put", "need", "needs", "get", "gets", "see", "really", "just", "only",
     "even", "way", "place", "part", "right", "thing", "things", "stuff", "like",

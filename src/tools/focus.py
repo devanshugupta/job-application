@@ -486,6 +486,10 @@ a.row:hover .ract { opacity:1 }
 .metapills { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px }
 .v-hi { color:var(--go) !important } .v-mid { color:var(--hold) !important } .v-lo { color:var(--mut) !important }
 .charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px }
+.charts.carousel { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:thin; padding-bottom:4px }
+.charts.carousel .panel { flex:0 0 calc((100% - 28px)/3); min-width:270px; scroll-snap-align:start }
+.sstack { display:flex; height:12px; border-radius:6px; overflow:hidden; background:var(--line) }
+.sstack span { display:block; height:100% }
 .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px;
   box-shadow:0 4px 18px rgba(30,20,0,.04); margin-bottom:14px }
 .charts .panel { margin-bottom:0 }
@@ -905,8 +909,15 @@ def _applied_panel() -> str:
     for i in range(19, -1, -1):
         day = today - timedelta(days=i)
         n = counts.get(day.isoformat(), 0)
-        lvl = "l4" if n >= 50 else "l3" if n >= 30 else "l2" if n >= 10 else "l1" if n else ""
-        cells += f'<i class="{lvl}" data-tip="{day.strftime("%b %d")}: {n}"></i>'
+        # Continuous gradient so 32 and 43 look different: intensity scales linearly,
+        # saturating at 45 applications/day (the "darkest green" ceiling). Zero days
+        # keep the neutral base cell; the CSS .l1-.l4 classes are superseded.
+        if n:
+            t = min(1.0, n / 45)
+            style = f' style="background:rgba(12,163,12,{0.18 + 0.82 * t:.2f})"'
+        else:
+            style = ""
+        cells += f'<i{style} data-tip="{day.strftime("%b %d")}: {n}"></i>'
     today_n = counts.get(today.isoformat(), 0)
     week = sum(counts.get((today - timedelta(days=i)).isoformat(), 0) for i in range(7))
     if week > 150:
@@ -931,6 +942,40 @@ def _bar_rows(items: list[tuple[str, int, int | None]]) -> str:
                 f'<span class="ftrack"><span class="fbar" style="width:{max(2, round(100 * n / mx))}%">{inner}</span></span>'
                 f'<span class="fnum">{num}</span></div>')
     return out or '<div class="frow"><span class="flab"></span><span class="fnum">no data yet</span></div>'
+
+
+def _source_quality_panel() -> str:
+    """Per-source 100% stacked bar: found / applied / stale share of each discovery
+    source, top sources by volume. One horizontal line per source, so junk sources
+    (aggregators relisting weeks-old posts with fresh dates) stand out by their red
+    stale share regardless of volume."""
+    stat: dict[str, Counter] = {}
+    for a in tracker.list_applications():
+        s = (a.get("source") or "unknown")
+        c = stat.setdefault(s, Counter())
+        if a.get("stale"):
+            c["stale"] += 1
+        elif a.get("status") in _dash._SUBMITTED:
+            c["applied"] += 1
+        elif a.get("status") == "found":
+            c["found"] += 1
+    top = sorted(stat.items(), key=lambda kv: -sum(kv[1].values()))[:6]
+    rows = ""
+    for src, c in top:
+        tot = sum(c.values()) or 1
+        segs = "".join(
+            f'<span style="width:{100 * c[k] / tot:.1f}%;background:{col}"></span>'
+            for k, col in (("found", "var(--accent)"), ("applied", "var(--go)"),
+                           ("stale", "#d03b3b")) if c[k])
+        label = src if len(src) <= 16 else src[:15] + "…"
+        rows += (f'<div class="frow"><span class="flab" title="{esc(src)}">{esc(label)}</span>'
+                 f'<span class="ftrack"><span class="sstack">{segs}</span></span>'
+                 f'<span class="fnum" style="color:#d03b3b">{c["stale"] or ""}</span></div>')
+    legend = ('<div class="r" style="font-size:12px;margin:0 0 2px">'
+              '<span style="color:var(--accent)">■</span> found  '
+              '<span style="color:var(--go)">■</span> applied  '
+              '<span style="color:#d03b3b">■</span> dead link</div>')
+    return f'<div class="panel"><h3>Source quality</h3>{legend}{rows}</div>'
 
 
 def _apply_charts() -> str:
@@ -959,11 +1004,17 @@ def _apply_charts() -> str:
             prof_a[a["profile"]] += 1
     tracks = [(p.replace("_", " "), prof_t[p], prof_a.get(p, 0))
               for p in sorted(prof_t, key=lambda p: -prof_t[p])]
-    return (f'<div class="sech"><h2>The numbers</h2><span class="n">the whole tracker at a glance</span></div>'
-            f'<div class="charts">'
+    arr = ('<span style="margin-left:auto;display:flex;gap:6px">'
+           '<button class="pbtn" onclick="const c=this.closest(\'.sech\').nextElementSibling;'
+           'c.scrollBy({left:-(c.firstElementChild.offsetWidth+14),behavior:\'smooth\'})">&#8592;</button>'
+           '<button class="pbtn" onclick="const c=this.closest(\'.sech\').nextElementSibling;'
+           'c.scrollBy({left:c.firstElementChild.offsetWidth+14,behavior:\'smooth\'})">&#8594;</button></span>')
+    return (f'<div class="sech"><h2>The numbers</h2><span class="n">the whole tracker at a glance</span>{arr}</div>'
+            f'<div class="charts carousel">'
             f'<div class="panel"><h3>Pipeline funnel</h3>{_bar_rows(funnel)}</div>'
             f'<div class="panel"><h3>Fit distribution</h3><div class="hgrid">{hist}</div></div>'
             f'<div class="panel"><h3>Tracks, applied of total</h3>{_bar_rows(tracks)}</div>'
+            f'{_source_quality_panel()}'
             f'</div>')
 
 

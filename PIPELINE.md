@@ -56,7 +56,23 @@ Never fabricate; confirm before anything irreversible; commit messages short, no
 - **Honesty is inviolable.** Every bullet must survive a 5-minute interview deep-dive.
   Never invent skills, metrics, tools, employers, or scope. "9+" is a **filter, not a
   target** — score mismatches down (4–5) and name the gap.
-- **Do-not-tailor: Google, OpenAI.** (Existing resumes stay; just don't make new ones.)
+- **Do-not-tailor: Google, OpenAI, TikTok.** (Existing resumes stay; just don't make new ones.)
+- **Role targeting (recruiter-validated, Paramount rejection Aug 6 2026: "profile is
+  SDE for ML/RAG systems, not actually training a model"):** PREFER roles titled/scoped
+  as AI Engineer, Applied AI, LLM/RAG/agent systems, ML platform/MLOps, SDE-ML,
+  GenAI engineer, forward-deployed — these interview. DEPRIORITIZE reqs whose core is
+  training models from scratch (deep-learning research MLE, DS-forecasting); the honest
+  evidence there is LoRA fine-tuning + XGBoost, which doesn't clear a training-first
+  screen. The scorer data agrees: RAG/applied roles score 8/80-92, training-first roles
+  floor at 4-5/40s.
+- **Batch execution pattern (proven Aug 5 2026, ~12x faster):** vertical slices, not
+  stages — 4-6 parallel agents, each owning 4-5 jobs END TO END (the agent runs
+  `tailor "<url>" --brain manual` in a loop and answers its own role/tailor/lint/
+  review/score packets until the PDF renders and verifies). Non-LLM work (liveness
+  probes, JD fetches, pdftotext verification) runs threaded (4-6 workers), never
+  sequentially. Pre-tailor STALENESS CHECK is mandatory: browser-verify every selected
+  URL first; aggregator (ScoutBetter) posted-dates are re-index dates, not post dates —
+  ~40% of a "fresh" list can be weeks-old dead reposts.
 - **Per company:** tailor multiple *different* roles (more interview shots). Only block
   the *same role* twice. Do NOT cap per company.
 - **Sources for bullets:** `resume/masters/ml_sde.tex` (master) + `resume/achievements.md`

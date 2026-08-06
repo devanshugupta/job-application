@@ -52,7 +52,7 @@ def normalize(title: str) -> str:
     # Keep the segment that actually NAMES a role: "Compliance - Applied AI/ML Data
     # Scientist - Associate" must resolve to the data-scientist segment, not the
     # department prefix. Fall back to the first segment when none names a role.
-    segs = re.split(r"\s+[-–—,|:]\s+", t)
+    segs = re.split(r"\s+[-–—|:]\s+|\s*,\s+", t)   # spaced dashes OR comma tails
     ROLE_WORDS = re.compile(r"engineer|scientist|developer|manager|analyst|designer|"
                             r"architect|researcher|marketer|specialist|consultant|lead",
                             re.I)
@@ -61,6 +61,21 @@ def normalize(title: str) -> str:
     t = re.sub(r"[^A-Za-z0-9 ]", " ", t).lower()
     toks = [w for w in t.split() if w not in _NOISE]
     return "-".join(toks) or "unknown-role"
+
+
+def amazon_title(role_title: str) -> str:
+    """The Amazon-block title matching the target role family. Amazon's role is a
+    rolling one with no single official title that matches the actual work, so SDE,
+    MLE, and forward-deployed framings are all TRUE descriptions of the same job
+    (owner's call, 2026-08-05); this just picks the one the target role family's
+    reviewer expects to see."""
+    s = normalize(role_title)
+    if "forward-deployed" in s or "applied-ai" in s:
+        return "Forward Deployed Engineer"
+    if any(w in s for w in ("software", "sde", "sdet", "systems", "backend",
+                            "infrastructure", "data-engineer", "platform")):
+        return "Software Development Engineer"
+    return "Machine Learning Engineer"
 
 
 def get_brief(role_title: str) -> dict | None:
