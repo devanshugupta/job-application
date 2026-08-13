@@ -39,7 +39,7 @@ from . import Source, register
 from .. import config
 
 _GUEST = ("https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
-          "?keywords={kw}&location={loc}&start={start}")
+          "?keywords={kw}&location={loc}&start={start}&f_TPR=r{secs}")
 # Public guest JD endpoint  returns the full description HTML with NO login, same ToS
 # posture as the guest search above. Lets us capture jd_text at discovery.
 _GUEST_JD = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{jid}"
@@ -62,18 +62,36 @@ def _strip(html: str) -> str:
     return re.sub(r"\n\s*\n+", "\n\n", html).strip()
 
 
-def _jd(job_id: str) -> str:
-    """Full JD text from the public guest jobPosting endpoint (no login). '' on failure."""
+def _jd(job_id: str, *, retries: int = 2) -> str:
+    """Full JD text from the public guest jobPosting endpoint (no login). '' on failure.
+
+    The endpoint intermittently returns an empty/blocked response under load (observed
+    ~50% on burst fetches), and a short backoff-retry recovers most of them  so failure
+    here means retried-and-still-empty, not one bad roll.
+    """
     if not job_id:
         return ""
-    try:
-        req = urllib.request.Request(_GUEST_JD.format(jid=job_id), headers=_UA)
-        with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310
-            html = r.read().decode("utf-8", errors="replace")
-    except Exception:
-        return ""
-    m = re.search(r'(?is)(show-more-less-html__markup|description__text).*?>(.*?)</div>', html)
-    return _strip(m.group(2)) if m else ""
+    for attempt in range(retries + 1):
+        try:
+            req = urllib.request.Request(_GUEST_JD.format(jid=job_id), headers=_UA)
+            with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310
+                html = r.read().decode("utf-8", errors="replace")
+        except Exception:
+            html = ""
+        m = re.search(r'(?is)(show-more-less-html__markup|description__text).*?>(.*?)</div>', html)
+        if m:
+            return _strip(m.group(2))
+        if attempt < retries:
+            time.sleep(1.5 * (attempt + 1))
+    return ""
+
+
+def fetch_jd_for_url(url: str) -> str:
+    """JD text for any linkedin.com/jobs/view/... URL via the guest endpoint (no login).
+    The seam jd_fetch uses so LinkedIn URLs never hit the auth wall. '' if not a
+    LinkedIn posting URL or the JD is unavailable."""
+    m = re.search(r"/jobs/view/[^/]*?(\d{8,})", url or "")
+    return _jd(m.group(1)) if m else ""
 
 
 def _rel_to_ts(text: str, now: int) -> tuple[str, int]:
@@ -165,7 +183,10 @@ class LinkedInSource(Source):
             loc = urllib.parse.quote(s.get("location", "United States"))
             got = 0
             for p in range(pages):
-                url = _GUEST.format(kw=kw, loc=loc, start=p * 25)
+                # f_TPR narrows results server-side to the freshness window, so pages
+                # carry only in-window cards instead of a mixed-age list.
+                url = _GUEST.format(kw=kw, loc=loc, start=p * 25,
+                                    secs=max(int(hours), 1) * 3600)
                 try:
                     req = urllib.request.Request(url, headers=_UA)
                     with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310
@@ -255,7 +276,9 @@ def search(keywords: str, *, location: str = "United States", hours: int = 168,
     out: list[dict] = []
     for p in range(pages):
         try:
-            req = urllib.request.Request(_GUEST.format(kw=kw, loc=loc, start=p * 25), headers=_UA)
+            req = urllib.request.Request(
+                _GUEST.format(kw=kw, loc=loc, start=p * 25, secs=hours * 3600),
+                headers=_UA)
             with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310
                 cards = _parse_cards(r.read().decode("utf-8", errors="replace"), now)
         except Exception:

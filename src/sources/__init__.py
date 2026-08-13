@@ -66,7 +66,7 @@ def _load_builtins() -> None:
     global _LOADED
     if _LOADED:
         return
-    from . import ats_boards, careers_page, github_feed, linkedin, scoutbetter  # noqa: F401
+    from . import ats_all, ats_boards, careers_page, github_feed, linkedin, scoutbetter  # noqa: F401
     _LOADED = True
 
 

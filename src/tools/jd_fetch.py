@@ -221,6 +221,14 @@ def _fetch_jd_cached(url: str, max_chars: int, allow_browser: bool) -> tuple[str
         return (len(t) >= MIN_COMPLETE_CHARS and not _looks_like_login_wall(t)
                 and has_jd_content(t))
 
+    # LinkedIn first: the full /jobs/view page is an auth wall (plain HTTP and even the
+    # browser get a login shell), but the guest jobPosting endpoint returns the real JD.
+    if "linkedin.com/jobs" in url:
+        from ..sources.linkedin import fetch_jd_for_url as _li_jd
+        text = _li_jd(url)
+        if text and _complete(text):
+            return text[:max_chars], "linkedin-guest", True
+
     for api_fn, src in ((_greenhouse_api, "greenhouse-api"), (_lever_api, "lever-api"),
                         (_ashby_api, "ashby-api"), (_workday_api, "workday-api")):
         text = api_fn(url)

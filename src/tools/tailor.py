@@ -225,6 +225,10 @@ def _patch_and_lint(brain, *, master: str, jd_text: str, profile: str,
                                  schema=PATCH_SCHEMA, cache_blocks=cache_blocks)
         if _validate_patch(patch):
             raise RuntimeError("Corrective patch still invalid; aborting this job.")
+        # The corrective patch is a fresh brain object: re-stamp the role-family
+        # title or the lint pass silently reverts the block title to the master's.
+        patch = dict(patch)
+        patch["employer_title"] = role_cache.amazon_title(role)
         resume.apply_patch(dict(patch), profile=profile, company=company,
                            role=role, url=url, jd_text=jd_text)
     return patch

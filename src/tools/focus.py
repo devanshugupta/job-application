@@ -603,15 +603,20 @@ document.addEventListener('click', e => {
   const post = (path, done) => fetch(path, { method: 'POST',
     headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ url: row.href }) })
     .then(r => { if (r.ok) done(); }).catch(() => {});
+  // keepalive lets the POST finish even if the page is refreshed/navigated right
+  // after the click (a plain fetch gets aborted on unload -> the mark was lost).
+  const record = path => fetch(path, { method: 'POST', keepalive: true,
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ url: row.href }) }).catch(() => {});
   if (row.dataset.cyc === 'applied') {
-    post('/api/unapplied', () => {
-      row.classList.remove('rowdone'); if (pill) pill.textContent = 'ready';
-      row.dataset.cyc = ''; });
+    row.classList.remove('rowdone'); if (pill) pill.textContent = 'ready';
+    row.dataset.cyc = '';                        // optimistic: flip UI now
+    record('/api/unapplied');                    // record survives navigation
   } else {
-    window.open(row.href, '_blank');            // open the posting on the first click
-    post('/api/applied', () => {
-      row.classList.add('rowdone'); if (pill) pill.textContent = 'applied';
-      row.dataset.cyc = 'applied'; });
+    row.classList.add('rowdone'); if (pill) pill.textContent = 'applied';
+    row.dataset.cyc = 'applied';                 // optimistic: mark the moment you click
+    record('/api/applied');                      // queued BEFORE opening the tab
+    window.open(row.href, '_blank');             // open the posting
   }
 });
 document.querySelectorAll('.sortable').forEach(hcell => hcell.addEventListener('click', () => {

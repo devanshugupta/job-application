@@ -365,6 +365,12 @@
       "name": "PlayStation Global",
       "ats": "greenhouse",
       "token": "sonyinteractiveentertainmentglobal"
+    },
+    {
+      "name": "ServiceNow",
+      "ats": "smartrecruiters",
+      "token": "servicenow",
+      "board": "https://jobs.smartrecruiters.com/servicenow"
     }
   ]
 }
