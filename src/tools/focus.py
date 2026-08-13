@@ -575,7 +575,15 @@ function toggleMsg(btn, id) {
 document.querySelectorAll('.more[data-for]').forEach(m => m.addEventListener('click', () => {
   const hid = [...document.querySelectorAll('.hidden[data-grp="' + m.dataset.for + '"]')];
   hid.slice(0, 5).forEach(r => r.classList.remove('hidden'));
-  if (hid.length <= 5) m.remove(); }));
+  if (hid.length <= 5) m.remove();
+  // keep the section header's "X of Y shown" honest after revealing more rows
+  const box = m.closest('.rows');
+  const n = box && box.previousElementSibling && box.previousElementSibling.querySelector('.n');
+  if (n && / of \\d+ shown/.test(n.textContent)) {
+    const rows = [...box.querySelectorAll('a.row')];
+    const visible = rows.filter(r => !r.classList.contains('hidden')).length;
+    n.textContent = visible + ' of ' + rows.length + ' shown, best first';
+  } }));
 document.addEventListener('click', e => {
   const b = e.target.closest('.ract button');
   if (!b) return;
