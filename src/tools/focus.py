@@ -1127,9 +1127,14 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
     ) if x)
     # Visible second line under the posted date: applied time once applied, else the
     # found time  so WHEN is on the page, not only in the hover timeline.
-    _ad, _fd = a.get("applied_date") or "", a.get("date") or ""
+    # Priority: applied stamp > the SOURCE's posting time (posted_date carries HH:MM
+    # when the ATS reported one) > our found time as a last resort.
+    _ad, _pd, _fd = (a.get("applied_date") or "", a.get("posted_date") or "",
+                     a.get("date") or "")
     if len(_ad) >= 16:
         when_small = f"applied {_ad[5:16].replace('-', '/')}"
+    elif len(_pd) >= 16:
+        when_small = _pd[11:16]
     elif len(_fd) >= 16:
         when_small = _fd[11:16]
     else:

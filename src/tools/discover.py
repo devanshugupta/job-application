@@ -37,6 +37,23 @@ _SENIOR = re.compile(
     r"distinguished|fellow|intern(ship)?)\b", re.I)
 
 
+def _posted_stamp(j: dict) -> str:
+    """The posting timestamp as the SOURCE reported it: 'YYYY-MM-DD HH:MM' when the
+    ATS gave a real time (greenhouse/ashby/lever timestamps), else the date string.
+    A ts landing exactly on UTC midnight is treated as date-granular (LinkedIn's
+    datetime attr and date-only feeds resolve to midnight)  showing 00:00 would be
+    us inventing a time, which is exactly what this avoids."""
+    ts = j.get("posted_ts") or 0
+    if ts and ts % 86400:
+        from datetime import datetime as _dt
+        stamp = _dt.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+        # A midnight in EITHER utc (ts%86400==0, caught above) or local time is a
+        # date-granular source; rendering 00:00 would be a made-up time.
+        if not stamp.endswith(" 00:00"):
+            return stamp
+    return j.get("posted_date") or ""
+
+
 def _profile_for_title(title: str) -> str | None:
     """Map a raw posting title to a master-resume profile (None = not relevant)."""
     if feeds._TITLE_NO.search(title) or not feeds._TITLE_OK.search(title):
@@ -278,7 +295,7 @@ def discover(hours: int = 24, target: int = 100, *, profile: str | None = None,
             tracker.save_application(
                 company=j["company"], role=j["role"], url=j["url"], status="found",
                 match_score=j["match"], source=j.get("source", "feed"),
-                posted_date=j["posted_date"], profile=j["profile"],
+                posted_date=_posted_stamp(j), profile=j["profile"],
                 jd_text=j.get("jd_text"),
             )
         if verbose and skipped_dupe:
@@ -372,7 +389,7 @@ def rerank_by_jd(jobs: list[dict], top: int, *, verbose: bool = True) -> list[di
                 tracker.save_application(
                     company=j["company"], role=j["role"], url=j["url"],
                     status="skipped", source=j.get("source"),
-                    posted_date=j.get("posted_date"), profile=prof, notes=reason)
+                    posted_date=_posted_stamp(j), profile=prof, notes=reason)
                 if verbose:
                     print(f"  ⛔ {j['company']}  {j['role']}: {reason}")
                 continue
