@@ -628,7 +628,12 @@ document.addEventListener('click', e => {
     row.dataset.cyc = '';                        // optimistic: flip UI now
     record('/api/unapplied');                    // record survives navigation
   } else {
-    row.classList.add('rowdone'); if (pill) pill.textContent = 'applied';
+    row.classList.add('rowdone');
+    if (pill) {                                  // show WHEN it was applied, right away
+      const t = new Date();
+      pill.textContent = 'applied ' + String(t.getHours()).padStart(2, '0')
+        + ':' + String(t.getMinutes()).padStart(2, '0');
+    }
     row.dataset.cyc = 'applied';                 // optimistic: mark the moment you click
     record('/api/applied');                      // queued BEFORE opening the tab
     window.open(row.href, '_blank');             // open the posting
@@ -1126,7 +1131,7 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
     if len(_ad) >= 16:
         when_small = f"applied {_ad[5:16].replace('-', '/')}"
     elif len(_fd) >= 16:
-        when_small = f"found {_fd[11:16]}"
+        when_small = _fd[11:16]
     else:
         when_small = ""
     tats = a.get("match_score") if _dash._has_resume(a) else None
