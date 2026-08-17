@@ -1120,6 +1120,15 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
         f"found {_pretty_dt(a.get('date') or '')}" if a.get("date") else "",
         f"applied {_pretty_dt(a.get('applied_date') or '')}" if a.get("applied_date") else "",
     ) if x)
+    # Visible second line under the posted date: applied time once applied, else the
+    # found time  so WHEN is on the page, not only in the hover timeline.
+    _ad, _fd = a.get("applied_date") or "", a.get("date") or ""
+    if len(_ad) >= 16:
+        when_small = f"applied {_ad[5:16].replace('-', '/')}"
+    elif len(_fd) >= 16:
+        when_small = f"found {_fd[11:16]}"
+    else:
+        when_small = ""
     tats = a.get("match_score") if _dash._has_resume(a) else None
     score = a.get("resume_score")
     data = (f' data-co="{esc(a.get("company", ""))}"'
@@ -1148,7 +1157,8 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
             f'<span class="who"><b>{esc(a.get("company"))}</b><div class="r">{esc(a.get("role"))}</div></span>'
             f'{fit}<span class="cell c-tats{tats_cls}">{tats if tats is not None else ""}</span>'
             f'<span class="cell c-score{score_cls}">{f"{score}/10" if score is not None else ""}</span>'
-            f'<span class="cell c-date" title="{esc(timeline)}">{posted}</span>'
+            f'<span class="cell c-date" title="{esc(timeline)}">{posted}'
+            f'{f"<div class={chr(34)}r{chr(34)}>{esc(when_small)}</div>" if when_small else ""}</span>'
             f'<span class="cell c-prof">{prof}</span>'
             f'{f'<span class="why">{esc(why)}</span>' if why else ''}'
             f'<span class="ract">{acts or default_acts}</span>'
