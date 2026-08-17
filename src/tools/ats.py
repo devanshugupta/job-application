@@ -361,3 +361,60 @@ def ats_score(job_description: str, resume_text: str,
             "experience if truthful; never fabricate."
         ),
     }
+
+
+# --- role-intent check (trap-title detector) ---------------------------------------
+# Titles lie: "AI/ML Engineer" postings have turned out to be frontend, silicon
+# validation, presales consulting, and PhD research roles. The title/keyword rank
+# can't see that; this reads the JD's RESPONSIBILITIES/QUALIFICATIONS sections (the
+# real signal usually sits mid-document, not the intro boilerplate) and reports when
+# a non-eng/AI core dominates, so the pipeline can warn BEFORE spending tailor calls.
+
+_SECTION_HEAD = re.compile(
+    r"(?im)^\s*(?:key\s+)?(responsibilit\w*|what you.?ll (?:do|own)|you will|the role|"
+    r"(?:minimum |basic |required )?qualifications?|requirements?|must.?haves?|"
+    r"what we.?re looking for|about you|essential(?: skills)?)\b.{0,40}$")
+
+_INTENT_SIGNALS: dict[str, re.Pattern] = {
+    "frontend":  re.compile(r"\b(react|typescript|next\.?js|css|graphql|webgl|vue|"
+                            r"front.?end|ui/ux|figma-to-code)\b", re.I),
+    "hardware":  re.compile(r"\b(silicon|rtl|verilog|asic|fpga|post.silicon|ate\b|"
+                            r"schematic|pcb|firmware|embedded c)\b", re.I),
+    "presales":  re.compile(r"\b(pre.?sales|professional services|c.suite|customer.facing "
+                            r"(?:consult|advisory)|travel \d{2}.?%|solutions? consultant|"
+                            r"statements? of work|client engagements?)\b", re.I),
+    "training":  re.compile(r"\b(pre.?training|post.?training|rlhf|sft\b|dpo\b|cuda kernels?|"
+                            r"distributed training|fsdp|zero-?\d|megatron|training runs?)\b", re.I),
+    "research":  re.compile(r"\b(phd (?:is )?required|phd in|publications? record|"
+                            r"first.author|research agenda)\b", re.I),
+}
+_ENG_AI = re.compile(r"\b(llm|rag\b|agent\w*|retrieval|ranking|embedding|prompt|"
+                     r"evaluat\w*|backend|microservice|api|python|inference|fine.?tun\w*|"
+                     r"vector|gen(?:erative)? ?ai|machine learning|ml\b)\b", re.I)
+
+
+def _core_sections(jd_text: str) -> str:
+    """The JD text from its first responsibilities/qualifications-style header on
+    (where the real role definition lives). Whole JD if no header is found."""
+    m = _SECTION_HEAD.search(jd_text or "")
+    return jd_text[m.start():] if m else (jd_text or "")
+
+
+def role_intent(jd_text: str) -> tuple[str, str]:
+    """('eng_ai' | <mismatch label>, evidence). A mismatch label is returned only when
+    that signal clearly DOMINATES the eng/AI signal inside the core sections  a JD
+    that merely mentions React once stays 'eng_ai'. Advisory: callers warn/annotate,
+    they do not hard-block on it."""
+    core = _core_sections(jd_text)
+    eng = len(_ENG_AI.findall(core))
+    best_label, best_hits, best_ev = "eng_ai", 0, ""
+    for label, pat in _INTENT_SIGNALS.items():
+        hits = pat.findall(core)
+        if len(hits) > best_hits:
+            best_label, best_hits = label, len(hits)
+            best_ev = ", ".join(dict.fromkeys(h if isinstance(h, str) else h[0]
+                                              for h in hits[:4]))
+    # Dominance test: the mismatch core must both be substantial and outweigh eng/AI.
+    if best_hits >= 3 and best_hits > eng * 0.75:
+        return best_label, best_ev
+    return "eng_ai", ""

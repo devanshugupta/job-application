@@ -138,8 +138,10 @@ label a concept the candidate could defend explaining in an interview from what 
 actually built. Never add a DIFFERENT tool/technique they did not use.
 
 TOP_BULLETS (the selected bullets from STEP 3, each rewritten here):
-  These become the ENTIRE bullet list of the chosen block (it renders exactly these, in \
-order  everything else in that block is dropped for this JD). Bullet wording rules:
+  These become the ENTIRE bullet list of the chosen block, in order  everything else in \
+that block is dropped for this JD. ORDER IS LOAD-BEARING: if the 1-page fit is tight the \
+renderer keeps only the FIRST bullets and cuts the tail, so a bullet you cannot afford \
+to lose must never sit last. Bullet wording rules:
   - Each bullet: XYZ shape  what they did, how, with quantified impact  ONE sentence, \
 {bullet_min}-{bullet_max} words (≤1.5 rendered lines), the impact METRIC AT THE END.
   - Strong ownership verbs (Designed, Built, Led, Owned); end-to-end framing. Don't \

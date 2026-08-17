@@ -372,6 +372,15 @@ def tailor_job(url: str, *, brain, profile: str | None = None,
                 print(f"    ⛔ {reason}")
             return rec
 
+    # 1b3. Trap-title advisory  the title said AI/ML but the JD's responsibilities/
+    # qualifications sections (where the real role lives, usually mid-document) say
+    # frontend/hardware/presales/training-research. Advisory only: warn and annotate so
+    # a human or agent can stop early; never hard-block (the scorer still scores honestly).
+    intent, evidence = ats.role_intent(jd_text)
+    if intent != "eng_ai" and verbose:
+        print(f"    ⚠ role-intent: core reads as {intent.upper()} ({evidence}) "
+              f"despite the title; expect a low honest score")
+
     # 1b2. Applied-row protection  once a resume has been SENT, it is a record of what
     # the employer received; never regenerate or overwrite it. Re-running the pipeline
     # over an applied row is always accidental (re-sweep, backlog pass), so return the

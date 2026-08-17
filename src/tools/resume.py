@@ -361,6 +361,12 @@ def _render_pdf_to(dest: pathlib.Path, pdf_name: str, *, markdown: str | None,
                                         jd_text=jd_text, primary_k=_primary)
                 ok, msg = latex.compile_pdf(edited, dest)
                 if ok and latex.pdf_renders_complete(dest, edited):
+                    # Trimming the tail is by design (bullets are ordered most-relevant-
+                    # first), but it must never be silent: say what was cut.
+                    n_patch = len((patch or {}).get("top_bullets") or [])
+                    if _primary is not None and n_patch > _primary:
+                        print(f"    1-page fit: chosen block trimmed to {_primary} of "
+                              f"{n_patch} bullets (tail = least JD-relevant by order)")
                     break
                 if ok:
                     msg = "page overflow clipped content; retried with fewer primary bullets"
