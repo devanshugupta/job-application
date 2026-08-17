@@ -1312,7 +1312,9 @@ def _catalog() -> tuple[str, dict]:
             b, pill, pcls = "dead", "stale", "p-dead"
             acts = '<button data-api="remove">hide</button>'
         elif a.get("status") in _dash._SUBMITTED:
-            b, pill, pcls = "applied", "applied", "p-mut"
+            _at = a.get("applied_date") or ""
+            b, pcls = "applied", "p-mut"
+            pill = f"applied {_at[11:16]}" if len(_at) >= 16 else "applied"
             acts = '<button data-api="unapplied">undo</button><button data-api="reveal">resume</button>'
         elif a.get("status") == "skipped":
             b, pill, pcls = "skipped", "skipped", "p-mut"
