@@ -63,8 +63,10 @@ def mark_applied(url: str) -> dict | None:
     # Remember the status we're leaving, so a second click can undo cleanly.
     rec = tracker._find_by_url(tracker.list_applications(), url)
     prev = rec.get("status") if rec and rec.get("status") != "applied" else None
+    # Minute-precision stamp so the dashboard can show WHEN it was applied, not just
+    # the day. All existing `[:10]` reads still yield the date.
     return tracker.update_application(
-        url, status="applied", applied_date=date.today().isoformat(),
+        url, status="applied", applied_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
         prev_status=prev)
 
 

@@ -122,6 +122,13 @@ def _pretty_date(iso: str) -> str:
     return f"{n}{suf} {d.strftime('%b')}"
 
 
+def _pretty_dt(stamp: str) -> str:
+    """'2026-08-17 09:12' -> '17th Aug 09:12'; date-only values render like _pretty_date."""
+    s = (stamp or "").strip()
+    base = _pretty_date(s)
+    return f"{base} {s[11:16]}" if len(s) >= 16 else base
+
+
 _COPY_ICON = ('<svg width="13" height="13" viewBox="0 0 24 24" fill="none" '
               'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
               '<rect x="9" y="9" width="12" height="12" rx="2"/>'
@@ -1106,6 +1113,13 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
     url = esc(a.get("url") or "#")
     posted_full = esc((a.get("posted_date") or a.get("date") or "")[:10])
     posted = esc(_pretty_date(a.get("posted_date") or a.get("date") or ""))
+    # Hover timeline: posting date, when the sweep found it, and when it was applied
+    # (found/applied carry minute stamps; posting sources are date-granular).
+    timeline = " · ".join(x for x in (
+        f"posted {_pretty_date(a.get('posted_date') or '')}" if a.get("posted_date") else "",
+        f"found {_pretty_dt(a.get('date') or '')}" if a.get("date") else "",
+        f"applied {_pretty_dt(a.get('applied_date') or '')}" if a.get("applied_date") else "",
+    ) if x)
     tats = a.get("match_score") if _dash._has_resume(a) else None
     score = a.get("resume_score")
     data = (f' data-co="{esc(a.get("company", ""))}"'
@@ -1134,7 +1148,7 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
             f'<span class="who"><b>{esc(a.get("company"))}</b><div class="r">{esc(a.get("role"))}</div></span>'
             f'{fit}<span class="cell c-tats{tats_cls}">{tats if tats is not None else ""}</span>'
             f'<span class="cell c-score{score_cls}">{f"{score}/10" if score is not None else ""}</span>'
-            f'<span class="cell c-date">{posted}</span>'
+            f'<span class="cell c-date" title="{esc(timeline)}">{posted}</span>'
             f'<span class="cell c-prof">{prof}</span>'
             f'{f'<span class="why">{esc(why)}</span>' if why else ''}'
             f'<span class="ract">{acts or default_acts}</span>'
