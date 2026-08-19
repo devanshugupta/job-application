@@ -420,6 +420,8 @@ a.row:hover, .row.click:hover { background:var(--panel-hov); cursor:pointer }
 .fit b { font-size:13.5px; font-variant-numeric:tabular-nums }
 .why { flex:1; color:var(--mut); font-size:14.5px; min-width:0 }
 .pill { font-size:12px; font-weight:750; padding:3px 11px; border-radius:999px; flex-shrink:0 }
+button.pill { border:none; font-family:inherit; cursor:pointer }
+button.pill:hover { filter:brightness(.95) }
 .p-go { background:var(--go-bg); color:var(--go) } .p-hold { background:var(--hold-bg); color:var(--hold) }
 .p-mut { background:rgba(140,130,100,.14); color:var(--mut) }
 .p-nav { background:rgba(42,120,214,.12); color:var(--accent) }
@@ -610,7 +612,8 @@ document.addEventListener('click', e => {
 //   applied     -> undo (row back to normal, un-recorded), no new tab
 // People rows and nav links are untouched.
 document.addEventListener('click', e => {
-  if (e.target.closest('.ract button') || e.target.closest('.copybtn')) return;
+  if (e.target.closest('.ract button') || e.target.closest('.copybtn')
+      || e.target.closest('[data-deadcheck]')) return;
   const row = e.target.closest('a.row');
   if (!row || !row.dataset.co) return;          // only job rows carry data-co
   e.preventDefault();
@@ -697,8 +700,21 @@ document.querySelectorAll('button[data-boot]').forEach(b => b.addEventListener('
   .then(r => { if (!r.ok) throw 0; b.textContent = 'created, refresh'; })
   .catch(() => b.textContent = 'needs server');
 }));
-if (document.getElementById('readybox'))
-  fetch('/api/deadcheck-ready').catch(() => {});
+// The "ready?" pill is a live-check button: click it to probe the posting before
+// applying. Live -> "ready" (green, re-checkable). Dead -> "dead" (red) and the row
+// is marked stale server-side so it drops out of the ready lane on the next load.
+document.querySelectorAll('button[data-deadcheck]').forEach(b => b.addEventListener('click', e => {
+  e.preventDefault(); e.stopPropagation();
+  const row = b.closest('a.row'), prev = b.textContent;
+  b.textContent = 'checking';
+  fetch('/api/deadcheck', { method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ url: row.href }) })
+  .then(r => r.json()).then(d => {
+    if (d.dead) { b.textContent = 'dead'; b.className = 'pill p-dead'; row.classList.add('rowdone'); }
+    else { b.textContent = 'ready'; b.className = 'pill p-go'; }
+  })
+  .catch(() => { b.textContent = 'needs server'; setTimeout(() => b.textContent = prev, 1500); });
+}));
 document.querySelectorAll('[data-rescout]').forEach(b => b.addEventListener('click', () => {
   b.textContent = 'scouting';
   fetch('/api/scout-people', { method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1109,7 +1125,7 @@ def _page(title: str, body: str, active: str = "") -> str:
 
 
 def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
-             acts: str = "", grp: str = "") -> str:
+             acts: str = "", grp: str = "", deadcheck: bool = False) -> str:
     mats = a.get("master_ats")
     fit = (f'<span class="fit"><span class="t"><i style="width:{min(int(mats), 100)}%"></i></span>'
            f'<b>{mats}</b></span>') if isinstance(mats, (int, float)) else '<span class="fit"></span>'
@@ -1173,7 +1189,11 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
             f'<span class="cell c-prof">{prof}</span>'
             f'{f'<span class="why">{esc(why)}</span>' if why else ''}'
             f'<span class="ract">{acts or default_acts}</span>'
-            f'<span class="pill {pill_cls}">{esc(pill)}</span></a>')
+            + (f'<button class="pill {pill_cls}" data-deadcheck '
+               f'title="check this posting is still live before you apply">{esc(pill)}</button>'
+               if deadcheck else
+               f'<span class="pill {pill_cls}">{esc(pill)}</span>')
+            + '</a>')
 
 
 def _person_row(item: dict, cls: str, pill: str, pill_cls: str, why: str) -> str:
@@ -1351,8 +1371,8 @@ def render_apply() -> str:
     story = (f"<b>{esc(ready[0].get('company'))} first.</b> " if ready else "")
     rows = ""
     for i, a in enumerate(ready):
-        rows += _app_row(a, "go", "ready", "p-go", "",
-                         "ready" if i >= 5 else "")
+        rows += _app_row(a, "go", "ready?", "p-go", "",
+                         "ready" if i >= 5 else "", deadcheck=True)
     if len(ready) > 5:
         rows += '<div class="more" data-for="ready">show more</div>'
     frows = ""
