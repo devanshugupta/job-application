@@ -414,6 +414,9 @@ a.row:hover, .row.click:hover { background:var(--panel-hov); cursor:pointer }
   display:grid; place-items:center; flex-shrink:0 }
 .who { width:265px; flex-shrink:0 } .who b { font-size:15.5px }
 .who .r { color:var(--mut); font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:250px }
+.who .cbline { font-size:12.5px }
+.cbline.cb-go { color:var(--go) } .cbline.cb-hold { color:var(--hold) }
+.cblink { text-decoration:underline; cursor:pointer }
 .fit { display:flex; align-items:center; gap:8px; width:105px; flex-shrink:0 }
 .fit .t { height:5px; border-radius:3px; background:rgba(140,130,100,.2); width:56px; overflow:hidden }
 .fit .t i { display:block; height:100%; background:var(--accent) }
@@ -611,9 +614,16 @@ document.addEventListener('click', e => {
 //   not applied -> opens the posting in a new tab AND marks it applied (row dims)
 //   applied     -> undo (row back to normal, un-recorded), no new tab
 // People rows and nav links are untouched.
+// Callback subject -> open the exact email in Gmail (never toggles the row).
+document.addEventListener('click', e => {
+  const l = e.target.closest('.cblink');
+  if (!l) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (l.dataset.href) window.open(l.dataset.href, '_blank');
+}, true);
 document.addEventListener('click', e => {
   if (e.target.closest('.ract button') || e.target.closest('.copybtn')
-      || e.target.closest('[data-deadcheck]')) return;
+      || e.target.closest('.cblink') || e.target.closest('[data-deadcheck]')) return;
   const row = e.target.closest('a.row');
   if (!row || !row.dataset.co) return;          // only job rows carry data-co
   e.preventDefault();
@@ -1177,11 +1187,28 @@ def _app_row(a: dict, cls: str, pill: str, pill_cls: str, why: str, cap: bool,
                  else " v-hi" if score >= 8 else " v-mid" if score >= 6 else " v-lo")
     done_cls = " rowdone" if is_applied else ""
     cyc = ' data-cyc="applied"' if is_applied else ""
+    # Email callbacks (inbox command): show the latest one under the role; the
+    # subject deep-links to the exact email in Gmail. Full history in the hover.
+    # Color law: green only on do-now (interview/oa/offer need action), amber on
+    # waiting (replied), plain ink for rejected.
+    cbs = a.get("callbacks") or []
+    if cbs:
+        latest = _latest_cb(a)
+        cb_cls = (" cb-go" if latest.get("type") in ("interview", "oa", "offer")
+                  else " cb-hold" if latest.get("type") == "replied" else "")
+        hist = "\n".join(f"{c.get('date', '')} {c.get('type', '')}: {c.get('subject', '')}"
+                         for c in sorted(cbs, key=lambda c: c.get("date") or ""))
+        cbline = (f'<div class="r cbline{cb_cls}" title="{esc(hist)}">'
+                  f'{esc(latest.get("type", ""))} {esc(_pretty_date(latest.get("date") or ""))} '
+                  f'<span class="cblink" role="link" data-href="{esc(latest.get("link") or "")}" '
+                  f'title="open this email in Gmail">{esc(latest.get("subject") or "")}</span></div>')
+    else:
+        cbline = ""
     return (f'<a class="row {cls}{hide}{done_cls}"{grp}{data}{cyc} href="{url}" target="_blank">'
             f'{minus}'
             f'<span class="mono">{esc(_monogram(a.get("company", "?")))}</span>'
             f'<span class="who" title="{esc(a.get("company") or "")}: {esc(a.get("role") or "")}">'
-            f'<b>{esc(a.get("company"))}</b><div class="r">{esc(a.get("role"))}</div></span>'
+            f'<b>{esc(a.get("company"))}</b><div class="r">{esc(a.get("role"))}</div>{cbline}</span>'
             f'{fit}<span class="cell c-tats{tats_cls}">{tats if tats is not None else ""}</span>'
             f'<span class="cell c-score{score_cls}">{f"{score}/10" if score is not None else ""}</span>'
             f'<span class="cell c-date" title="{esc(timeline)}">{posted}'
@@ -1219,6 +1246,20 @@ def _progress_line(touches_today: int, apps_today: int) -> str:
     if not parts:
         return ""
     return f'<div class="progress"><b>Today so far:</b> {", ".join(parts)}.</div>'
+
+
+def _glance_callbacks_line() -> str:
+    """One home-page line when callbacks need the user, linking to /apply."""
+    ups, owed = _callbacks_glance()
+    if not ups and not owed:
+        return ""
+    bits = []
+    if ups:
+        bits.append(f"{ups} interview{'s' if ups != 1 else ''} to act on")
+    if owed:
+        bits.append(f"{owed} repl{'ies' if owed != 1 else 'y'} owed")
+    return (f'<div class="progress"><a href="/apply" style="color:inherit">'
+            f'<b>Callbacks:</b> {esc(", ".join(bits))}.</a></div>')
 
 
 def render_entry() -> str:
@@ -1285,6 +1326,7 @@ def render_entry() -> str:
   <h1 id="typer" data-a="{esc(head_a)}" data-b="{esc(head_b)}">{esc(head_a)}<em>{esc(head_b)}</em></h1>
   <div class="sub">{esc(story['teaser'])}</div>
   {_progress_line(touches_today, apps_today)}
+  {_glance_callbacks_line()}
   <div class="doors">
     <a class="door" href="/apply"><h3>Applications</h3>
       <p>tailored, verified, ready to send</p><div class="cue">{f"{n_ready} ready" if n_ready else "sweep runs tonight"}</div></a>
@@ -1333,8 +1375,17 @@ def _catalog() -> tuple[str, dict]:
             acts = '<button data-api="remove">hide</button>'
         elif a.get("status") in _dash._SUBMITTED:
             _at = a.get("applied_date") or ""
-            b, pcls = "applied", "p-mut"
-            pill = f"applied {_at[11:16]}" if len(_at) >= 16 else "applied"
+            b = "applied"
+            st = a.get("status")
+            if st in ("interview", "oa", "offer"):
+                pill, pcls = st, "p-go"          # green: needs action now
+            elif st == "replied":
+                pill, pcls = "replied", "p-hold"  # amber: waiting
+            elif st == "rejected":
+                pill, pcls = "rejected", "p-mut"
+            else:
+                pcls = "p-mut"
+                pill = f"applied {_at[11:16]}" if len(_at) >= 16 else "applied"
             acts = '<button data-api="unapplied">undo</button><button data-api="reveal">resume</button>'
         elif a.get("status") == "skipped":
             b, pill, pcls = "skipped", "skipped", "p-mut"
@@ -1365,6 +1416,166 @@ def _catalog_section() -> str:
             f'<div class="rows" id="catalog">{THEAD}{rows}</div>')
 
 
+# ------------------------------------------------------------------ callbacks
+
+_CB_RANK = {"offer": 6, "rejected": 5, "interview": 4, "oa": 3, "replied": 2,
+            "ack": 1}
+
+
+def _latest_cb(a: dict) -> dict | None:
+    """The row's most recent callback BY DATE (append order is processing
+    order, newest thread first, so the list tail can be the OLDEST record).
+    Same-day ties resolve to the weightier type (a rejection beats a reply)."""
+    cbs = a.get("callbacks") or []
+    if not cbs:
+        return None
+    return max(cbs, key=lambda c: (c.get("date") or "",
+                                   _CB_RANK.get(c.get("type"), 0)))
+
+
+def _pretty_dtstart(iso: str) -> str:
+    """'2026-08-25T12:00Z' -> 'Tue Aug 25, 12:00'; '2026-08-25' -> 'Tue Aug 25'."""
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?", iso or "")
+    if not m:
+        return ""
+    y, mo, d, hh, mm = m.groups()
+    try:
+        dt = datetime(int(y), int(mo), int(d))
+    except ValueError:
+        return ""
+    out = f"{dt.strftime('%a %b')} {int(d)}"
+    return f"{out}, {hh}:{mm}" if hh else out
+
+
+def _days_since(iso_date: str) -> int | None:
+    try:
+        return (date.today() - date.fromisoformat((iso_date or "")[:10])).days
+    except ValueError:
+        return None
+
+
+def _callback_stats(apps: list[dict]) -> dict:
+    """Header numbers for the Callbacks lane. Rate = rows with any callback out
+    of rows in a submitted-side status."""
+    live = [a for a in apps if not a.get("removed")]
+    submitted = [a for a in live if a.get("status") in _dash._SUBMITTED]
+    with_cb = [a for a in live if a.get("callbacks")]
+    # An automated application-received ack is a receipt, not a callback: every
+    # header number counts only real responses (reply/oa/interview/reject/offer).
+    def _real(a: dict) -> bool:
+        return any(c.get("type") != "ack" for c in a.get("callbacks") or [])
+    total = sum(1 for a in live for c in a.get("callbacks") or []
+                if c.get("type") != "ack")
+    hit = sum(1 for a in submitted if _real(a))
+    rate = round(100 * hit / len(submitted), 1) if submitted else 0.0
+    interviews = sum(1 for a in with_cb
+                     if (_latest_cb(a) or {}).get("type") in ("interview", "oa", "offer"))
+    owed = sum(1 for a in with_cb if (_latest_cb(a) or {}).get("needs_reply"))
+    cutoff = (date.today() - timedelta(days=30)).isoformat()
+    last30 = sum(1 for a in with_cb for c in a["callbacks"]
+                 if (c.get("date") or "") >= cutoff and c.get("type") != "ack")
+    by_src: dict[str, list[int]] = {}
+    for a in submitted:
+        src = (a.get("source") or "?")[:14]
+        n = by_src.setdefault(src, [0, 0])
+        n[0] += 1
+        if _real(a):
+            n[1] += 1
+    srcs = sorted(by_src.items(), key=lambda kv: -kv[1][0])[:3]
+    src_line = ", ".join(f"{s} {round(100 * c / n)}%" for s, (n, c) in srcs if n)
+    return {"total": total, "rate": rate, "interviews": interviews, "owed": owed,
+            "last30": last30, "src_line": src_line}
+
+
+def _neg_date_str(stamp: str) -> tuple:
+    """Sortable inversion of an ISO date string (most recent first)."""
+    return tuple(-ord(ch) for ch in stamp)
+
+
+def _callback_lane_entries(apps: list[dict]) -> list[tuple]:
+    """(row, cb, pill, pill_cls, row_cls, why, closed) ordered: act-now first
+    (green; interviews with a VEVENT time as an agenda, soonest first), replies
+    owed next (amber), acks/waiting, rejections last (behind the fold)."""
+    act, owed, waiting, closed = [], [], [], []
+    for a in apps:
+        if a.get("removed"):
+            continue
+        cb = _latest_cb(a)
+        if not cb:
+            continue
+        t = cb.get("type") or ""
+        since = _days_since(cb.get("date") or "")
+        ago = f"{since}d ago" if since not in (None, 0) else ("today" if since == 0 else "")
+        if t in ("interview", "oa", "offer"):
+            # Only a FUTURE event time is an agenda item; a past or bogus
+            # dtstart must never float a row to the top of the lane.
+            ds = cb.get("dtstart") or ""
+            future = ds[:10] >= date.today().isoformat()
+            when = _pretty_dtstart(ds) if (ds and future) else ""
+            why = when or ago
+            sort_key = (0, ds) if (ds and future) else (1, _neg_date_str(cb.get("date") or ""))
+            act.append((sort_key, a, cb, t, "p-go", "go", why))
+        elif cb.get("needs_reply"):
+            owed.append((-(since or 0), a, cb, "reply owed", "p-hold", "", ago))
+        elif t == "rejected":
+            closed.append((cb.get("date") or "", a, cb, "rejected", "p-mut", "", ago))
+        else:
+            label = "acknowledged" if t == "ack" else "waiting on them"
+            waiting.append((cb.get("date") or "", a, cb, label, "p-mut", "", ago))
+    act.sort(key=lambda x: x[0])
+    owed.sort(key=lambda x: x[0])          # most days owed first
+    waiting.sort(key=lambda x: x[0], reverse=True)
+    closed.sort(key=lambda x: x[0], reverse=True)
+    out = [(a, cb, pill, pcls, rcls, why, False)
+           for _, a, cb, pill, pcls, rcls, why in act + owed + waiting]
+    out += [(a, cb, pill, pcls, rcls, why, True)
+            for _, a, cb, pill, pcls, rcls, why in closed]
+    return out
+
+
+def _callbacks_glance() -> tuple[int, int]:
+    """(interviews or OAs or offers upcoming, replies owed) for the home page."""
+    s = _callback_stats(tracker.list_applications())
+    return s["interviews"], s["owed"]
+
+
+def _callbacks_lane(apps: list[dict] | None = None) -> str:
+    """The Callbacks lane on /apply: same row component and fold behavior as the
+    other lanes. Collapses to nothing when no callbacks exist yet."""
+    if apps is None:
+        apps = tracker.list_applications()
+    entries = _callback_lane_entries(apps)
+    if not entries:
+        return ""
+    s = _callback_stats(apps)
+    n_closed = sum(1 for e in entries if e[6])
+    rows = ""
+    shown = 0
+    for a, cb, pill, pcls, rcls, why, is_closed in entries:
+        hide = "cbk" if (is_closed or shown >= 5) else ""
+        if not hide:
+            shown += 1
+        acct = cb.get("account") or ""
+        full_why = " · ".join(x for x in (why, f"via {acct}" if acct else "") if x)
+        rows += _app_row(a, rcls, pill, pcls, full_why, hide)
+    fold = ""
+    if len(entries) > shown:
+        label = f"show all ({len(entries) - shown} more" + \
+                (f", {n_closed} closed" if n_closed else "") + ")"
+        fold = f'<div class="more" data-for="cbk">{label}</div>'
+    bits = [f"callback rate {s['rate']} percent"]
+    if s["interviews"]:
+        bits.append(f"{s['interviews']} to act on")
+    if s["owed"]:
+        bits.append(f"{s['owed']} repl{'ies' if s['owed'] != 1 else 'y'} owed")
+    bits.append(f"{s['last30']} in last 30 days")
+    if s["src_line"]:
+        bits.append(f"by source: {s['src_line']}")
+    return (f'<div class="sech"><h2>Callbacks</h2>'
+            f'<span class="n">{esc(", ".join(bits))}</span></div>'
+            f'<div class="rows">{THEAD}{rows}{fold}</div>')
+
+
 def render_apply() -> str:
     apps = _app_rows()
     ready, fresh = apps["ready"], apps["fresh"]
@@ -1389,6 +1600,7 @@ def render_apply() -> str:
   <input id="q" class="search" type="search" placeholder="Search company, role, track">
   <div class="sech"><h2>Ready</h2><span class="n">{min(len(ready),5)} of {len(ready)} shown, best first</span></div>
   <div class="rows" id="readybox"><div class="thead"><span style="width:80px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-st">Status</span></div>{rows or '<div class="row"><span class="why">Nothing waiting here. Run the sweep to find the latest jobs, or paste a posting below.</span></div>'}</div>
+  {_callbacks_lane()}
   <div class="sech"><h2>Fresh finds</h2><span class="n">today's sweep, 70+ fit only</span>
     <button class="runbtn" onclick="fetch('/api/run-pipeline').then(r => r.json()).then(d => this.textContent = 'running').catch(() => this.textContent = 'needs server')">run sweep</button></div>
   <div class="rows"><div class="thead"><span style="width:80px"></span><span class="h-who sortable" data-key="co">Company / Role</span><span class="h-fit sortable" data-key="fit">Fit</span><span class="h-tats sortable" data-key="tats">Tailored</span><span class="h-score sortable" data-key="score">Score</span><span class="h-date sortable" data-key="posted">Posted</span><span class="h-prof sortable" data-key="prof">Track</span><span class="h-st">Status</span></div>{frows or '<div class="row"><span class="why">No fresh high-fit roles today.</span></div>'}</div>
