@@ -222,7 +222,13 @@
       "name": "Amazon",
       "tier": "big-tech",
       "sponsors_h1b": true,
-      "board": "https://www.amazon.jobs/en/search?base_query=software+development+engineer&sort=recent"
+      "board": "https://www.amazon.jobs/en/search?base_query=software+development+engineer&sort=recent",
+      "scrape": {
+        "url": "https://www.amazon.jobs/en/search?base_query=machine+learning+engineer&sort=recent",
+        "wait": 5,
+        "max": 40,
+        "assume_recent": true
+      }
     },
     {
       "name": "Google",
@@ -256,7 +262,13 @@
       "name": "Apple",
       "tier": "big-tech",
       "sponsors_h1b": true,
-      "board": "https://jobs.apple.com/en-us/search?sort=newest&key=software%20engineer"
+      "board": "https://jobs.apple.com/en-us/search?sort=newest&key=software%20engineer",
+      "scrape": {
+        "url": "https://jobs.apple.com/en-us/search?search=machine+learning+engineer&sort=newest",
+        "wait": 5,
+        "max": 40,
+        "assume_recent": true
+      }
     },
     {
       "name": "NVIDIA",
@@ -371,6 +383,161 @@
       "ats": "smartrecruiters",
       "token": "servicenow",
       "board": "https://jobs.smartrecruiters.com/servicenow"
+    },
+    {
+      "name": "Anduril",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "andurilindustries",
+      "board": ""
+    },
+    {
+      "name": "Runway",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "runwayml",
+      "board": ""
+    },
+    {
+      "name": "Vercel",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "vercel",
+      "board": ""
+    },
+    {
+      "name": "Rippling",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "rippling",
+      "board": ""
+    },
+    {
+      "name": "Sourcegraph",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "sourcegraph",
+      "board": ""
+    },
+    {
+      "name": "Airtable",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "airtable",
+      "board": ""
+    },
+    {
+      "name": "Verkada",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "verkada",
+      "board": ""
+    },
+    {
+      "name": "Cruise",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "cruise",
+      "board": ""
+    },
+    {
+      "name": "Nuro",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "greenhouse",
+      "token": "nuro",
+      "board": ""
+    },
+    {
+      "name": "Harvey",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "harvey",
+      "board": ""
+    },
+    {
+      "name": "Hebbia",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "hebbia",
+      "board": ""
+    },
+    {
+      "name": "Sierra",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "sierra",
+      "board": ""
+    },
+    {
+      "name": "Anysphere",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "anysphere",
+      "board": ""
+    },
+    {
+      "name": "Perplexity",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "perplexity",
+      "board": ""
+    },
+    {
+      "name": "Mistral",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "mistralai",
+      "board": ""
+    },
+    {
+      "name": "Cohere",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "cohere",
+      "board": ""
+    },
+    {
+      "name": "Together AI",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "togetherai",
+      "board": ""
+    },
+    {
+      "name": "Modal",
+      "tier": "ai",
+      "sponsors_h1b": true,
+      "ats": "ashby",
+      "token": "modal-labs",
+      "board": ""
+    },
+    {
+      "name": "Netflix",
+      "tier": "big-tech",
+      "sponsors_h1b": true,
+      "scrape": {
+        "url": "https://explore.jobs.netflix.net/careers?query=machine%20learning%20engineer&sort_by=new",
+        "wait": 5,
+        "max": 40,
+        "assume_recent": true
+      }
     }
   ]
 }

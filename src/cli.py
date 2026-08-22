@@ -176,9 +176,28 @@ def cmd_pipeline(hours: int, top: int, profile: str | None, brain_mode: str | No
         # Pre-gate the WHOLE backlog with the cheap keyword scorer before picking the
         # top N, so tailoring slots go to the best-fit roles first instead of whatever
         # happens to be most recent in the tracker.
+        # Thin-JD backfill: a stub jd_text (LinkedIn card snippet etc.) makes a great
+        # role score near zero, so re-fetch via the ATS JSON APIs (no browser) first.
+        from .tools import jd_fetch
+        for a in backlog:
+            if len(a.get("jd_text") or "") < 600 and a.get("url"):
+                try:
+                    r = jd_fetch.fetch_jd(a["url"], allow_browser=False)
+                    if len(r.get("text", "")) > 600:
+                        a["jd_text"] = r["text"]
+                        tracker.update_application(a["url"], jd_text=r["text"])
+                except Exception:
+                    pass
+        _ML_TITLE = ("ml", "machine learning", "ai engineer", "ai/", "applied ai",
+                     "llm", "genai", "agent", "forward deployed")
         for a in backlog:
             jd = a.get("jd_text")
-            a["_pregate"] = ats.jd_match(jd)["score"] if jd else -1
+            score = ats.jd_match(jd)["score"] if jd else -1
+            # ml_ai preference: keyword counting favors long generic SDE JDs, so
+            # role-family-matched titles get a ranking boost (score, not fit, changes).
+            if score >= 0 and any(k in (a.get("role") or "").lower() for k in _ML_TITLE):
+                score += 15
+            a["_pregate"] = score
         backlog.sort(key=lambda a: a["_pregate"], reverse=True)
         jobs = backlog[:top]
         print(f"=== PIPELINE: {len(jobs)} previously found roles (pre-gate ranked) "
@@ -456,6 +475,18 @@ def cmd_people(query: str | None, force: bool, brain_mode: str | None) -> None:
               f"Answer them and re-run this command.")
 
 
+def cmd_inbox(days: int, dry_run: bool, limit: int, reprocess: bool = False) -> None:
+    """Pull recent email over IMAP, find job-application callbacks, update the
+    tracker, print a digest. No key needed for the core flow; an available brain
+    only classifies the genuinely ambiguous leftovers."""
+    from .tools import inbox
+    brain = None if dry_run else get_brain(config.brain_mode())
+    result = inbox.run_inbox(days=days, dry_run=dry_run, limit=limit, brain=brain,
+                             reprocess=reprocess)
+    if result.get("ok") and not dry_run:
+        dash.render()
+
+
 def cmd_status(verbose: bool = False) -> None:
     apps = tracker.list_applications()
     if not apps:
@@ -686,6 +717,20 @@ def main(argv: list[str] | None = None) -> None:
     p_people.add_argument("--force", action="store_true", help="ignore the 30-day cache")
     p_people.add_argument("--brain", choices=["api", "manual"], default=None)
 
+    p_inbox = sub.add_parser("inbox",
+                             help="Pull recent email over IMAP, track callbacks "
+                                  "(interviews, rejections, OAs, offers), print a digest")
+    p_inbox.add_argument("--days", type=int, default=None,
+                         help="look back this many days (default: settings.json "
+                              "inbox.days, else 14)")
+    p_inbox.add_argument("--dry-run", action="store_true",
+                         help="show what would change without writing anything")
+    p_inbox.add_argument("--limit", type=int, default=200,
+                         help="max emails per account to scan")
+    p_inbox.add_argument("--reprocess", action="store_true",
+                         help="ignore the seen-file and correct existing callback "
+                              "records in place (same msgid replaces, never duplicates)")
+
     p_status = sub.add_parser("status", help="Show application history")
     p_status.add_argument("--verbose", action="store_true")
     p_dash = sub.add_parser("dashboard", help="Regenerate the scores dashboard")
@@ -742,6 +787,8 @@ def main(argv: list[str] | None = None) -> None:
         cmd_scout(args.query, args.hours, args.h1b, args.limit, args.save)
     elif args.command == "people":
         cmd_people(args.company, args.force, args.brain)
+    elif args.command == "inbox":
+        cmd_inbox(args.days, args.dry_run, args.limit, args.reprocess)
     elif args.command == "status":
         cmd_status(verbose=args.verbose)
     elif args.command == "dashboard":

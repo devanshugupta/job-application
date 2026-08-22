@@ -53,6 +53,34 @@ Never fabricate; confirm before anything irreversible; commit messages short, no
 
 ## 2. Standing rules
 
+- **Sources — run ALL of these every pass (proven Aug 22 2026: the default
+  watchlist+newgrad-feed sweep missed every 8/10 of the day; the 8s came from the
+  other sources):**
+  1. `discover --hours 24 --target 200` (watchlist ATS boards + feeds)
+  2. `discover --hours 24 --source scoutbetter`
+  3. `discover --hours 48 --source all_ats` (mega sweep, ~16k boards — the single
+     best ml_ai source; Vouch/Magic Patterns/Pokee came from here)
+  4. `MAX_HOURS=24 .venv/bin/python scripts/linkedin_fresh.py` (guest API, no login)
+  5. Optional: `--source careers` (browser scrape; Amazon/Apple/Microsoft/Netflix
+     scrape blocks in watchlist.json; slow — only when volume is short)
+- **JD backfill before ranking/tailoring (thin-JD trap):** any found row with
+  `jd_text < 600` chars must be re-fetched via `jd_fetch.fetch_jd(url,
+  allow_browser=False)` BEFORE pre-gate scoring — stub JDs make great roles score
+  ~0 and sink. (Now automatic in `pipeline --from-tracker`; do it manually when
+  hand-staging waves.) Also sanity-check JDs: LinkedIn attach can mis-pair a JD
+  with the wrong posting — if the JD reads like a different company/role, re-fetch.
+- **Selection gate — tailor NOTHING that can't honestly reach 7 (Aug 22 evidence:
+  feed batch = 14 of 25 at ≤6; gated ml_ai batch = 8 of 8 rendered at 7+):**
+  skip before tailoring when the JD's CORE is frontend/React/TypeScript-led,
+  Java-Spring-led, embedded/firmware/hardware, robotics (SLAM/ROS), security-core,
+  QA-tooling (Selenium/JMeter), OR the req is internal-gated (e.g. "completion of
+  <company>'s internship" as a minimum) — a resume cannot fix role-intent mismatch.
+  Citizenship/clearance/ITAR/no-sponsorship gates are auto-skipped by tailor.py.
+  Rendered scores ≤6 do NOT go into the Ready lane — prune them (removed=True,
+  reason noted).
+- **ml_ai first:** the cheap keyword ranker favors long generic SDE JDs; ml_ai
+  titles now get a +15 pre-gate bonus in code. When hand-picking, fill slots with
+  agents/RAG/LLM/eval/applied-AI roles before generic SWE/DE.
 - **Honesty is inviolable.** Every bullet must survive a 5-minute interview deep-dive.
   Never invent skills, metrics, tools, employers, or scope. "9+" is a **filter, not a
   target** — score mismatches down (4–5) and name the gap.
